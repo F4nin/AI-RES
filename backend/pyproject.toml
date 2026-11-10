@@ -1,0 +1,85 @@
+[project]
+name = "ai-res-backend"
+version = "0.0.0"
+description = "AI RES modular monolith backend (S02: skeleton and platform primitives)"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+  "fastapi>=0.115",
+  "pydantic>=2.9",
+  "starlette>=0.40",
+  "uvicorn>=0.32",
+  "uuid-utils>=0.10",
+  "opentelemetry-api>=1.27",
+  "opentelemetry-sdk>=1.27",
+]
+
+[dependency-groups]
+dev = [
+  "pytest>=8",
+  "pytest-asyncio>=0.24",
+  "httpx>=0.27",
+  "hypothesis>=6.100",
+  "ruff>=0.7",
+  "mypy>=1.13",
+  "import-linter>=2.1",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ai_res"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.ruff]
+line-length = 160
+target-version = "py313"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S", "SIM"]
+ignore = ["S101"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S603", "S404"]
+
+[tool.mypy]
+strict = true
+python_version = "3.13"
+mypy_path = "src"
+packages = ["ai_res"]
+
+[tool.importlinter]
+root_package = "ai_res"
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "No ORM / DB driver in API and platform layers"
+type = "forbidden"
+source_modules = ["ai_res.api", "ai_res.platform"]
+forbidden_modules = ["sqlalchemy", "psycopg", "alembic"]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "LLM provider SDKs only inside ai_res.llm.adapters"
+type = "forbidden"
+source_modules = ["ai_res.api", "ai_res.platform", "ai_res.modules", "ai_res.llm"]
+forbidden_modules = ["openai", "anthropic", "google", "litellm", "boto3"]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "Platform primitives do not depend on application layers"
+type = "forbidden"
+source_modules = ["ai_res.platform"]
+forbidden_modules = ["ai_res.api", "ai_res.modules", "ai_res.llm"]
+
+[[tool.importlinter.contracts]]
+name = "Domain modules do not import the API layer"
+type = "forbidden"
+source_modules = ["ai_res.modules"]
+forbidden_modules = ["ai_res.api"]
