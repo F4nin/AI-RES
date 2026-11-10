@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "context7": {
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp@4.6.0"]
+    },
+    "serena": {
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/oraios/serena@v2.1.0", "serena", "start-mcp-server", "--context", "ide-assistant", "--project", "/Users/ekaterinamarusova/AI-RES-Workspace/AI-RES"]
+    }
+  }
+}
