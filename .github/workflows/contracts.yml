@@ -1,0 +1,21 @@
+name: contracts
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  contracts:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }   # TODO(S03): pin actions by commit SHA (THR-017)
+      - uses: actions/setup-node@v4
+        with: { node-version-file: contracts/.nvmrc }
+      - run: curl -LsSf https://astral.sh/uv/install.sh | sh   # TODO(S03): replace with pinned installer
+      - name: baseline snapshot must not change in the same PR as the contract (owner approval required)
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch --depth=1 origin ${{ github.base_ref }}
+          git diff --exit-code FETCH_HEAD -- contracts/baseline
+      - run: make contracts-install
+      - run: make contracts-check
+      - run: make contracts-test

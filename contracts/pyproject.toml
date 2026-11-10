@@ -1,0 +1,18 @@
+[project]
+name = "ai-res-contracts-tools"
+version = "0.0.0"
+description = "Validation tooling for AI RES contracts (S01, ADR-004)"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+  "openapi-spec-validator>=0.8",
+  "jsonschema>=4.24",
+  "referencing>=0.36",
+  "pyyaml>=6",
+]
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["tools"]

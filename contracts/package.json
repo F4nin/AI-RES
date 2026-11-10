@@ -1,0 +1,11 @@
+{
+  "name": "ai-res-contracts-tooling",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Pinned validators for AI RES contracts (S01, ADR-004)",
+  "engines": { "node": ">=22" },
+  "devDependencies": {
+    "@asyncapi/specs": "6.11.1",
+    "@stoplight/spectral-cli": "6.14.2"
+  }
+}

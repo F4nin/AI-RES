@@ -1,0 +1,29 @@
+extends: ["spectral:oas"]
+functions: [idempotencyKey, ifMatch, cursorList, noOffset, problemDetails]
+functionsDir: ./spectral-functions
+rules:
+  aires-idempotency-key:
+    description: Side-effecting POST requires Idempotency-Key.
+    severity: error
+    given: "$.paths[*].post"
+    then: { function: idempotencyKey }
+  aires-if-match:
+    description: Version-sensitive writes require If-Match.
+    severity: error
+    given: ["$.paths[*].patch", "$.paths[*].put"]
+    then: { function: ifMatch }
+  aires-cursor-pagination:
+    description: list operations must use cursor and limit.
+    severity: warn
+    given: "$.paths[*].get"
+    then: { function: cursorList }
+  aires-no-offset-pagination:
+    description: Offset/page pagination is forbidden.
+    severity: error
+    given: "$.paths[*].get"
+    then: { function: noOffset }
+  aires-problem-details:
+    description: Errors use RFC 9457 Problem Details.
+    severity: error
+    given: "$.paths[*][*].responses"
+    then: { function: problemDetails }

@@ -1,0 +1,1003 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aires.example/schemas/worker-contracts/1.1",
+  "title": "AI RES Worker Contracts",
+  "description": "Versioned WorkerRun input, result and notice contracts.",
+  "$defs": {
+    "EvidenceReference": {
+      "type": "object",
+      "required": [
+        "objectType",
+        "objectId"
+      ],
+      "properties": {
+        "objectType": {
+          "type": "string"
+        },
+        "objectId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "versionId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "fragmentId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "locator": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "quote": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 2000
+        },
+        "checksum": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "AcceptanceCriterion": {
+      "type": "object",
+      "required": [
+        "criterionId",
+        "description",
+        "verificationMethod"
+      ],
+      "properties": {
+        "criterionId": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "verificationMethod": {
+          "type": "string",
+          "enum": [
+            "MANAGER_REVIEW",
+            "INDEPENDENT_QA",
+            "SCHEMA_VALIDATION",
+            "TEST_EXECUTION",
+            "HUMAN_REVIEW",
+            "OTHER"
+          ]
+        },
+        "mandatory": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "WorkerRunEnvelope": {
+      "type": "object",
+      "required": [
+        "contractVersion",
+        "workerRunId",
+        "organizationId",
+        "projectId",
+        "epicId",
+        "taskId",
+        "workerDefinitionId",
+        "workerRole",
+        "contextPackageVersionId",
+        "contextChecksum",
+        "goal",
+        "scope",
+        "expectedOutputSchema",
+        "acceptanceCriteria",
+        "allowedTools",
+        "correlationId",
+        "attempt",
+        "idempotencyKey",
+        "runPurpose"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "1.1"
+        },
+        "workerRunId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "projectId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "epicId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "taskId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "workerDefinitionId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "workerRole": {
+          "type": "string",
+          "enum": [
+            "ELICITATION",
+            "RESEARCH",
+            "BUSINESS_ANALYSIS",
+            "REQUIREMENTS",
+            "SYSTEM_ANALYSIS",
+            "API_INTEGRATION",
+            "MODELING_DIAGRAM_VALIDATION",
+            "QUALITY_ASSURANCE",
+            "TRACEABILITY_CHANGE"
+          ]
+        },
+        "runtimeProfileVersion": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "planVersionId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "contextPackageVersionId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "contextChecksum": {
+          "type": "string",
+          "minLength": 16
+        },
+        "goal": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scope": {
+          "type": "object",
+          "properties": {
+            "included": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "excluded": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "constraints": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "assumptions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "dependencyRefs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "inputRefs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EvidenceReference"
+          }
+        },
+        "expectedOutputSchema": {
+          "type": "object",
+          "required": [
+            "schemaId",
+            "schemaVersion"
+          ],
+          "properties": {
+            "schemaId": {
+              "type": "string"
+            },
+            "schemaVersion": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "acceptanceCriteria": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/AcceptanceCriterion"
+          }
+        },
+        "allowedTools": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "toolId",
+              "version",
+              "operations"
+            ],
+            "properties": {
+              "toolId": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string"
+              },
+              "operations": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "grantRef": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uuid"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "budget": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "timeoutSeconds": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "maxModelCalls": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "maxTokens": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "maxCost": {
+              "type": "number",
+              "minimum": 0
+            },
+            "currency": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 3
+            }
+          },
+          "additionalProperties": false
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "traceparent": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "attempt": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 16,
+          "maxLength": 128
+        },
+        "runPurpose": {
+          "type": "string",
+          "enum": [
+            "PRIMARY",
+            "CONSULTATION",
+            "DELEGATED_SUBTASK",
+            "INDEPENDENT_QA",
+            "HANDOFF"
+          ]
+        },
+        "parentWorkerRunId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "coordinationRequestId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "reviewId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        }
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "runPurpose": {
+                "const": "CONSULTATION"
+              }
+            },
+            "required": [
+              "runPurpose"
+            ]
+          },
+          "then": {
+            "required": [
+              "parentWorkerRunId",
+              "coordinationRequestId"
+            ],
+            "properties": {
+              "parentWorkerRunId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "coordinationRequestId": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "runPurpose": {
+                "const": "DELEGATED_SUBTASK"
+              }
+            },
+            "required": [
+              "runPurpose"
+            ]
+          },
+          "then": {
+            "required": [
+              "parentWorkerRunId",
+              "coordinationRequestId"
+            ],
+            "properties": {
+              "parentWorkerRunId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "coordinationRequestId": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "runPurpose": {
+                "const": "HANDOFF"
+              }
+            },
+            "required": [
+              "runPurpose"
+            ]
+          },
+          "then": {
+            "required": [
+              "parentWorkerRunId",
+              "coordinationRequestId"
+            ],
+            "properties": {
+              "parentWorkerRunId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "coordinationRequestId": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "runPurpose": {
+                "const": "INDEPENDENT_QA"
+              }
+            },
+            "required": [
+              "runPurpose"
+            ]
+          },
+          "then": {
+            "required": [
+              "parentWorkerRunId",
+              "reviewId"
+            ],
+            "properties": {
+              "parentWorkerRunId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "reviewId": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "Finding": {
+      "type": "object",
+      "required": [
+        "findingId",
+        "classification",
+        "statement",
+        "evidenceRefs"
+      ],
+      "properties": {
+        "findingId": {
+          "type": "string"
+        },
+        "classification": {
+          "type": "string",
+          "enum": [
+            "FACT",
+            "SOURCE_ASSERTION",
+            "CONCLUSION",
+            "HYPOTHESIS",
+            "ASSUMPTION",
+            "UNKNOWN"
+          ]
+        },
+        "statement": {
+          "type": "string"
+        },
+        "evidenceRefs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EvidenceReference"
+          }
+        },
+        "rationale": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "uncertainty": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "ProposedChange": {
+      "type": "object",
+      "required": [
+        "proposalId",
+        "targetObjectType",
+        "targetObjectId",
+        "changeType",
+        "rationale"
+      ],
+      "properties": {
+        "proposalId": {
+          "type": "string"
+        },
+        "targetObjectType": {
+          "type": "string"
+        },
+        "targetObjectId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "expectedVersionId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "changeType": {
+          "type": "string",
+          "enum": [
+            "CREATE_CANDIDATE",
+            "PROPOSE_NEW_VERSION",
+            "ADD_LINK",
+            "REMOVE_LINK_PROPOSAL",
+            "UPDATE_METADATA_PROPOSAL",
+            "CREATE_ARTIFACT_PROPOSAL"
+          ]
+        },
+        "payloadRef": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "rationale": {
+          "type": "string"
+        },
+        "impactHints": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "WorkerResult": {
+      "type": "object",
+      "required": [
+        "contractVersion",
+        "workerRunId",
+        "taskId",
+        "workerRole",
+        "resultStatus",
+        "summary",
+        "findings",
+        "proposedChanges",
+        "artifactRefs",
+        "questions",
+        "blockers",
+        "limitations",
+        "validation",
+        "completedAt"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "1.1"
+        },
+        "workerRunId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "taskId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "workerRole": {
+          "type": "string"
+        },
+        "resultStatus": {
+          "type": "string",
+          "enum": [
+            "COMPLETED",
+            "PARTIAL",
+            "BLOCKED",
+            "FAILED",
+            "CANCELLED"
+          ]
+        },
+        "summary": {
+          "type": "string"
+        },
+        "outcome": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "findings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Finding"
+          }
+        },
+        "proposedChanges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ProposedChange"
+          }
+        },
+        "artifactRefs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EvidenceReference"
+          }
+        },
+        "questions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "risks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "validation": {
+          "type": "object",
+          "required": [
+            "selfAssessment"
+          ],
+          "properties": {
+            "selfAssessment": {
+              "type": "string",
+              "enum": [
+                "PASS",
+                "PASS_WITH_LIMITATIONS",
+                "FAIL",
+                "NOT_RUN"
+              ]
+            },
+            "checks": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "checkId",
+                  "outcome"
+                ],
+                "properties": {
+                  "checkId": {
+                    "type": "string"
+                  },
+                  "outcome": {
+                    "type": "string",
+                    "enum": [
+                      "PASS",
+                      "FAIL",
+                      "WARNING",
+                      "NOT_RUN"
+                    ]
+                  },
+                  "details": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "toolExecutionRefs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "metrics": {
+          "type": "object",
+          "properties": {
+            "durationMs": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "inputTokens": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "outputTokens": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "reportedCost": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "currency": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "completedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false
+    },
+    "WorkerNotice": {
+      "type": "object",
+      "required": [
+        "contractVersion",
+        "workerRunId",
+        "noticeId",
+        "noticeType",
+        "severity",
+        "message",
+        "createdAt"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "1.1"
+        },
+        "workerRunId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "noticeId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "noticeType": {
+          "type": "string",
+          "enum": [
+            "MISSING_INFORMATION",
+            "CONFLICT_DETECTED",
+            "BLOCKER",
+            "RISK_DETECTED",
+            "CLARIFICATION_REQUEST",
+            "HANDOFF_PROPOSAL",
+            "SCOPE_CHANGE_PROPOSAL",
+            "TOOL_UNAVAILABLE",
+            "CONSULTATION_REQUEST",
+            "DELEGATED_SUBTASK_PROPOSAL"
+          ]
+        },
+        "severity": {
+          "type": "string",
+          "enum": [
+            "INFO",
+            "LOW",
+            "MEDIUM",
+            "HIGH",
+            "CRITICAL"
+          ]
+        },
+        "message": {
+          "type": "string"
+        },
+        "evidenceRefs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EvidenceReference"
+          }
+        },
+        "proposedNextAction": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "coordinationRequest": {
+          "$ref": "#/$defs/WorkerCoordinationRequest"
+        }
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "noticeType": {
+                "enum": [
+                  "CONSULTATION_REQUEST",
+                  "DELEGATED_SUBTASK_PROPOSAL",
+                  "HANDOFF_PROPOSAL"
+                ]
+              }
+            },
+            "required": [
+              "noticeType"
+            ]
+          },
+          "then": {
+            "required": [
+              "coordinationRequest"
+            ]
+          }
+        }
+      ]
+    },
+    "WorkerCoordinationRequest": {
+      "type": "object",
+      "description": "Proposal only. It is not an execution authorization; Manager decision, Policy decision and a new Readiness Gate are required.",
+      "required": [
+        "contractVersion",
+        "coordinationRequestId",
+        "sourceWorkerRunId",
+        "taskId",
+        "projectId",
+        "epicId",
+        "requestType",
+        "purpose",
+        "rationale",
+        "targetCapability",
+        "inputRefs",
+        "expectedOutputSchema",
+        "acceptanceCriteria",
+        "requestedAt",
+        "idempotencyKey"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "1.1"
+        },
+        "coordinationRequestId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "sourceWorkerRunId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "taskId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "projectId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "epicId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "requestType": {
+          "type": "string",
+          "enum": [
+            "CONSULTATION",
+            "DELEGATED_SUBTASK",
+            "HANDOFF"
+          ]
+        },
+        "purpose": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "targetCapability": {
+          "type": "string",
+          "enum": [
+            "ELICITATION",
+            "RESEARCH",
+            "BUSINESS_ANALYSIS",
+            "REQUIREMENTS",
+            "SYSTEM_ANALYSIS",
+            "API_INTEGRATION",
+            "MODELING_DIAGRAM_VALIDATION",
+            "QUALITY_ASSURANCE",
+            "TRACEABILITY_CHANGE"
+          ],
+          "description": "Requested capability only; Manager selects the actual WorkerDefinition."
+        },
+        "inputRefs": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/EvidenceReference"
+          }
+        },
+        "expectedOutputSchema": {
+          "type": "object",
+          "required": [
+            "schemaId",
+            "schemaVersion"
+          ],
+          "properties": {
+            "schemaId": {
+              "type": "string"
+            },
+            "schemaVersion": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "acceptanceCriteria": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 50,
+          "items": {
+            "$ref": "#/$defs/AcceptanceCriterion"
+          }
+        },
+        "proposedDependency": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 2000
+        },
+        "requestedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 16,
+          "maxLength": 128
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

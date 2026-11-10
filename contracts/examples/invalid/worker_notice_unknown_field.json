@@ -1,0 +1,10 @@
+{
+  "contractVersion": "1.1",
+  "workerRunId": "0191a4c2-0000-7000-8000-000000000001",
+  "noticeId": "0191a4c2-0000-7000-8000-000000000002",
+  "noticeType": "BLOCKER",
+  "severity": "HIGH",
+  "message": "Unknown field must be rejected.",
+  "createdAt": "2026-11-11T10:00:00Z",
+  "extra": true
+}

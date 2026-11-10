@@ -1,0 +1,4 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$ref": "https://aires.example/schemas/worker-contracts/1.1#/$defs/WorkerNotice"
+}

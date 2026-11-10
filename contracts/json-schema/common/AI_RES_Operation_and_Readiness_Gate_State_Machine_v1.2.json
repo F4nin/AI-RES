@@ -1,0 +1,311 @@
+{
+  "operationStatuses": [
+    "ACCEPTED",
+    "QUEUED",
+    "RUNNING",
+    "WAITING_FOR_HUMAN",
+    "WAITING_FOR_DEPENDENCY",
+    "RETRYING",
+    "CANCEL_REQUESTED",
+    "SUCCEEDED",
+    "PARTIALLY_SUCCEEDED",
+    "FAILED",
+    "CANCELLED"
+  ],
+  "terminalStatuses": [
+    "SUCCEEDED",
+    "PARTIALLY_SUCCEEDED",
+    "FAILED",
+    "CANCELLED"
+  ],
+  "transitions": {
+    "ACCEPTED": [
+      "QUEUED",
+      "FAILED",
+      "CANCELLED"
+    ],
+    "QUEUED": [
+      "RUNNING",
+      "WAITING_FOR_DEPENDENCY",
+      "FAILED",
+      "CANCEL_REQUESTED",
+      "CANCELLED"
+    ],
+    "RUNNING": [
+      "WAITING_FOR_HUMAN",
+      "WAITING_FOR_DEPENDENCY",
+      "RETRYING",
+      "CANCEL_REQUESTED",
+      "SUCCEEDED",
+      "PARTIALLY_SUCCEEDED",
+      "FAILED"
+    ],
+    "WAITING_FOR_HUMAN": [
+      "QUEUED",
+      "RUNNING",
+      "CANCEL_REQUESTED",
+      "FAILED",
+      "CANCELLED"
+    ],
+    "WAITING_FOR_DEPENDENCY": [
+      "QUEUED",
+      "RUNNING",
+      "RETRYING",
+      "CANCEL_REQUESTED",
+      "FAILED",
+      "CANCELLED"
+    ],
+    "RETRYING": [
+      "QUEUED",
+      "RUNNING",
+      "WAITING_FOR_DEPENDENCY",
+      "FAILED",
+      "CANCEL_REQUESTED",
+      "CANCELLED"
+    ],
+    "CANCEL_REQUESTED": [
+      "CANCELLED",
+      "SUCCEEDED",
+      "PARTIALLY_SUCCEEDED",
+      "FAILED"
+    ],
+    "SUCCEEDED": [],
+    "PARTIALLY_SUCCEEDED": [],
+    "FAILED": [],
+    "CANCELLED": []
+  },
+  "readinessOutcomes": [
+    "READY",
+    "READY_WITH_LIMITATIONS",
+    "BLOCKED",
+    "STALE"
+  ],
+  "readinessEvaluationStatuses": [
+    "COMPLETED",
+    "EVALUATOR_ERROR"
+  ],
+  "checkResults": [
+    "PASS",
+    "FAIL",
+    "WARN",
+    "NOT_APPLICABLE"
+  ],
+  "checkSeverity": [
+    "INFO",
+    "LOW",
+    "MEDIUM",
+    "HIGH",
+    "CRITICAL"
+  ],
+  "invariants": [
+    "Only READY and READY_WITH_LIMITATIONS with evaluationStatus COMPLETED can pass the final pre-start revalidation.",
+    "READY_WITH_LIMITATIONS requires enforceable limitations in the WorkerRun envelope and grants.",
+    "Any mandatory HIGH or CRITICAL failure blocks the run.",
+    "Policy/ACL uncertainty or evaluator error fails closed.",
+    "A readiness evaluation is immutable; a changed snapshot requires a new evaluation.",
+    "Every started WorkerRun references the exact readiness evaluation used at dispatch.",
+    "Each WorkerRun belongs to exactly one Task and one owning Operation; in MVP WorkerRun.operation_id equals Task.operation_id.",
+    "One Operation may contain many Tasks and WorkerRuns; fan-out does not automatically create child Operations.",
+    "Child Operations are independent commands and do not inherit ACL automatically.",
+    "WorkerRun terminal states are immutable; new substantive attempts create derived WorkerRuns.",
+    "Temporal Activity retry/replay does not create a new domain WorkerRun.",
+    "WorkerRun COMPLETED is not QA PASS, human Approval, Artifact approval/publication, or Baseline.",
+    "Operation aggregation is criteria-based and cannot infer success from counts alone.",
+    "CANCEL_REQUESTED is non-terminal; terminal cancellation requires side-effect reconciliation.",
+    "BLOCKED is a WorkerRun state; STALE is a ReadinessEvaluation outcome; evaluator error fails closed."
+  ],
+  "version": "1.1",
+  "workerRunStatuses": [
+    "CREATED",
+    "PREPARING",
+    "WAITING_FOR_GATE",
+    "BLOCKED",
+    "QUEUED",
+    "STARTING",
+    "RUNNING",
+    "WAITING_FOR_HUMAN",
+    "WAITING_FOR_DEPENDENCY",
+    "RESULT_SUBMITTED",
+    "VALIDATING",
+    "REVIEW_PENDING",
+    "QA_PENDING",
+    "CANCEL_REQUESTED",
+    "COMPLETED",
+    "REWORK_REQUIRED",
+    "REJECTED",
+    "UNVERIFIED",
+    "FAILED",
+    "TIMED_OUT",
+    "CANCELLED"
+  ],
+  "workerRunTerminalStatuses": [
+    "COMPLETED",
+    "REWORK_REQUIRED",
+    "REJECTED",
+    "UNVERIFIED",
+    "FAILED",
+    "TIMED_OUT",
+    "CANCELLED"
+  ],
+  "workerRunTransitions": {
+    "CREATED": [
+      "PREPARING",
+      "CANCEL_REQUESTED",
+      "CANCELLED"
+    ],
+    "PREPARING": [
+      "WAITING_FOR_GATE",
+      "FAILED",
+      "CANCEL_REQUESTED"
+    ],
+    "WAITING_FOR_GATE": [
+      "QUEUED",
+      "BLOCKED",
+      "FAILED",
+      "CANCEL_REQUESTED"
+    ],
+    "BLOCKED": [
+      "WAITING_FOR_GATE",
+      "FAILED",
+      "CANCEL_REQUESTED"
+    ],
+    "QUEUED": [
+      "STARTING",
+      "CANCEL_REQUESTED",
+      "TIMED_OUT"
+    ],
+    "STARTING": [
+      "RUNNING",
+      "FAILED",
+      "CANCEL_REQUESTED",
+      "TIMED_OUT"
+    ],
+    "RUNNING": [
+      "WAITING_FOR_HUMAN",
+      "WAITING_FOR_DEPENDENCY",
+      "RESULT_SUBMITTED",
+      "FAILED",
+      "TIMED_OUT",
+      "CANCEL_REQUESTED"
+    ],
+    "WAITING_FOR_HUMAN": [
+      "RUNNING",
+      "CANCEL_REQUESTED",
+      "FAILED",
+      "TIMED_OUT"
+    ],
+    "WAITING_FOR_DEPENDENCY": [
+      "RUNNING",
+      "CANCEL_REQUESTED",
+      "FAILED",
+      "TIMED_OUT"
+    ],
+    "RESULT_SUBMITTED": [
+      "VALIDATING",
+      "FAILED",
+      "CANCEL_REQUESTED"
+    ],
+    "VALIDATING": [
+      "REVIEW_PENDING",
+      "FAILED",
+      "CANCEL_REQUESTED"
+    ],
+    "REVIEW_PENDING": [
+      "QA_PENDING",
+      "COMPLETED",
+      "REWORK_REQUIRED",
+      "REJECTED",
+      "UNVERIFIED",
+      "CANCEL_REQUESTED"
+    ],
+    "QA_PENDING": [
+      "COMPLETED",
+      "REWORK_REQUIRED",
+      "REJECTED",
+      "UNVERIFIED",
+      "CANCEL_REQUESTED"
+    ],
+    "CANCEL_REQUESTED": [
+      "CANCELLED",
+      "COMPLETED",
+      "FAILED",
+      "TIMED_OUT"
+    ],
+    "COMPLETED": [],
+    "REWORK_REQUIRED": [],
+    "REJECTED": [],
+    "UNVERIFIED": [],
+    "FAILED": [],
+    "TIMED_OUT": [],
+    "CANCELLED": []
+  },
+  "workerRunDerivationReasons": [
+    "RETRY",
+    "REWORK",
+    "NEW_CONTEXT",
+    "INDEPENDENT_REVIEW",
+    "REEXECUTION",
+    "SPECIALIST_HANDOFF"
+  ],
+  "operationAggregationRules": {
+    "fanOut": "Tasks and WorkerRuns remain under one Operation; child Operation is not created for each branch.",
+    "childOperation": "Create only for an independently observable long-running subcommand with independent result/lifecycle/cancellation or security/audit scope.",
+    "succeeded": "All required completion criteria satisfied; optional branches handled per immutable completion policy.",
+    "partiallySucceeded": "Explicitly allowed partial result with unresolved parts and limitations recorded.",
+    "failed": "Required outcome unreachable and recovery exhausted or prohibited.",
+    "cancelled": "All required active branches reconciled and cleanup confirmed; actual completed side effects override false cancellation."
+  },
+  "eventModel": {
+    "document": "AI_RES_Operation_WorkerRun_Event_Model_v1.0.md",
+    "asyncApi": "AI_RES_Domain_Events_AsyncAPI_v1.5.yaml",
+    "delivery": "AT_LEAST_ONCE",
+    "ordering": "PER_AGGREGATE_ONLY",
+    "exactlyOnce": false,
+    "outboxAtomicity": "PROJECTION_EVENT_OUTBOX_SAME_POSTGRES_TRANSACTION",
+    "inboxDeduplication": "(consumer_name,event_id)",
+    "deprecatedEventTypes": [
+      "worker_run.accepted"
+    ]
+  },
+  "operationEventTypes": [
+    "operation.accepted",
+    "operation.queued",
+    "operation.started",
+    "operation.waiting_for_human",
+    "operation.waiting_for_dependency",
+    "operation.resumed",
+    "operation.retrying",
+    "operation.cancel_requested",
+    "operation.succeeded",
+    "operation.partially_succeeded",
+    "operation.failed",
+    "operation.cancelled",
+    "operation.child_created",
+    "operation.progress_updated"
+  ],
+  "workerRunEventTypes": [
+    "worker_run.created",
+    "worker_run.preparation_started",
+    "worker_run.gate_evaluation_requested",
+    "worker_run.gate_evaluation_completed",
+    "worker_run.blocked",
+    "worker_run.queued",
+    "worker_run.started",
+    "worker_run.waiting_for_human",
+    "worker_run.waiting_for_dependency",
+    "worker_run.resumed",
+    "worker_run.result_submitted",
+    "worker_run.validation_completed",
+    "worker_run.review_requested",
+    "worker_run.qa_requested",
+    "worker_run.completed",
+    "worker_run.rework_required",
+    "worker_run.rejected",
+    "worker_run.unverified",
+    "worker_run.cancel_requested",
+    "worker_run.cancelled",
+    "worker_run.failed",
+    "worker_run.timed_out",
+    "worker_run.derived"
+  ]
+}

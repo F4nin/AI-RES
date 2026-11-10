@@ -1,0 +1,12 @@
+{
+  "manifest": "docs/architecture/AI_RES_Architecture_Baseline_Manifest_v1.2.json",
+  "sourceDir": "docs/architecture",
+  "files": [
+    {"published": "openapi/AI_RES_Public_API_v1.3.yaml", "source": "AI_RES_Public_API_v1.3.yaml"},
+    {"published": "asyncapi/AI_RES_Domain_Events_AsyncAPI_v1.6.yaml", "source": "AI_RES_Domain_Events_AsyncAPI_v1.6.yaml"},
+    {"published": "json-schema/worker/AI_RES_Worker_Contracts_v1.1.schema.json", "source": "AI_RES_Worker_Contracts_v1.1.schema.json"},
+    {"published": "json-schema/common/AI_RES_Operation_and_Readiness_Gate_Schema_v1.0.json", "source": "AI_RES_Operation_and_Readiness_Gate_Schema_v1.0.json"},
+    {"published": "json-schema/common/AI_RES_Operation_and_Readiness_Gate_State_Machine_v1.2.json", "source": "AI_RES_Operation_and_Readiness_Gate_State_Machine_v1.2.json"},
+    {"published": "json-schema/common/AI_RES_Continuous_Improvement_Contracts_Schema_v1.0.json", "source": "AI_RES_Continuous_Improvement_Contracts_Schema_v1.0.json"}
+  ]
+}
