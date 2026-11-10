@@ -73,8 +73,12 @@
 | `ai_res_owner` | Владелец объектов (NOLOGIN) | Прямой login |
 | `ai_res_migrator` | DDL в рамках deploy job | Runtime доступ к API |
 | `ai_res_api` | DML на domain tables | DDL, BYPASSRLS, TRUNCATE, DELETE без WHERE |
-| `ai_res_manager` | SELECT + limited DML | Прямой DB доступ из Manager Runtime |
-| `ai_res_worker` | SELECT + limited DML через Application Service | Прямой DB доступ из Worker Runtime |
+| `ai_res_outbox_dispatcher` | Чтение/lease/mark Outbox | DML на domain tables, DDL |
+| `ai_res_event_consumer` | Inbox + локальный эффект consumer | DDL, BYPASSRLS |
+| `ai_res_auditor` | SELECT утверждённых audit записей | Любая запись |
+| backup identity | Backup/WAL archiving | Runtime доступ |
+
+Login-роли включаются в `*_group` роли (DOC-069). Ролей `ai_res_manager` / `ai_res_worker` нет: Manager и Worker Runtime работают через Application Services (DOC-064 §10, DOC-005, DOC-019 §4; ADR-015 в `docs/implementation/ARCHITECTURE_DECISION_LOG.md`).
 
 **Manager Runtime и Worker Runtime не получают DB credentials PostgreSQL.** Всё domain write — только через Application Service.
 

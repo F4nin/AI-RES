@@ -201,6 +201,13 @@ AI RES — единая платформа полного цикла инжен�
 | Observability | `docs/architecture/AI_RES_Observability_Architecture_v1.2.md` |
 | Source & Context | `docs/architecture/AI_RES_Source_and_Context_Lifecycle_v1.3.md` |
 | Knowledge & Retrieval | `docs/architecture/AI_RES_Knowledge_Memory_Retrieval_Architecture_v1.0.md` |
-| Первичный архитектурный анализ | `docs/development/AI_RES_Initial_Architecture_Analysis_v1.0.md` |
+| Первичный архитектурный анализ | `docs/implementation/reviews/AI_RES_Initial_Architecture_Analysis_v1.0.md` |
 
 Полный перечень нормативных документов — в Registry v4.1 §2.
+
+---
+
+## 11. Управление реализацией
+
+Рабочая система реализации (ненормативная): `docs/implementation/`. Точка входа — `docs/implementation/IMPLEMENTATION_CHARTER.md`; этапы — `IMPLEMENTATION_ROADMAP.md`; исполнимые промпты этапов — `docs/implementation/increments/prompts/README.md`; состояние для продолжения работы — `docs/implementation/CONTEXT_HANDOFF.md`; инструменты контекста — `docs/implementation/tooling/README.md`.
+
