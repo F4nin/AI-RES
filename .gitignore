@@ -19,4 +19,42 @@ __pycache__/
 *.log
 .DS_Store
 
-secrets/
+# --- Secrets and keys (never commit; SOPS-encrypted files under infra/secrets/encrypted/ are the only exception, ADR-020/S03)
+/secrets/
+infra/secrets/*
+!infra/secrets/encrypted/
+*.agekey
+keys.txt
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+.netrc
+
+# --- Local Claude Code / tooling state
+.claude/settings.local.json
+.claude/settings.json.backup
+.claude/ck/
+.serena/cache/
+.serena/memories/
+.serena/project.local.yml
+
+# --- Python / test / lint caches
+__pycache__/
+*.py[cod]
+.hypothesis/
+.ruff_cache/
+.mypy_cache/
+.import_linter_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# --- Misc
+*.bak
+*.tmp
+*.swp
+.DS_Store
