@@ -1,0 +1,373 @@
+{
+  "baseline": "AI_RES Document Registry v4.1",
+  "date": "2026-11-10",
+  "status": "DESIGN_BASELINE_NOT_RUNTIME_CERTIFICATION",
+  "self_hash": "excluded_by_design",
+  "files": [
+    {
+      "path": "AI_RES_API_and_Interaction_Contracts_v1.10.md",
+      "sha256": "ad23b530365ec89181942d75d27e860114b52f1896ef9af58587c36d789386f9",
+      "bytes": 72925
+    },
+    {
+      "path": "AI_RES_Agent_Architecture_Concept_v4.6.md",
+      "sha256": "fe26c6ff48d7accccc47739100c41c38ce1b3758d030c636e6fadc9a5e105f3f",
+      "bytes": 418139
+    },
+    {
+      "path": "AI_RES_Agent_Observability_and_Evaluation_v1.2.md",
+      "sha256": "cca50d52d3c5e2cb65f51f442007b34d00d5ac5923fe85124911e253b999bcf7",
+      "bytes": 12851
+    },
+    {
+      "path": "AI_RES_Architecture_Completion_Verification_v1.2.md",
+      "sha256": "41d31ad83805b0f363314f064eca191c3ff6d6630146d3114d6040cb5879c56e",
+      "bytes": 2752
+    },
+    {
+      "path": "AI_RES_Architecture_Completion_and_Baseline_Decisions_v1.0.md",
+      "sha256": "9c730d891ddb73806aaa6895308c53557e7c46b1d15697413f1e8c44ddcbba94",
+      "bytes": 20338
+    },
+    {
+      "path": "AI_RES_Authentication_and_Session_Management_v1.1.md",
+      "sha256": "4c26bd4a6510af54e136cccf1f2bfef40bd25dd9fb2c54e76faaf5dec8e5f71f",
+      "bytes": 21449
+    },
+    {
+      "path": "AI_RES_Block_16_Design_Verification_v1.1.md",
+      "sha256": "e4a15e15d14ecf93bc2f841374f96bda0521b371827061c3d0d70eb55f48d418",
+      "bytes": 6173
+    },
+    {
+      "path": "AI_RES_Capacity_and_Load_Test_Plan_v1.0.md",
+      "sha256": "a46ef3489167e245e2a4b9540ce7636510b85beae76410c69e58ac70c6c3ffd4",
+      "bytes": 10203
+    },
+    {
+      "path": "AI_RES_Claude_Code_Implementation_Spec_v1.22.md",
+      "sha256": "43c59d98b82e9d7bfbd33ab9c12ab8223e1a01f140d85452d1d767e78c113a1a",
+      "bytes": 72312
+    },
+    {
+      "path": "AI_RES_Continuous_Improvement_Contracts_Schema_v1.0.json",
+      "sha256": "c774c53cceecf5a3b58c9459244ccb3b5f277ad65e3911b357e2487a6f87d2a8",
+      "bytes": 16366
+    },
+    {
+      "path": "AI_RES_Continuous_Improvement_Contracts_v1.1.md",
+      "sha256": "f16ca1e0e1e2b713666dee0c70e36d56a71d11e3e577f30251d5d91a556440df",
+      "bytes": 16064
+    },
+    {
+      "path": "AI_RES_Continuous_Improvement_Requirements_v1.3.md",
+      "sha256": "a368c69d7f00905dce76b4d9f6586c2a9fc6d09595fdc577f95788aa411b9340",
+      "bytes": 13358
+    },
+    {
+      "path": "AI_RES_Continuous_Improvement_and_Autonomy_Architecture_v1.3.md",
+      "sha256": "236e36626bf25eef7350198d3a2492710157372db70ad53ad41c6b42b29f2694",
+      "bytes": 22299
+    },
+    {
+      "path": "AI_RES_Cross_Document_Consistency_Audit_v2.2.md",
+      "sha256": "fa0be15036e2d5b8f9af7df2e5827f8f30dacd596f88c43ab1527f5cb3fc9743",
+      "bytes": 3108
+    },
+    {
+      "path": "AI_RES_Decisions_Assumptions_Risks_Uncertainty_v1.2.md",
+      "sha256": "883f90d8a3b2ab88f62b89d01b8184eb4e1ac1fe99149c6ad5b474fa6dee9962",
+      "bytes": 32331
+    },
+    {
+      "path": "AI_RES_Document_Registry_v4.1.md",
+      "sha256": "b19fd3c508d729b29d0bdaaf844110129bf0418e62b7d98a2b096838561b9142",
+      "bytes": 37850
+    },
+    {
+      "path": "AI_RES_Documentation_Artifacts_Lifecycle_v1.0.md",
+      "sha256": "413f09869a05188234900ce7d032db67888e06219e5ff84d54937ef372abcb43",
+      "bytes": 46391
+    },
+    {
+      "path": "AI_RES_Domain_Events_AsyncAPI_v1.6.yaml",
+      "sha256": "4394e47d0f626171561d581d55acc392494c56f274280f9920c0e7f67e3655e1",
+      "bytes": 156822
+    },
+    {
+      "path": "AI_RES_Domain_Model_and_Data_Architecture_v1.9.md",
+      "sha256": "d7a1bcff7d138a79a5d618c96030570c3975ef6a819362b98b67e744b6a1ece8",
+      "bytes": 69962
+    },
+    {
+      "path": "AI_RES_Evaluation_and_Release_Gates_v1.0.md",
+      "sha256": "3dbad9a95d641164fc9ec9db6c98b45398242d30506f796ea0a041f5f43978cd",
+      "bytes": 3139
+    },
+    {
+      "path": "AI_RES_External_Integrations_and_Project_Context_v1.2.md",
+      "sha256": "e9122c566d9b2e5420bafd5abbe23131a8a506f36ea5db428274dc57fc1c2464",
+      "bytes": 43374
+    },
+    {
+      "path": "AI_RES_Glossary_Document_Schema_v1.0.json",
+      "sha256": "6d7c4f14de36205ca2e1b0c370dd35619cecf6146886b84c0a9fdc93436b3bd2",
+      "bytes": 1090
+    },
+    {
+      "path": "AI_RES_Glossary_Entry_Schema_v1.1.json",
+      "sha256": "488245f79c0fac14c3b84de4d03504ba03af5b3b8ac9dca61b7bdd36665e5dd3",
+      "bytes": 2210
+    },
+    {
+      "path": "AI_RES_Glossary_v1.1.json",
+      "sha256": "a73ab92e6697f3ba4cd1e19057276a4be2b8dda1f8ec1d22c1dae8b3970de337",
+      "bytes": 75908
+    },
+    {
+      "path": "AI_RES_Glossary_v1.1.md",
+      "sha256": "19e6a8c30ca60edb2068af6cf3d2a052f66c16300cd7ce5b3fbcc89ec0af7d7d",
+      "bytes": 78542
+    },
+    {
+      "path": "AI_RES_Identity_Access_Control_v1.5.md",
+      "sha256": "55f2f2027ef698ea60716ac2640fc51838006aba11a53dc075331f56dde5f904",
+      "bytes": 16149
+    },
+    {
+      "path": "AI_RES_Infrastructure_Deployment_Operations_v1.7.md",
+      "sha256": "5202b7d85bdc5b07f38d5ebb639713c4bf6ae4352a88c7e7552f755f7dab0a46",
+      "bytes": 74363
+    },
+    {
+      "path": "AI_RES_Knowledge_Memory_Retrieval_Architecture_v1.0.md",
+      "sha256": "02ca9c892b6b56f5b783328c1f4597e6fe4c61a6785da88294c12240856edfa4",
+      "bytes": 3501
+    },
+    {
+      "path": "AI_RES_Learning_Experience_Lifecycle_v1.0.md",
+      "sha256": "268cdb9791cef424f83182229ff7ff7b1efd1079aa3aa35664a0a477ca2dcd8e",
+      "bytes": 2634
+    },
+    {
+      "path": "AI_RES_MVP_Capability_Matrix_v3.3.md",
+      "sha256": "f7a8d2b8cac7556c6f210e86af1ed4117d089b75cd992b82a1bf839a849b3697",
+      "bytes": 275318
+    },
+    {
+      "path": "AI_RES_Methodology_and_Source_Traceability_Matrix_v1.2.md",
+      "sha256": "936885a5f0f742afa213f218ea4a206396b1b77ee6892f343f51e0a87990ff63",
+      "bytes": 13287
+    },
+    {
+      "path": "AI_RES_Model_Gateway_and_Model_Registry_v1.0.md",
+      "sha256": "6ef62fb435394af9d16ec186128419802cef1de6f055c419a9a1a0e318374c7e",
+      "bytes": 3062
+    },
+    {
+      "path": "AI_RES_Monitoring_and_Alerting_Requirements_v1.0.md",
+      "sha256": "a5ad01c73186da9559c24ac44a81d0390b93732e85c6ea0ea4573298bb248916",
+      "bytes": 11050
+    },
+    {
+      "path": "AI_RES_Observability_Architecture_v1.2.md",
+      "sha256": "da4078525c9b9c958531e31a0c153ff2c114e0bee5fb3bd994f977cce761a9f3",
+      "bytes": 15061
+    },
+    {
+      "path": "AI_RES_Operation_WorkerRun_Event_Model_Package_v1.0.zip",
+      "sha256": "aea46026bb33a438d46613c11ebb8a462542b13946f5c2b337f7bd3fd0774dd9",
+      "bytes": 132355
+    },
+    {
+      "path": "AI_RES_Operation_WorkerRun_Event_Model_Verification_v1.0.md",
+      "sha256": "1ab0a4605cda8baf99dc105dc11406d845c4eca584cb1aad44ee76c49c81c9ac",
+      "bytes": 1653
+    },
+    {
+      "path": "AI_RES_Operation_WorkerRun_Event_Model_v1.4.md",
+      "sha256": "6f782f915d670b490261bfdc764c11ac725228792141c42169f2c289853ddf7d",
+      "bytes": 33939
+    },
+    {
+      "path": "AI_RES_Operation_WorkerRun_Lifecycle_Verification_v1.0.md",
+      "sha256": "5c8c0dcdc4399f4353a7e2bbbf1c9b9939b2f538ffdd693fa9fd41a0ffdd306e",
+      "bytes": 2497
+    },
+    {
+      "path": "AI_RES_Operation_and_Readiness_Gate_Architecture_Decision_v1.6.md",
+      "sha256": "1082a537f1f049b33c2c9b5d7591529e5203f8a70d0c77782811f68016a4652e",
+      "bytes": 54592
+    },
+    {
+      "path": "AI_RES_Operation_and_Readiness_Gate_Schema_v1.0.json",
+      "sha256": "460b9aee3e1253ce49ad1160549e50a65c661bfcfcea065267c6c7b9c959a502",
+      "bytes": 9822
+    },
+    {
+      "path": "AI_RES_Operation_and_Readiness_Gate_State_Machine_v1.2.json",
+      "sha256": "5e06e71a40aa6fcd0f58d567356a0883ade149e9e400e9f84b18240d681a2a36",
+      "bytes": 8129
+    },
+    {
+      "path": "AI_RES_Operational_Runbooks_v1.0.md",
+      "sha256": "5c2432ed3d9dfae8ca6fe44cae165ff2b3f580729eb8b7f17d746f1330609a39",
+      "bytes": 13478
+    },
+    {
+      "path": "AI_RES_Performance_Scalability_Resilience_Architecture_v1.0.md",
+      "sha256": "35257e394d23004786fbb29369221a47b74d261889f1b231643f9ba081599994",
+      "bytes": 22667
+    },
+    {
+      "path": "AI_RES_Performance_Scalability_Resilience_Requirements_v1.0.md",
+      "sha256": "0fa463d718396b7a1bce5f6b6cbaf0cd217c3d09720b7ff24d229d2c0e4728f5",
+      "bytes": 7590
+    },
+    {
+      "path": "AI_RES_Persistence_Implementation_Blueprint_Package_v1.0.zip",
+      "sha256": "ba3cb6abfce5d7a4e79d478585313270bcf9a66545735118fa20e84ccee86018",
+      "bytes": 199319
+    },
+    {
+      "path": "AI_RES_Persistence_Implementation_Blueprint_Verification_v1.0.md",
+      "sha256": "02f60bf8a6205c269d5c60516ba160870001822071b0809377d74b5257a83222",
+      "bytes": 1981
+    },
+    {
+      "path": "AI_RES_Persistence_Implementation_Blueprint_v1.0.md",
+      "sha256": "3ddb6b16710d204309836c670c4aad6318a63dd6c0c1cb556a8f87c2af7267ac",
+      "bytes": 26363
+    },
+    {
+      "path": "AI_RES_Post_Implementation_Productization_Plan_v1.3.md",
+      "sha256": "cf69e36272db3894b6ab429f3c70b4f365bf9f92228a61da7df341ec9bc4def5",
+      "bytes": 26221
+    },
+    {
+      "path": "AI_RES_PostgreSQL_Migration_Access_Package_v1.0.zip",
+      "sha256": "8b1e733e074bebfac08514646b4191835bae68c924a7fb9cb1319997874974a9",
+      "bytes": 187577
+    },
+    {
+      "path": "AI_RES_PostgreSQL_Migration_Access_Verification_v1.0.md",
+      "sha256": "6f1870037e8079c27eb664d8d592efcaa24ba4341741467ac4710bd35d64ea26",
+      "bytes": 3987
+    },
+    {
+      "path": "AI_RES_PostgreSQL_Migration_and_Access_Strategy_v1.1.md",
+      "sha256": "634ada2e49ea20d5026c720706a54360b11abfcd63554b38d3686bb9a72fb324",
+      "bytes": 27288
+    },
+    {
+      "path": "AI_RES_PostgreSQL_Physical_Model_Package_v1.0.zip",
+      "sha256": "1a6552b1eb5cfaf2c79764d6594b906bf60a8338cf6b42081ea2bd6b7b52c521",
+      "bytes": 152415
+    },
+    {
+      "path": "AI_RES_PostgreSQL_Physical_Model_Verification_v1.0.md",
+      "sha256": "f258f9372d034f7aa9a263b015aea1241b921eb3c14f778a7c895f45cf8fb361",
+      "bytes": 3988
+    },
+    {
+      "path": "AI_RES_PostgreSQL_Physical_Model_and_Transactions_v1.2.md",
+      "sha256": "f6afdfec0b3df9b01f2f431ce011777b13624846673b39128c8940b58ce645b1",
+      "bytes": 35797
+    },
+    {
+      "path": "AI_RES_PostgreSQL_Physical_Model_v1.0.sql",
+      "sha256": "822cfe1981da4a8909992e77963da640a5018573ace3902f943bee800d7d7b7c",
+      "bytes": 14195
+    },
+    {
+      "path": "AI_RES_PostgreSQL_Roles_RLS_v1.0.sql",
+      "sha256": "36b65a73301cddf64bb3043c21b7c15b267544a6db561b14635a71d4ebad7a15",
+      "bytes": 11957
+    },
+    {
+      "path": "AI_RES_Pre_Implementation_Readiness_Audit_v2.2.md",
+      "sha256": "907dda21bf0f0046234c85f45b1e8549d5764f3738b0014684a3be627cb8af1e",
+      "bytes": 2974
+    },
+    {
+      "path": "AI_RES_Process_Design_and_Algorithms_v1.9.md",
+      "sha256": "2c4472ec9c066d3f3cc4a5f56608b6f8ce07e5364999361dcd7084f0c79667f8",
+      "bytes": 90581
+    },
+    {
+      "path": "AI_RES_Public_API_v1.3.yaml",
+      "sha256": "fec54a9f741795d1a298926b5965e23df0e12a5cae31f630118a4c06c96ac53d",
+      "bytes": 36957
+    },
+    {
+      "path": "AI_RES_Requirements_Lifecycle_v2.7.md",
+      "sha256": "bc60f47ac9a3bce9c8b92abfb220fcdb26cba87d2d2eb5fcddddc21db250fc83",
+      "bytes": 194568
+    },
+    {
+      "path": "AI_RES_Resilience_and_Recovery_Requirements_v1.0.md",
+      "sha256": "f8cae3a00ff06cd780512a417b6d13006dda13a35caadbdf6febdf14b12de010",
+      "bytes": 6884
+    },
+    {
+      "path": "AI_RES_Secrets_and_Key_Management_v1.1.md",
+      "sha256": "5212420934d15483e03b948ed8503a9f787b6d74fa8e7351828075fc25d35865",
+      "bytes": 6371
+    },
+    {
+      "path": "AI_RES_Security_Architecture_v1.2.md",
+      "sha256": "d328a0939c6383a4011b50e5e176dd808010a2a2ae9c1da11809879cdb7bbdae",
+      "bytes": 22158
+    },
+    {
+      "path": "AI_RES_Security_Controls_and_Requirements_v1.2.md",
+      "sha256": "4c370a4af4b275c82e555743bd579b493f9138f2c00194ffcc249be13db47d66",
+      "bytes": 9830
+    },
+    {
+      "path": "AI_RES_Source_and_Context_Lifecycle_v1.3.md",
+      "sha256": "2dc979a7a01f7e8e7b113e66e5cf90d8cfc0350833c16f9279224f51535981d8",
+      "bytes": 49250
+    },
+    {
+      "path": "AI_RES_Stage_14_Verification_v1.0.md",
+      "sha256": "a004b79f49b506ed3e82d1446cce083996e8ad3b2b106adc1ca38aa33bb648d4",
+      "bytes": 2435
+    },
+    {
+      "path": "AI_RES_Stage_15_Verification_v1.0.md",
+      "sha256": "866106d921b6b587d5e816cd62f01acc31451cc713a99eff9bd731777bc78e1a",
+      "bytes": 2358
+    },
+    {
+      "path": "AI_RES_Threat_Model_v1.1.md",
+      "sha256": "22d322edd7031c5d8a017c0cf896b6007c269677a6d04430acf33819f461e6b0",
+      "bytes": 12446
+    },
+    {
+      "path": "AI_RES_Tool_Registry_and_Tool_Management_MVP_v1.0.md",
+      "sha256": "7b6ad6ee6f9e7e63ad6fee4645076e47cebf95cda613a6760cac8791bf3640c0",
+      "bytes": 41380
+    },
+    {
+      "path": "AI_RES_Traceability_Dependencies_Impact_Analysis_v1.0.md",
+      "sha256": "1af6c4397bc3e8c9462e1aafa44c506f78b1d51ba554a951a8e387fbb74c2675",
+      "bytes": 30492
+    },
+    {
+      "path": "AI_RES_UX_Concept_v1.2.md",
+      "sha256": "64a75e917938bf9bfb2d41e7e93137afe515983b70a2b3b6e828df32b44f8294",
+      "bytes": 206311
+    },
+    {
+      "path": "AI_RES_User_Documentation_Information_Architecture_v1.1.md",
+      "sha256": "d7f51f85ec32390f62bc7e3f898f9a7129d3b29724a538e76431f4b9e09cfc3d",
+      "bytes": 11178
+    },
+    {
+      "path": "AI_RES_Worker_Contracts_v1.1.schema.json",
+      "sha256": "b45d5f2370fa78089772db5cce7452312cc9aa23a8a01aef83ffd209d05dcef9",
+      "bytes": 23179
+    }
+  ]
+}

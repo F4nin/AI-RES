@@ -1,0 +1,1554 @@
+openapi: 3.1.1
+info:
+  title: AI RES Public API
+  version: 1.3.0
+  description: Contract-first public API for AI RES. Initial normative vertical slice. Operation is a persisted
+    AI RES domain resource; Temporal identifiers are execution references only. ReadinessEvaluation is immutable
+    and every WorkerRun must reference the exact successful evaluation used at dispatch. Browser authentication
+    uses opaque server-side session cookie; state-changing requests require CSRF protection. WorkerRun lifecycle,
+    derivation lineage and Operation aggregation semantics are defined by the v1.3 contract.
+servers:
+- url: /api/v1
+security:
+- sessionCookie: []
+tags:
+- name: Identity
+- name: Projects
+- name: Work
+- name: Requirements
+- name: Sources
+- name: Artifacts
+- name: Operations
+- name: AgentRuns
+paths:
+  /me:
+    get:
+      tags:
+      - Identity
+      operationId: getCurrentUser
+      responses:
+        '200':
+          description: Current authenticated user and accessible organizations.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentUser'
+        default:
+          $ref: '#/components/responses/Problem'
+  /projects:
+    get:
+      tags:
+      - Projects
+      operationId: listProjects
+      parameters:
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Authorized project page.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectPage'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      tags:
+      - Projects
+      operationId: createProject
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProjectRequest'
+      responses:
+        '201':
+          description: Project created.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        default:
+          $ref: '#/components/responses/Problem'
+      security:
+      - sessionCookie: []
+        csrfToken: []
+  /projects/{projectId}:
+    parameters:
+    - $ref: '#/components/parameters/ProjectId'
+    get:
+      tags:
+      - Projects
+      operationId: getProject
+      responses:
+        '200':
+          description: Project.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        default:
+          $ref: '#/components/responses/Problem'
+    patch:
+      tags:
+      - Projects
+      operationId: updateProjectMetadata
+      parameters:
+      - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: '#/components/schemas/UpdateProjectRequest'
+      responses:
+        '200':
+          description: Updated project metadata.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        default:
+          $ref: '#/components/responses/Problem'
+      security:
+      - sessionCookie: []
+        csrfToken: []
+  /projects/{projectId}/epics:
+    parameters:
+    - $ref: '#/components/parameters/ProjectId'
+    get:
+      tags:
+      - Work
+      operationId: listEpics
+      parameters:
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Epic page.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EpicPage'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      tags:
+      - Work
+      operationId: createEpic
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEpicRequest'
+      responses:
+        '201':
+          description: Epic created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Epic'
+        default:
+          $ref: '#/components/responses/Problem'
+      security:
+      - sessionCookie: []
+        csrfToken: []
+  /epics/{epicId}:
+    parameters:
+    - $ref: '#/components/parameters/EpicId'
+    get:
+      tags:
+      - Work
+      operationId: getEpic
+      responses:
+        '200':
+          description: Epic.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Epic'
+        default:
+          $ref: '#/components/responses/Problem'
+  /epics/{epicId}/manager-messages:
+    parameters:
+    - $ref: '#/components/parameters/EpicId'
+    post:
+      tags:
+      - Work
+      operationId: sendManagerMessage
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ManagerMessageRequest'
+      responses:
+        '202':
+          description: Request accepted for asynchronous Manager processing.
+          headers:
+            Location:
+              schema:
+                type: string
+            Retry-After:
+              schema:
+                type: integer
+                minimum: 1
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Operation'
+        default:
+          $ref: '#/components/responses/Problem'
+      security:
+      - sessionCookie: []
+        csrfToken: []
+  /epics/{epicId}/tasks:
+    parameters:
+    - $ref: '#/components/parameters/EpicId'
+    get:
+      tags:
+      - Work
+      operationId: listTasks
+      parameters:
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Task page.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskPage'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      tags:
+      - Work
+      operationId: createTask
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTaskRequest'
+      responses:
+        '201':
+          description: Task created or registered as a proposal according to caller authority.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        default:
+          $ref: '#/components/responses/Problem'
+      security:
+      - sessionCookie: []
+        csrfToken: []
+  /tasks/{taskId}:
+    parameters:
+    - $ref: '#/components/parameters/TaskId'
+    get:
+      tags:
+      - Work
+      operationId: getTask
+      responses:
+        '200':
+          description: Task.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        default:
+          $ref: '#/components/responses/Problem'
+  /projects/{projectId}/requirements:
+    parameters:
+    - $ref: '#/components/parameters/ProjectId'
+    get:
+      tags:
+      - Requirements
+      operationId: listRequirements
+      parameters:
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Requirement page.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequirementPage'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      tags:
+      - Requirements
+      operationId: registerRequirementCandidate
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequirementRequest'
+      responses:
+        '201':
+          description: Candidate registered; not business-approved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Requirement'
+        default:
+          $ref: '#/components/responses/Problem'
+      security:
+      - sessionCookie: []
+        csrfToken: []
+  /requirements/{requirementId}/versions:
+    parameters:
+    - $ref: '#/components/parameters/RequirementId'
+    get:
+      tags:
+      - Requirements
+      operationId: listRequirementVersions
+      responses:
+        '200':
+          description: Immutable version list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequirementVersionPage'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      tags:
+      - Requirements
+      operationId: proposeRequirementVersion
+      parameters:
+      - $ref: '#/components/parameters/IfMatch'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProposeRequirementVersionRequest'
+      responses:
+        '201':
+          description: New immutable version proposed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequirementVersion'
+        default:
+          $ref: '#/components/responses/Problem'
+      security:
+      - sessionCookie: []
+        csrfToken: []
+  /projects/{projectId}/sources:
+    parameters:
+    - $ref: '#/components/parameters/ProjectId'
+    get:
+      tags:
+      - Sources
+      operationId: listSources
+      parameters:
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Source page.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourcePage'
+        default:
+          $ref: '#/components/responses/Problem'
+  /uploads:
+    post:
+      tags:
+      - Sources
+      operationId: createUploadIntent
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUploadRequest'
+      responses:
+        '201':
+          description: Short-lived scoped upload intent.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadIntent'
+        default:
+          $ref: '#/components/responses/Problem'
+      security:
+      - sessionCookie: []
+        csrfToken: []
+  /uploads/{uploadId}/complete:
+    parameters:
+    - name: uploadId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    post:
+      tags:
+      - Sources
+      operationId: completeUpload
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompleteUploadRequest'
+      responses:
+        '202':
+          description: Upload accepted for verification and ingestion.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Operation'
+        default:
+          $ref: '#/components/responses/Problem'
+      security:
+      - sessionCookie: []
+        csrfToken: []
+  /projects/{projectId}/artifacts:
+    parameters:
+    - $ref: '#/components/parameters/ProjectId'
+    get:
+      tags:
+      - Artifacts
+      operationId: listArtifacts
+      parameters:
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Artifact page.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactPage'
+        default:
+          $ref: '#/components/responses/Problem'
+  /artifacts/{artifactId}/versions:
+    parameters:
+    - name: artifactId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    get:
+      tags:
+      - Artifacts
+      operationId: listArtifactVersions
+      responses:
+        '200':
+          description: Immutable artifact versions.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactVersionPage'
+        default:
+          $ref: '#/components/responses/Problem'
+  /worker-runs/{workerRunId}:
+    parameters:
+    - name: workerRunId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    get:
+      tags:
+      - AgentRuns
+      operationId: getWorkerRun
+      responses:
+        '200':
+          description: Authorized Worker Run summary.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkerRun'
+        default:
+          $ref: '#/components/responses/Problem'
+  /projects/{projectId}/events:
+    parameters:
+    - $ref: '#/components/parameters/ProjectId'
+    get:
+      tags:
+      - Operations
+      operationId: streamProjectEvents
+      description: Authorized Server-Sent Events stream. Supports Last-Event-ID replay cursor.
+      parameters:
+      - name: Last-Event-ID
+        in: header
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Server-Sent Events stream; event payloads are ACL-filtered projections.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        default:
+          $ref: '#/components/responses/Problem'
+  /operations/{operationId}:
+    parameters:
+    - name: operationId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    get:
+      tags:
+      - Operations
+      operationId: getOperation
+      responses:
+        '200':
+          description: Asynchronous operation status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Operation'
+        default:
+          $ref: '#/components/responses/Problem'
+      description: Reads the persisted AI RES Operation projection from the domain database. Temporal is not queried
+        as the source of truth.
+  /operations/{operationId}/cancel:
+    parameters:
+    - name: operationId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    post:
+      tags:
+      - Operations
+      operationId: requestOperationCancellation
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '202':
+          description: Cancellation request accepted; cancellation is not yet confirmed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Operation'
+        default:
+          $ref: '#/components/responses/Problem'
+      security:
+      - sessionCookie: []
+        csrfToken: []
+      description: Requests cancellation. HTTP 202 confirms acceptance of the request only; it does not confirm
+        cancellation or rollback of completed external side effects.
+  /worker-runs/{workerRunId}/readiness-evaluations:
+    parameters:
+    - name: workerRunId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    get:
+      tags:
+      - AgentRuns
+      operationId: listWorkerRunReadinessEvaluations
+      responses:
+        '200':
+          description: Read-only history of readiness evaluations, filtered by project/object ACL.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ReadinessEvaluationSummary'
+        default:
+          $ref: '#/components/responses/Problem'
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: ai_res_session
+      description: Opaque server-side browser session ID. Not a bearer token.
+    csrfToken:
+      type: apiKey
+      in: header
+      name: X-CSRF-Token
+      description: Required on cookie-authenticated state-changing requests.
+  parameters:
+    ProjectId:
+      name: projectId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    EpicId:
+      name: epicId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    TaskId:
+      name: taskId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    RequirementId:
+      name: requirementId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 25
+    Cursor:
+      name: cursor
+      in: query
+      schema:
+        type: string
+    IfMatch:
+      name: If-Match
+      in: header
+      required: true
+      schema:
+        type: string
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 16
+        maxLength: 128
+  headers:
+    ETag:
+      description: Strong representation validator.
+      schema:
+        type: string
+  responses:
+    Problem:
+      description: RFC 9457 problem details.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  schemas:
+    Problem:
+      type: object
+      required:
+      - type
+      - title
+      - status
+      properties:
+        type:
+          type: string
+          format: uri-reference
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri-reference
+        code:
+          type: string
+        correlationId:
+          type: string
+        fieldErrors:
+          type: array
+          items:
+            type: object
+            required:
+            - pointer
+            - code
+            properties:
+              pointer:
+                type: string
+              code:
+                type: string
+              message:
+                type: string
+      additionalProperties: true
+    PageInfo:
+      type: object
+      required:
+      - hasMore
+      properties:
+        nextCursor:
+          type:
+          - string
+          - 'null'
+        hasMore:
+          type: boolean
+    ProjectPage:
+      type: object
+      required:
+      - data
+      - page
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Project'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+    EpicPage:
+      type: object
+      required:
+      - data
+      - page
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Epic'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+    TaskPage:
+      type: object
+      required:
+      - data
+      - page
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Task'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+    RequirementPage:
+      type: object
+      required:
+      - data
+      - page
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Requirement'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+    RequirementVersionPage:
+      type: object
+      required:
+      - data
+      - page
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/RequirementVersion'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+    SourcePage:
+      type: object
+      required:
+      - data
+      - page
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Source'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+    ArtifactPage:
+      type: object
+      required:
+      - data
+      - page
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Artifact'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+    ArtifactVersionPage:
+      type: object
+      required:
+      - data
+      - page
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ArtifactVersion'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+    CurrentUser:
+      type: object
+      required:
+      - id
+      - displayName
+      - organizations
+      properties:
+        id:
+          type: string
+          format: uuid
+        displayName:
+          type: string
+        organizations:
+          type: array
+          items:
+            type: object
+            required:
+            - organizationId
+            - name
+            properties:
+              organizationId:
+                type: string
+                format: uuid
+              name:
+                type: string
+    Project:
+      type: object
+      required:
+      - id
+      - organizationId
+      - name
+      - status
+      - createdAt
+      - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type:
+          - string
+          - 'null'
+        goal:
+          type:
+          - string
+          - 'null'
+        projectType:
+          type: string
+          enum:
+          - GREENFIELD
+          - BROWNFIELD
+          - HYBRID
+          - UNKNOWN
+        status:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    CreateProjectRequest:
+      type: object
+      required:
+      - organizationId
+      - name
+      properties:
+        organizationId:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type:
+          - string
+          - 'null'
+        goal:
+          type:
+          - string
+          - 'null'
+        projectType:
+          type: string
+          enum:
+          - GREENFIELD
+          - BROWNFIELD
+          - HYBRID
+          - UNKNOWN
+          default: UNKNOWN
+      additionalProperties: false
+    UpdateProjectRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type:
+          - string
+          - 'null'
+        goal:
+          type:
+          - string
+          - 'null'
+      additionalProperties: false
+    Epic:
+      type: object
+      required:
+      - id
+      - projectId
+      - title
+      - status
+      properties:
+        id:
+          type: string
+          format: uuid
+        projectId:
+          type: string
+          format: uuid
+        title:
+          type: string
+        goal:
+          type:
+          - string
+          - 'null'
+        status:
+          type: string
+    CreateEpicRequest:
+      type: object
+      required:
+      - title
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        goal:
+          type:
+          - string
+          - 'null'
+        scope:
+          type:
+          - string
+          - 'null'
+      additionalProperties: false
+    Task:
+      type: object
+      required:
+      - id
+      - epicId
+      - title
+      - status
+      properties:
+        id:
+          type: string
+          format: uuid
+        epicId:
+          type: string
+          format: uuid
+        title:
+          type: string
+        status:
+          type: string
+        priority:
+          type:
+          - string
+          - 'null'
+    CreateTaskRequest:
+      type: object
+      required:
+      - title
+      - taskType
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 240
+        description:
+          type:
+          - string
+          - 'null'
+        taskType:
+          type: string
+        acceptanceCriteria:
+          type: array
+          items:
+            type: string
+      additionalProperties: false
+    ManagerMessageRequest:
+      type: object
+      required:
+      - message
+      properties:
+        message:
+          type: string
+          minLength: 1
+          maxLength: 20000
+        attachmentRefs:
+          type: array
+          items:
+            type: string
+            format: uuid
+        expectedResponseMode:
+          type: string
+          enum:
+          - NORMAL
+          - PROPOSE_PLAN
+          - CLARIFICATION
+          - REVIEW_RESULT
+      additionalProperties: false
+    Requirement:
+      type: object
+      required:
+      - id
+      - projectId
+      - lifecycleStatus
+      - currentVersionId
+      properties:
+        id:
+          type: string
+          format: uuid
+        projectId:
+          type: string
+          format: uuid
+        displayId:
+          type: string
+        lifecycleStatus:
+          type: string
+        currentVersionId:
+          type: string
+          format: uuid
+    RegisterRequirementRequest:
+      type: object
+      required:
+      - statement
+      - registrationKind
+      properties:
+        statement:
+          type: string
+          minLength: 1
+        registrationKind:
+          type: string
+          enum:
+          - CANDIDATE
+          - PROJECT_REQUIREMENT_PROPOSAL
+        requirementType:
+          type:
+          - string
+          - 'null'
+        evidenceRefs:
+          type: array
+          items:
+            type: string
+            format: uuid
+      additionalProperties: false
+    RequirementVersion:
+      type: object
+      required:
+      - id
+      - requirementId
+      - versionNumber
+      - statement
+      properties:
+        id:
+          type: string
+          format: uuid
+        requirementId:
+          type: string
+          format: uuid
+        versionNumber:
+          type: integer
+          minimum: 1
+        statement:
+          type: string
+        changeReason:
+          type:
+          - string
+          - 'null'
+    ProposeRequirementVersionRequest:
+      type: object
+      required:
+      - statement
+      - changeReason
+      properties:
+        statement:
+          type: string
+          minLength: 1
+        changeReason:
+          type: string
+          minLength: 1
+        rationale:
+          type:
+          - string
+          - 'null'
+      additionalProperties: false
+    Source:
+      type: object
+      required:
+      - id
+      - projectId
+      - name
+      - sourceType
+      properties:
+        id:
+          type: string
+          format: uuid
+        projectId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        sourceType:
+          type: string
+        latestVersionId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+    CreateUploadRequest:
+      type: object
+      required:
+      - projectId
+      - fileName
+      - contentType
+      - sizeBytes
+      - sha256
+      properties:
+        projectId:
+          type: string
+          format: uuid
+        fileName:
+          type: string
+          maxLength: 255
+        contentType:
+          type: string
+        sizeBytes:
+          type: integer
+          minimum: 1
+        sha256:
+          type: string
+          pattern: ^[a-fA-F0-9]{64}$
+      additionalProperties: false
+    UploadIntent:
+      type: object
+      required:
+      - uploadId
+      - uploadUrl
+      - expiresAt
+      - requiredHeaders
+      properties:
+        uploadId:
+          type: string
+          format: uuid
+        uploadUrl:
+          type: string
+          format: uri
+        expiresAt:
+          type: string
+          format: date-time
+        requiredHeaders:
+          type: object
+          additionalProperties:
+            type: string
+    CompleteUploadRequest:
+      type: object
+      required:
+      - sha256
+      properties:
+        sha256:
+          type: string
+          pattern: ^[a-fA-F0-9]{64}$
+      additionalProperties: false
+    Artifact:
+      type: object
+      required:
+      - id
+      - projectId
+      - title
+      - artifactType
+      properties:
+        id:
+          type: string
+          format: uuid
+        projectId:
+          type: string
+          format: uuid
+        title:
+          type: string
+        artifactType:
+          type: string
+        currentVersionId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+    ArtifactVersion:
+      type: object
+      required:
+      - id
+      - artifactId
+      - versionNumber
+      - lifecycleStatus
+      properties:
+        id:
+          type: string
+          format: uuid
+        artifactId:
+          type: string
+          format: uuid
+        versionNumber:
+          type: integer
+          minimum: 1
+        lifecycleStatus:
+          type: string
+    WorkerRun:
+      type: object
+      required:
+      - id
+      - taskId
+      - workerRole
+      - status
+      - contextPackageVersionId
+      - createdAt
+      - operationId
+      - rowVersion
+      properties:
+        id:
+          type: string
+          format: uuid
+        taskId:
+          type: string
+          format: uuid
+        workerRole:
+          type: string
+        status:
+          type: string
+          enum:
+          - CREATED
+          - PREPARING
+          - WAITING_FOR_GATE
+          - BLOCKED
+          - QUEUED
+          - STARTING
+          - RUNNING
+          - WAITING_FOR_HUMAN
+          - WAITING_FOR_DEPENDENCY
+          - RESULT_SUBMITTED
+          - VALIDATING
+          - REVIEW_PENDING
+          - QA_PENDING
+          - CANCEL_REQUESTED
+          - COMPLETED
+          - REWORK_REQUIRED
+          - REJECTED
+          - UNVERIFIED
+          - FAILED
+          - TIMED_OUT
+          - CANCELLED
+        contextPackageVersionId:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+        operationId:
+          type: string
+          format: uuid
+        rowVersion:
+          type: integer
+          minimum: 1
+        derivedFromWorkerRunId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        derivationReason:
+          type:
+          - string
+          - 'null'
+          enum:
+          - RETRY
+          - REWORK
+          - NEW_CONTEXT
+          - INDEPENDENT_REVIEW
+          - REEXECUTION
+          - SPECIALIST_HANDOFF
+          - null
+        attemptNumber:
+          type: integer
+          minimum: 1
+        latestReadinessEvaluationId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        startedWithReadinessEvaluationId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        startedAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        finishedAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        resultRef:
+          type:
+          - string
+          - 'null'
+        problem:
+          type:
+          - object
+          - 'null'
+          additionalProperties: true
+      description: One immutable substantive execution attempt for exactly one Task and one owning Operation. Status
+        follows WorkerRun state machine; Gate outcomes are separate.
+    Operation:
+      type: object
+      required:
+      - id
+      - status
+      - submittedAt
+      - correlationId
+      - organizationId
+      - operationType
+      - initiatorType
+      - rowVersion
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+          - ACCEPTED
+          - QUEUED
+          - RUNNING
+          - WAITING_FOR_HUMAN
+          - WAITING_FOR_DEPENDENCY
+          - RETRYING
+          - CANCEL_REQUESTED
+          - SUCCEEDED
+          - PARTIALLY_SUCCEEDED
+          - FAILED
+          - CANCELLED
+        submittedAt:
+          type: string
+          format: date-time
+        startedAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        completedAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        resultRef:
+          type:
+          - string
+          - 'null'
+        correlationId:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        projectId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        epicId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        operationType:
+          type: string
+        initiatorType:
+          type: string
+          enum:
+          - HUMAN
+          - SYSTEM
+          - MANAGER
+          - SCHEDULED
+        initiatorId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        subjectRef:
+          oneOf:
+          - $ref: '#/components/schemas/TypedReference'
+          - type: 'null'
+        acceptedAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        lastProgressAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        problem:
+          oneOf:
+          - $ref: '#/components/schemas/Problem'
+          - type: 'null'
+        rowVersion:
+          type: integer
+          minimum: 1
+        parentOperationId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        rootOperationId:
+          type: string
+          format: uuid
+        aggregateVersion:
+          type: integer
+          minimum: 1
+        completionPolicyVersion:
+          type:
+          - string
+          - 'null'
+        partialResultReasons:
+          type: array
+          items:
+            type: string
+        childOperationRefs:
+          type: array
+          items:
+            type: string
+            format: uuid
+    TypedReference:
+      type: object
+      required:
+      - type
+      - id
+      properties:
+        type:
+          type: string
+        id:
+          type: string
+          format: uuid
+        versionId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+      additionalProperties: false
+    ReadinessEvaluationSummary:
+      type: object
+      required:
+      - id
+      - workerRunId
+      - evaluationNumber
+      - outcome
+      - evaluationStatus
+      - evaluatedAt
+      - isCurrent
+      properties:
+        id:
+          type: string
+          format: uuid
+        workerRunId:
+          type: string
+          format: uuid
+        evaluationNumber:
+          type: integer
+          minimum: 1
+        outcome:
+          type: string
+          enum:
+          - READY
+          - READY_WITH_LIMITATIONS
+          - BLOCKED
+          - STALE
+        evaluationStatus:
+          type: string
+          enum:
+          - COMPLETED
+          - EVALUATOR_ERROR
+        evaluatedAt:
+          type: string
+          format: date-time
+        summary:
+          type:
+          - string
+          - 'null'
+        blockers:
+          type: array
+          items:
+            type: string
+        limitations:
+          type: array
+          items:
+            type: string
+        isCurrent:
+          type: boolean
+        supersededBy:
+          type:
+          - string
+          - 'null'
+          format: uuid

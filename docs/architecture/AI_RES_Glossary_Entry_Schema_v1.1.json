@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-res.local/schemas/glossary-entry-v1.1.json",
+  "title": "AI RES Glossary Entry v1.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "term_id",
+    "canonical_term",
+    "definition",
+    "plain_language_explanation",
+    "domain",
+    "synonyms",
+    "deprecated_terms",
+    "related_terms",
+    "examples",
+    "usage_notes",
+    "status",
+    "version",
+    "owner",
+    "source_reference"
+  ],
+  "properties": {
+    "term_id": {
+      "type": "string",
+      "pattern": "^GL-[0-9]{3,}$"
+    },
+    "canonical_term": {
+      "type": "string",
+      "minLength": 1
+    },
+    "definition": {
+      "type": "string",
+      "minLength": 1
+    },
+    "plain_language_explanation": {
+      "type": "string",
+      "minLength": 1
+    },
+    "domain": {
+      "type": "string",
+      "minLength": 1
+    },
+    "synonyms": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "deprecated_terms": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "related_terms": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^GL-[0-9]{3,}$"
+      },
+      "uniqueItems": true,
+      "minItems": 0
+    },
+    "examples": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1
+    },
+    "usage_notes": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "enum": [
+        "DRAFT",
+        "PROPOSED",
+        "APPROVED",
+        "DEPRECATED",
+        "RETIRED"
+      ]
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+(?:\\.[0-9]+)?$"
+    },
+    "owner": {
+      "type": "string"
+    },
+    "source_reference": {
+      "type": "string"
+    },
+    "effective_from": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date"
+    },
+    "supersedes_term_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^GL-[0-9]{3,}$"
+    }
+  }
+}

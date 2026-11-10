@@ -1,0 +1,1496 @@
+{
+  "schema_version": "1.0",
+  "glossary_version": "1.1",
+  "status": "APPROVED",
+  "language": "ru",
+  "canonical_language": "en",
+  "terms": [
+    {
+      "term_id": "GL-001",
+      "canonical_term": "AI RES",
+      "definition": "Продуктовая платформа для поддержки полного цикла инженерии требований с использованием ИИ-агентов.",
+      "plain_language_explanation": "Платформа, которая помогает аналитику собирать контекст, анализировать требования, проектировать решения и управлять артефактами.",
+      "domain": "Product",
+      "synonyms": [
+        "платформа AI RES"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-003",
+        "GL-007",
+        "GL-008",
+        "GL-035"
+      ],
+      "examples": [
+        "Аналитик ведёт в AI RES проект, в котором Manager координирует анализ требований и создание артефактов."
+      ],
+      "usage_notes": "Использовать каноническое значение; не считать синонимом связанных терминов с иным предметным смыслом.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-001"
+    },
+    {
+      "term_id": "GL-002",
+      "canonical_term": "Organization",
+      "definition": "Контейнер верхнего уровня для пользователей, политик и проектов организации.",
+      "plain_language_explanation": "Область, внутри которой существуют проекты и пользователи.",
+      "domain": "Governance",
+      "synonyms": [
+        "организация"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-003",
+        "GL-032",
+        "GL-033"
+      ],
+      "examples": [
+        "В одной Organization могут находиться несколько Project с разными участниками и правилами доступа."
+      ],
+      "usage_notes": "Использовать каноническое значение; не считать синонимом связанных терминов с иным предметным смыслом.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-002"
+    },
+    {
+      "term_id": "GL-003",
+      "canonical_term": "Project",
+      "definition": "Изолированная область работы с целями, источниками, участниками, правилами и артефактами.",
+      "plain_language_explanation": "Отдельный проект, над которым работает команда.",
+      "domain": "Domain",
+      "synonyms": [
+        "проект"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-002",
+        "GL-004",
+        "GL-019",
+        "GL-035"
+      ],
+      "examples": [
+        "Project «Личный кабинет клиента» содержит цели, источники, Epic, требования и решения."
+      ],
+      "usage_notes": "Использовать каноническое значение; не считать синонимом связанных терминов с иным предметным смыслом.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-003"
+    },
+    {
+      "term_id": "GL-004",
+      "canonical_term": "Epic",
+      "definition": "Крупная управляемая область работы внутри Project, объединяющая цель, план, задачи и результаты.",
+      "plain_language_explanation": "Большая тема или бизнес-цель, которую нужно проработать.",
+      "domain": "Domain",
+      "synonyms": [
+        "эпик"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-003",
+        "GL-005",
+        "GL-011",
+        "GL-012"
+      ],
+      "examples": [
+        "Epic «Регистрация клиента» объединяет связанные задачи анализа, требования, API-артефакты и критерии приёмки."
+      ],
+      "usage_notes": "Использовать каноническое значение; не считать синонимом связанных терминов с иным предметным смыслом.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-004"
+    },
+    {
+      "term_id": "GL-005",
+      "canonical_term": "Task",
+      "definition": "Управляемая единица работы с целью, исполнителем, входами, зависимостями, критериями готовности и результатом; может быть назначена Worker или выполнена человеком.",
+      "plain_language_explanation": "Конкретная работа: исследовать, уточнить, проверить или подготовить артефакт.",
+      "domain": "Domain",
+      "synonyms": [
+        "задача",
+        "рабочая задача"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-004",
+        "GL-006",
+        "GL-010",
+        "GL-038"
+      ],
+      "examples": [
+        "Task «Проанализировать текущий OpenAPI-файл» назначена Worker и имеет входной Source Version и критерии результата."
+      ],
+      "usage_notes": "Не использовать как синоним Requirement: Task описывает работу, Requirement — ожидаемое свойство или поведение системы.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-005"
+    },
+    {
+      "term_id": "GL-006",
+      "canonical_term": "Requirement",
+      "definition": "Проверяемое утверждение о потребности, требуемом поведении, качестве или ограничении системы/решения; имеет тип, источник или обоснование, состояние и критерии проверки.",
+      "plain_language_explanation": "То, что система должна делать или каким условиям соответствовать.",
+      "domain": "Requirements",
+      "synonyms": [
+        "требование"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-005",
+        "GL-025",
+        "GL-038",
+        "GL-041",
+        "GL-043"
+      ],
+      "examples": [
+        "Requirement: «Система должна блокировать повторную отправку формы в течение 30 секунд» — проверяемое требование, а не задача исполнителя."
+      ],
+      "usage_notes": "Не использовать как синоним Task. Требование может порождать несколько задач и проверяться несколькими тестами.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-006"
+    },
+    {
+      "term_id": "GL-007",
+      "canonical_term": "Manager",
+      "definition": "Логический агент-координатор AI RES, который ведёт диалог по цели Epic, формирует и адаптирует Plan, управляет назначением задач Workers и контролирует результаты в пределах предоставленных полномочий.",
+      "plain_language_explanation": "Руководитель работы агентов; сам не подменяет профильных специалистов.",
+      "domain": "Agents",
+      "synonyms": [
+        "агент-координатор",
+        "координатор"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-008",
+        "GL-011",
+        "GL-013",
+        "GL-016",
+        "GL-032"
+      ],
+      "examples": [
+        "Manager разбивает цель Epic на задачи, назначает Workers, проверяет результаты и выносит неоднозначные решения на человека."
+      ],
+      "usage_notes": "Manager — логическая роль/агент-координатор; не путать с человеком-менеджером и не считать источником прав доступа.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-007"
+    },
+    {
+      "term_id": "GL-008",
+      "canonical_term": "Worker",
+      "definition": "Специализированный агентный исполнитель, который выполняет ограниченную аналитическую, исследовательскую, проектную или проверочную работу по назначенной Task и возвращает структурированный результат с evidence и ограничениями.",
+      "plain_language_explanation": "ИИ-специалист определённого профиля.",
+      "domain": "Agents",
+      "synonyms": [
+        "специализированный агент",
+        "исполнитель-агент"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-007",
+        "GL-009",
+        "GL-010",
+        "GL-052"
+      ],
+      "examples": [
+        "API & Integration Worker анализирует контракты API в пределах назначенной Task и выданных полномочий."
+      ],
+      "usage_notes": "Worker обозначает специализированную роль/агента; Worker Run — конкретное исполнение этой роли.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-008"
+    },
+    {
+      "term_id": "GL-009",
+      "canonical_term": "Worker Runtime",
+      "definition": "Исполняющая среда, в которой выполняются Worker Runs.",
+      "plain_language_explanation": "Процесс/пул процессов, запускающий специализированных агентов.",
+      "domain": "Runtime",
+      "synonyms": [
+        "среда выполнения Worker"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-008",
+        "GL-010",
+        "GL-013"
+      ],
+      "examples": [
+        "Worker Runtime забирает задачу из общей очереди и исполняет её с конфигурацией роли и ограничениями."
+      ],
+      "usage_notes": "Worker Runtime — исполняющая инфраструктура, а не сама специализация Worker.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-009"
+    },
+    {
+      "term_id": "GL-010",
+      "canonical_term": "Worker Run",
+      "definition": "Конкретный запуск Worker для выполнения назначенной работы в заданном контексте и полномочиях.",
+      "plain_language_explanation": "Одна попытка выполнения задачи агентом.",
+      "domain": "Runtime",
+      "synonyms": [
+        "запуск Worker",
+        "экземпляр выполнения Worker"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-008",
+        "GL-009",
+        "GL-014",
+        "GL-015",
+        "GL-017",
+        "GL-016"
+      ],
+      "examples": [
+        "Для Task создаётся Worker Run с отдельными идентификаторами контекста, бюджета, инструментальных разрешений и результата."
+      ],
+      "usage_notes": "Run — конкретный экземпляр исполнения; повторный запуск может иметь новый Run ID и отдельный контекст.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-010"
+    },
+    {
+      "term_id": "GL-011",
+      "canonical_term": "Plan",
+      "definition": "Управляемый набор направлений, зависимостей, критериев и задач для достижения цели Epic.",
+      "plain_language_explanation": "План работы по Epic.",
+      "domain": "Orchestration",
+      "synonyms": [
+        "план работ"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-004",
+        "GL-012",
+        "GL-005",
+        "GL-007"
+      ],
+      "examples": [
+        "Plan задаёт направления анализа, зависимости, выходные артефакты и критерии готовности Epic."
+      ],
+      "usage_notes": "Использовать каноническое значение; не считать синонимом связанных терминов с иным предметным смыслом.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-011"
+    },
+    {
+      "term_id": "GL-012",
+      "canonical_term": "Plan Version",
+      "definition": "Неизменяемый снимок определённой версии плана.",
+      "plain_language_explanation": "Зафиксированная редакция плана; изменение создаёт новую версию.",
+      "domain": "Orchestration",
+      "synonyms": [
+        "снимок версии плана"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-011",
+        "GL-005",
+        "GL-038"
+      ],
+      "examples": [
+        "После изменения состава работ Manager создаёт новую Plan Version; предыдущая версия остаётся доступной для сравнения."
+      ],
+      "usage_notes": "Использовать каноническое значение; не считать синонимом связанных терминов с иным предметным смыслом.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-012"
+    },
+    {
+      "term_id": "GL-013",
+      "canonical_term": "Workflow Engine",
+      "definition": "Платформенный компонент, обеспечивающий долговременное исполнение, состояние, ожидание, повтор и восстановление процессов.",
+      "plain_language_explanation": "Механизм, который надёжно проводит задачи по этапам.",
+      "domain": "Orchestration",
+      "synonyms": [
+        "движок долговременных процессов",
+        "workflow engine"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-014",
+        "GL-010",
+        "GL-007"
+      ],
+      "examples": [
+        "Workflow Engine возобновляет ожидающий процесс после получения Human Approval."
+      ],
+      "usage_notes": "В AI RES выбран Temporal как Workflow Engine; термин не означает, что бизнес-логика должна быть реализована в одном фреймворке.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-013"
+    },
+    {
+      "term_id": "GL-014",
+      "canonical_term": "Temporal Workflow",
+      "definition": "Долговременный детерминированный процесс Temporal, состояние и история которого сохраняются Workflow Engine; координирует Activities, ожидания, сигналы, повторы и восстановление.",
+      "plain_language_explanation": "Исполняемый процесс, который переживает перезапуски.",
+      "domain": "Orchestration",
+      "synonyms": [
+        "процесс Temporal"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-013",
+        "GL-010",
+        "GL-015"
+      ],
+      "examples": [
+        "Temporal Workflow ожидает сигнал подтверждения аналитика и затем запускает следующую Activity."
+      ],
+      "usage_notes": "Temporal Workflow должен сохранять детерминизм; внешние эффекты выполняются через Activities.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-014"
+    },
+    {
+      "term_id": "GL-015",
+      "canonical_term": "LangGraph Run",
+      "definition": "Выполнение внутреннего графа рассуждений/действий агента в LangGraph.",
+      "plain_language_explanation": "Внутренний процесс работы одного агента.",
+      "domain": "Agents",
+      "synonyms": [
+        "запуск графа LangGraph"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-010",
+        "GL-014",
+        "GL-017"
+      ],
+      "examples": [
+        "LangGraph Run выполняет внутренний цикл извлечения контекста, анализа и формирования структурированного результата Worker."
+      ],
+      "usage_notes": "LangGraph Run не заменяет долговременный Temporal Workflow и не является доменной Task.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-015"
+    },
+    {
+      "term_id": "GL-016",
+      "canonical_term": "Readiness Gate",
+      "definition": "Проверка готовности запуска до начала Worker Run: контракты, контекст, зависимости, полномочия, инструменты и бюджеты.",
+      "plain_language_explanation": "Контрольный пункт, который не позволяет запускать неподготовленную задачу.",
+      "domain": "Governance",
+      "synonyms": [
+        "шлюз готовности запуска",
+        "проверка готовности"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-007",
+        "GL-008",
+        "GL-010",
+        "GL-017",
+        "GL-032"
+      ],
+      "examples": [
+        "Readiness Gate блокирует Worker Run, если отсутствует обязательный контекст или разрешение на нужный инструмент."
+      ],
+      "usage_notes": "Readiness Gate — обязательная проверка перед запуском; Manager не может обходить детерминированные проверки платформы.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-016"
+    },
+    {
+      "term_id": "GL-017",
+      "canonical_term": "Context Package",
+      "definition": "Подготовленный набор сведений, источников, версий и ссылок, разрешённых и необходимых для конкретного запуска.",
+      "plain_language_explanation": "Контекст, который агенту разрешено использовать для данной задачи.",
+      "domain": "Knowledge",
+      "synonyms": [
+        "пакет контекста"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-018",
+        "GL-019",
+        "GL-020",
+        "GL-021",
+        "GL-024",
+        "GL-025"
+      ],
+      "examples": [
+        "Context Package содержит разрешённые фрагменты источников, утверждённые требования и связанные решения для одного Worker Run."
+      ],
+      "usage_notes": "Пакет привязан к запуску и ACL; нельзя автоматически переносить весь контекст или полномочия между Runs.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-017"
+    },
+    {
+      "term_id": "GL-018",
+      "canonical_term": "Context Package Version",
+      "definition": "Неизменяемая версия Context Package, закреплённая за Worker Run.",
+      "plain_language_explanation": "Зафиксированный снимок контекста; новые источники не меняют уже начатый запуск.",
+      "domain": "Knowledge",
+      "synonyms": [
+        "версия пакета контекста"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-017",
+        "GL-010",
+        "GL-019",
+        "GL-020"
+      ],
+      "examples": [
+        "Worker Run закрепляет Context Package Version 3; последующее обновление Source не меняет этот снимок."
+      ],
+      "usage_notes": "Версия неизменяема; обновление источников создаёт новый пакет/версию, но не переписывает активный снимок.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-018"
+    },
+    {
+      "term_id": "GL-019",
+      "canonical_term": "Source",
+      "definition": "Логическая идентичность документа, репозитория, API или другого источника сведений.",
+      "plain_language_explanation": "Сам источник информации, независимо от конкретной редакции.",
+      "domain": "Knowledge",
+      "synonyms": [
+        "источник"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-020",
+        "GL-021",
+        "GL-022",
+        "GL-024"
+      ],
+      "examples": [
+        "Git-репозиторий, PDF-спецификация или внешний API могут быть зарегистрированы как отдельные Source."
+      ],
+      "usage_notes": "Использовать каноническое значение; не считать синонимом связанных терминов с иным предметным смыслом.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-019"
+    },
+    {
+      "term_id": "GL-020",
+      "canonical_term": "Source Version",
+      "definition": "Неизменяемое состояние содержимого Source в определённый момент.",
+      "plain_language_explanation": "Конкретная редакция документа или состояние репозитория.",
+      "domain": "Knowledge",
+      "synonyms": [
+        "версия источника"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-019",
+        "GL-021",
+        "GL-022",
+        "GL-024"
+      ],
+      "examples": [
+        "После изменения файла создаётся новый Source Version, а предыдущая версия сохраняется для сравнения."
+      ],
+      "usage_notes": "Использовать каноническое значение; не считать синонимом связанных терминов с иным предметным смыслом.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-020"
+    },
+    {
+      "term_id": "GL-021",
+      "canonical_term": "Source Fragment",
+      "definition": "Локализованная часть Source Version: страница, раздел, строка, endpoint, файл или commit.",
+      "plain_language_explanation": "Точное место в источнике, на которое можно сослаться.",
+      "domain": "Knowledge",
+      "synonyms": [
+        "фрагмент источника"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-019",
+        "GL-020",
+        "GL-022",
+        "GL-025"
+      ],
+      "examples": [
+        "Для PDF Source Fragment может указывать страницу и диапазон текста; для API — путь и HTTP-операцию."
+      ],
+      "usage_notes": "Использовать каноническое значение; не считать синонимом связанных терминов с иным предметным смыслом.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-021"
+    },
+    {
+      "term_id": "GL-022",
+      "canonical_term": "Source Assertion",
+      "definition": "Утверждение, непосредственно присутствующее в исходном материале.",
+      "plain_language_explanation": "Что именно сказано в документе, без интерпретации агента.",
+      "domain": "Knowledge",
+      "synonyms": [
+        "утверждение из источника",
+        "исходное утверждение"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-021",
+        "GL-023",
+        "GL-024",
+        "GL-025"
+      ],
+      "examples": [
+        "В документе буквально сказано: «Сессия истекает через 15 минут» — это Source Assertion, а не подтверждённое требование."
+      ],
+      "usage_notes": "Фиксирует, что утверждает источник, но не гарантирует истинность, актуальность или одобрение утверждения.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-022"
+    },
+    {
+      "term_id": "GL-023",
+      "canonical_term": "Derived Finding",
+      "definition": "Вывод или интерпретация, полученные AI RES на основе источников и анализа.",
+      "plain_language_explanation": "То, что агент заключил из фактов, но чего источник буквально не утверждает.",
+      "domain": "Knowledge",
+      "synonyms": [
+        "аналитический вывод",
+        "производный вывод"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-022",
+        "GL-024",
+        "GL-025",
+        "GL-038"
+      ],
+      "examples": [
+        "Сопоставив два противоречивых Source Assertion, аналитический агент формирует Derived Finding о несогласованности правил."
+      ],
+      "usage_notes": "Вывод должен быть отделён от факта и Source Assertion; указывать evidence, допущения и неопределённость.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-023"
+    },
+    {
+      "term_id": "GL-024",
+      "canonical_term": "Provenance",
+      "definition": "Информация о происхождении результата: источники, версии, фрагменты, преобразования и авторство вывода.",
+      "plain_language_explanation": "Возможность проследить, откуда взялось утверждение или решение.",
+      "domain": "Knowledge",
+      "synonyms": [
+        "происхождение данных/вывода",
+        "цепочка происхождения"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-019",
+        "GL-020",
+        "GL-021",
+        "GL-023",
+        "GL-025"
+      ],
+      "examples": [
+        "У вывода сохранены ссылки на Source Version, страницу документа, использованные преобразования и Worker Run."
+      ],
+      "usage_notes": "Provenance — метаданные происхождения, не просто список URL и не показатель достоверности сам по себе.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-024"
+    },
+    {
+      "term_id": "GL-025",
+      "canonical_term": "Evidence",
+      "definition": "Проверяемый материал, наблюдение, результат теста или ссылка на первичный источник, который поддерживает либо опровергает конкретное утверждение, вывод или решение.",
+      "plain_language_explanation": "Подтверждение, на которое можно опереться при проверке результата.",
+      "domain": "Quality",
+      "synonyms": [
+        "подтверждающие данные",
+        "свидетельство"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-022",
+        "GL-023",
+        "GL-024",
+        "GL-041",
+        "GL-042"
+      ],
+      "examples": [
+        "Фрагмент утверждённого документа и результат воспроизводимого теста могут служить Evidence для требования."
+      ],
+      "usage_notes": "Evidence поддерживает конкретное утверждение; его достаточность и качество оцениваются отдельно.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-025"
+    },
+    {
+      "term_id": "GL-026",
+      "canonical_term": "Knowledge Base",
+      "definition": "Управляемое хранилище проверенных знаний и материалов, используемых для поиска и контекстирования.",
+      "plain_language_explanation": "Одобренные сведения, которые можно повторно использовать.",
+      "domain": "Knowledge",
+      "synonyms": [
+        "база знаний"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-027",
+        "GL-028",
+        "GL-019",
+        "GL-025"
+      ],
+      "examples": [
+        "Knowledge Base содержит проверенные проектные определения и материалы, доступные только в рамках разрешённого ACL."
+      ],
+      "usage_notes": "Использовать каноническое значение; не считать синонимом связанных терминов с иным предметным смыслом.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-026"
+    },
+    {
+      "term_id": "GL-027",
+      "canonical_term": "Retrieval",
+      "definition": "Поиск и отбор релевантных фрагментов знаний для конкретного запроса или задачи.",
+      "plain_language_explanation": "Поиск подходящей информации для контекста агента.",
+      "domain": "Knowledge",
+      "synonyms": [
+        "поиск контекста",
+        "извлечение релевантных фрагментов"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-017",
+        "GL-026",
+        "GL-028",
+        "GL-024"
+      ],
+      "examples": [
+        "Retrieval выбирает из разрешённых источников фрагменты, наиболее релевантные задаче анализа API."
+      ],
+      "usage_notes": "Использовать каноническое значение; не считать синонимом связанных терминов с иным предметным смыслом.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-027"
+    },
+    {
+      "term_id": "GL-028",
+      "canonical_term": "Memory",
+      "definition": "Управляемое сохранение информации для последующего использования агентной системой с определёнными правилами происхождения, срока и доступа.",
+      "plain_language_explanation": "То, что система сохраняет, чтобы учитывать позже; не вся история чата автоматически становится знанием.",
+      "domain": "Knowledge",
+      "synonyms": [
+        "память агента",
+        "память системы"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-026",
+        "GL-027",
+        "GL-017"
+      ],
+      "examples": [
+        "Memory может сохранить подтверждённое предпочтение формата отчётов, если это разрешено политикой хранения и доступа."
+      ],
+      "usage_notes": "Memory не равна полной истории чата и не является автоматически одобренной Knowledge Base.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-028"
+    },
+    {
+      "term_id": "GL-029",
+      "canonical_term": "Tool Registry",
+      "definition": "Реестр доступных инструментальных операций, их контрактов, версий, ограничений и владельцев.",
+      "plain_language_explanation": "Каталог того, какие инструменты существуют и как их безопасно вызывать.",
+      "domain": "Tools",
+      "synonyms": [
+        "реестр инструментов"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-030",
+        "GL-031",
+        "GL-032",
+        "GL-053"
+      ],
+      "examples": [
+        "Tool Registry описывает операцию чтения Git-ветки, её контракт, владельца, ограничения и допустимые роли."
+      ],
+      "usage_notes": "Использовать каноническое значение; не считать синонимом связанных терминов с иным предметным смыслом.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-029"
+    },
+    {
+      "term_id": "GL-030",
+      "canonical_term": "Tool Gateway",
+      "definition": "Контролируемая точка исполнения разрешённых вызовов инструментов через адаптеры.",
+      "plain_language_explanation": "Шлюз, через который агент вызывает инструменты после проверки прав.",
+      "domain": "Tools",
+      "synonyms": [
+        "шлюз инструментов"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-029",
+        "GL-031",
+        "GL-032",
+        "GL-053"
+      ],
+      "examples": [
+        "Worker вызывает внешний сервис не напрямую, а через Tool Gateway, который проверяет разрешение и журналирует операцию."
+      ],
+      "usage_notes": "Использовать каноническое значение; не считать синонимом связанных терминов с иным предметным смыслом.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-030"
+    },
+    {
+      "term_id": "GL-031",
+      "canonical_term": "MCP Server",
+      "definition": "Сервер, предоставляющий инструменты или ресурсы через Model Context Protocol.",
+      "plain_language_explanation": "Внешний или локальный сервер подключаемых возможностей.",
+      "domain": "Tools",
+      "synonyms": [
+        "MCP-сервер"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-029",
+        "GL-030"
+      ],
+      "examples": [
+        "MCP Server предоставляет объявленные инструменты; наличие сервера само по себе не означает разрешение на их вызов."
+      ],
+      "usage_notes": "MCP — протокол взаимодействия; сервер/инструмент должен быть отдельно зарегистрирован и авторизован.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-031"
+    },
+    {
+      "term_id": "GL-032",
+      "canonical_term": "Policy & Permission Engine",
+      "definition": "Компонент, который независимо проверяет субъект, ресурс, контекст, операцию и действующие полномочия.",
+      "plain_language_explanation": "Проверяет, имеет ли конкретный агент или пользователь право выполнить действие.",
+      "domain": "Security",
+      "synonyms": [
+        "механизм политик и полномочий",
+        "движок авторизации действий"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-029",
+        "GL-030",
+        "GL-033",
+        "GL-034",
+        "GL-043",
+        "GL-054"
+      ],
+      "examples": [
+        "Перед записью комментария в подключённую систему Policy & Permission Engine проверяет пользователя, проект, операцию и grant."
+      ],
+      "usage_notes": "Компонент авторизации действия; он не должен полагаться на утверждения модели о наличии разрешения.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-032"
+    },
+    {
+      "term_id": "GL-033",
+      "canonical_term": "Rules Registry",
+      "definition": "Версионируемый реестр системных, организационных и проектных правил с владельцами и статусами.",
+      "plain_language_explanation": "Каталог правил, по которым должна работать система.",
+      "domain": "Governance",
+      "synonyms": [
+        "реестр правил"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-034",
+        "GL-032",
+        "GL-043"
+      ],
+      "examples": [
+        "Организационное правило задаёт обязательный формат идентификаторов требований и проходит согласование перед активацией."
+      ],
+      "usage_notes": "Использовать каноническое значение; не считать синонимом связанных терминов с иным предметным смыслом.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-033"
+    },
+    {
+      "term_id": "GL-034",
+      "canonical_term": "Rules Engine",
+      "definition": "Детерминированный компонент проверки применимых правил и их иерархии.",
+      "plain_language_explanation": "Проверяет, какие правила действуют и нет ли конфликтов.",
+      "domain": "Governance",
+      "synonyms": [
+        "механизм проверки правил"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-033",
+        "GL-032"
+      ],
+      "examples": [
+        "Rules Engine проверяет, что проектное правило не ослабляет обязательное организационное правило."
+      ],
+      "usage_notes": "Использовать каноническое значение; не считать синонимом связанных терминов с иным предметным смыслом.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-034"
+    },
+    {
+      "term_id": "GL-035",
+      "canonical_term": "Artifact",
+      "definition": "Управляемый результат аналитической или проектной работы с устойчивой идентичностью, владельцем, жизненным циклом и связями; его содержимое может храниться в доменной модели, нативной спецификации или документе-источнике.",
+      "plain_language_explanation": "Документ, спецификация, модель или иной результат работы.",
+      "domain": "Artifacts",
+      "synonyms": [
+        "артефакт",
+        "результат работы"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-036",
+        "GL-037",
+        "GL-038",
+        "GL-039",
+        "GL-040"
+      ],
+      "examples": [
+        "Модель данных, спецификация OpenAPI и аналитический отчёт являются разными Artifact с собственными версиями."
+      ],
+      "usage_notes": "Artifact — логическая сущность результата; файл/экспорт является представлением или версией, а не обязательно самим источником истины.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-035"
+    },
+    {
+      "term_id": "GL-036",
+      "canonical_term": "Artifact Version",
+      "definition": "Неизменяемая версия Artifact.",
+      "plain_language_explanation": "Конкретная редакция результата; предыдущие версии сохраняются.",
+      "domain": "Artifacts",
+      "synonyms": [
+        "версия артефакта"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-035",
+        "GL-037",
+        "GL-039",
+        "GL-040"
+      ],
+      "examples": [
+        "После правки спецификации создаётся Artifact Version 4; ранее утверждённая версия не перезаписывается."
+      ],
+      "usage_notes": "Использовать каноническое значение; не считать синонимом связанных терминов с иным предметным смыслом.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-036"
+    },
+    {
+      "term_id": "GL-037",
+      "canonical_term": "Baseline",
+      "definition": "Утверждённый неизменяемый набор конкретных версий требований и связанных артефактов на определённый момент.",
+      "plain_language_explanation": "Зафиксированная согласованная версия проектной основы.",
+      "domain": "Change Management",
+      "synonyms": [
+        "базовая линия",
+        "утверждённый baseline"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-035",
+        "GL-036",
+        "GL-040",
+        "GL-043"
+      ],
+      "examples": [
+        "Baseline фиксирует утверждённые версии требований, API-спецификации и связанных критериев приёмки."
+      ],
+      "usage_notes": "Baseline неизменяем; изменения проходят Change Request и создают новую Baseline после approval.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-037"
+    },
+    {
+      "term_id": "GL-038",
+      "canonical_term": "Traceability",
+      "definition": "Управляемые связи между целями, источниками, требованиями, задачами, артефактами, тестами и решениями.",
+      "plain_language_explanation": "Возможность проследить, почему и чем обоснован каждый результат.",
+      "domain": "Requirements",
+      "synonyms": [
+        "трассируемость",
+        "прослеживаемость"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-006",
+        "GL-019",
+        "GL-022",
+        "GL-023",
+        "GL-035",
+        "GL-039"
+      ],
+      "examples": [
+        "Requirement связан с Source Fragment, Task, Artifact и Test через типизированные Traceability links."
+      ],
+      "usage_notes": "Наличие связи не означает её подтверждённость: статус Traceability Link должен быть явным.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-038"
+    },
+    {
+      "term_id": "GL-039",
+      "canonical_term": "Impact Assessment",
+      "definition": "Оценка объектов и процессов, на которые может повлиять изменение источника, требования или артефакта.",
+      "plain_language_explanation": "Анализ того, что придётся пересмотреть после изменения.",
+      "domain": "Change Management",
+      "synonyms": [
+        "оценка влияния",
+        "анализ влияния"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-035",
+        "GL-036",
+        "GL-038",
+        "GL-040"
+      ],
+      "examples": [
+        "После изменения Source система определяет, какие требования, задачи и артефакты потенциально затронуты."
+      ],
+      "usage_notes": "Использовать каноническое значение; не считать синонимом связанных терминов с иным предметным смыслом.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-039"
+    },
+    {
+      "term_id": "GL-040",
+      "canonical_term": "Change Request",
+      "definition": "Формализованный запрос на изменение утверждённого требования, артефакта или baseline.",
+      "plain_language_explanation": "Запрос на изменение уже согласованной проектной основы.",
+      "domain": "Change Management",
+      "synonyms": [
+        "запрос на изменение",
+        "CR"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-037",
+        "GL-039",
+        "GL-043"
+      ],
+      "examples": [
+        "Изменение утверждённого Requirement оформляется Change Request с обоснованием, анализом влияния и решением approver."
+      ],
+      "usage_notes": "Использовать каноническое значение; не считать синонимом связанных терминов с иным предметным смыслом.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-040"
+    },
+    {
+      "term_id": "GL-041",
+      "canonical_term": "Verification",
+      "definition": "Проверка того, что объект или результат соответствует заданным требованиям, правилам, контрактам или критериям; вывод фиксируется с результатами и evidence.",
+      "plain_language_explanation": "Проверка, выполнены ли конкретные условия.",
+      "domain": "Quality",
+      "synonyms": [
+        "верификация"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-025",
+        "GL-042",
+        "GL-044",
+        "GL-045"
+      ],
+      "examples": [
+        "Verification подтверждает, что OpenAPI-спецификация проходит схему и согласованные контрактные проверки."
+      ],
+      "usage_notes": "Verification не заменяет Independent QA, Human Approval или публикацию.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-041"
+    },
+    {
+      "term_id": "GL-042",
+      "canonical_term": "Independent QA",
+      "definition": "Проверка результата отдельным исполнителем/Worker, не являющимся автором проверяемой работы.",
+      "plain_language_explanation": "Независимая проверка качества, а не самооценка агента.",
+      "domain": "Quality",
+      "synonyms": [
+        "независимая проверка качества"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-041",
+        "GL-025",
+        "GL-044",
+        "GL-043"
+      ],
+      "examples": [
+        "Worker, не создававший архитектурный результат, независимо проверяет его полноту и доказательства."
+      ],
+      "usage_notes": "Проверяющий не должен быть автором проверяемой работы; QA outcome отделён от orchestration acceptance.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-042"
+    },
+    {
+      "term_id": "GL-043",
+      "canonical_term": "Human Approval",
+      "definition": "Зафиксированное решение уполномоченного человека об утверждении, отклонении или возврате объекта/действия в пределах его полномочий.",
+      "plain_language_explanation": "Человек принимает ответственность за согласование.",
+      "domain": "Governance",
+      "synonyms": [
+        "человеческое утверждение",
+        "утверждение уполномоченным лицом"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-032",
+        "GL-037",
+        "GL-040",
+        "GL-050",
+        "GL-054"
+      ],
+      "examples": [
+        "Уполномоченный аналитик выполняет Human Approval требования; статус QA PASS сам по себе этого не заменяет."
+      ],
+      "usage_notes": "Human Approval — формальное решение уполномоченного лица, а не любое сообщение пользователя в чате.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-043"
+    },
+    {
+      "term_id": "GL-044",
+      "canonical_term": "Evaluation Set",
+      "definition": "Версионируемый набор репрезентативных случаев, используемый для оценки качества и регрессий.",
+      "plain_language_explanation": "Контрольные примеры, на которых проверяют поведение агента.",
+      "domain": "Evaluation",
+      "synonyms": [
+        "набор оценки",
+        "evaluation dataset"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-045",
+        "GL-041",
+        "GL-042",
+        "GL-049",
+        "GL-050"
+      ],
+      "examples": [
+        "Evaluation Set содержит фиксированные кейсы Greenfield, Brownfield и Hybrid для сравнения версий аналитического Worker."
+      ],
+      "usage_notes": "Evaluation Set должен быть версионирован; изменение набора само требует review и оценки влияния.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-044"
+    },
+    {
+      "term_id": "GL-045",
+      "canonical_term": "Regression Test",
+      "definition": "Проверка, что изменение не ухудшило ранее подтверждённое поведение.",
+      "plain_language_explanation": "Повторная проверка старых сценариев после изменений.",
+      "domain": "Evaluation",
+      "synonyms": [
+        "регрессионная проверка"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-044",
+        "GL-041",
+        "GL-050"
+      ],
+      "examples": [
+        "После обновления prompt запускается Regression Test на ранее пройденных сценариях, чтобы обнаружить ухудшение."
+      ],
+      "usage_notes": "Использовать каноническое значение; не считать синонимом связанных терминов с иным предметным смыслом.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-045"
+    },
+    {
+      "term_id": "GL-046",
+      "canonical_term": "Observability",
+      "definition": "Способность понимать внутреннее состояние и поведение системы по telemetry, logs, traces, metrics and events.",
+      "plain_language_explanation": "Возможность разобраться, что происходит и почему.",
+      "domain": "Operations",
+      "synonyms": [
+        "наблюдаемость"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-047",
+        "GL-048",
+        "GL-049",
+        "GL-050"
+      ],
+      "examples": [
+        "По traces, metrics, logs и domain events оператор устанавливает, почему Worker Run задержался."
+      ],
+      "usage_notes": "Observability не должна становиться неуправляемым хранилищем секретов, полных промптов или пользовательских документов.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-046"
+    },
+    {
+      "term_id": "GL-047",
+      "canonical_term": "SLI",
+      "definition": "Количественный показатель фактического поведения сервиса или пользовательского сценария.",
+      "plain_language_explanation": "Что именно измеряем.",
+      "domain": "Operations",
+      "synonyms": [
+        "индикатор уровня сервиса"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-048",
+        "GL-046"
+      ],
+      "examples": [
+        "SLI может измерять долю успешных завершений пользовательского сценария за сутки."
+      ],
+      "usage_notes": "SLI — измеряемый показатель; сам по себе не задаёт желаемую цель.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-047"
+    },
+    {
+      "term_id": "GL-048",
+      "canonical_term": "SLO",
+      "definition": "Целевое значение SLI за определённое окно измерения.",
+      "plain_language_explanation": "Какого уровня измеряемого качества хотим достичь.",
+      "domain": "Operations",
+      "synonyms": [
+        "цель уровня сервиса"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-047",
+        "GL-046"
+      ],
+      "examples": [
+        "SLO задаёт целевую долю успешных завершений для выбранного SLI и окна измерения."
+      ],
+      "usage_notes": "SLO — цель для SLI; не следует путать с SLA или гарантией без формального обязательства.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-048"
+    },
+    {
+      "term_id": "GL-049",
+      "canonical_term": "Drift",
+      "definition": "Изменение характеристик входных данных, поведения модели или качества результатов относительно установленного baseline.",
+      "plain_language_explanation": "Система или данные со временем ведут себя иначе, чем раньше.",
+      "domain": "Evaluation",
+      "synonyms": [
+        "дрейф"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-044",
+        "GL-046",
+        "GL-050"
+      ],
+      "examples": [
+        "После смены модели растёт доля неподтверждённых выводов — это сигнал возможного quality drift."
+      ],
+      "usage_notes": "Использовать каноническое значение; не считать синонимом связанных терминов с иным предметным смыслом.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-049"
+    },
+    {
+      "term_id": "GL-050",
+      "canonical_term": "Improvement Proposal",
+      "definition": "Версионируемое предложение изменить знания, prompt, workflow, инструмент, модель или другой компонент ради измеримого эффекта.",
+      "plain_language_explanation": "Обоснованная заявка на улучшение с доказательствами и рисками.",
+      "domain": "Continuous Improvement",
+      "synonyms": [
+        "предложение улучшения"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-051",
+        "GL-044",
+        "GL-045",
+        "GL-043",
+        "GL-057"
+      ],
+      "examples": [
+        "Improvement Proposal предлагает изменить retrieval ranking, указывает evidence, baseline, ожидаемый эффект и план проверки."
+      ],
+      "usage_notes": "Proposal не является разрешением на изменение и не активирует его автоматически.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-050"
+    },
+    {
+      "term_id": "GL-051",
+      "canonical_term": "Continuous Improvement",
+      "definition": "Управляемый цикл наблюдения, выявления проблем, предложения, оценки, утверждения, выпуска и измерения улучшений.",
+      "plain_language_explanation": "Система регулярно улучшается, но изменения проходят проверки и контроль.",
+      "domain": "Continuous Improvement",
+      "synonyms": [
+        "непрерывное улучшение"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-050",
+        "GL-044",
+        "GL-046",
+        "GL-054"
+      ],
+      "examples": [
+        "После выпуска изменения команда сравнивает результат с baseline и решает сохранить изменение или выполнить rollback."
+      ],
+      "usage_notes": "Использовать каноническое значение; не считать синонимом связанных терминов с иным предметным смыслом.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-051"
+    },
+    {
+      "term_id": "GL-052",
+      "canonical_term": "Capability",
+      "definition": "Ограниченная функциональная область системы или агента, описывающая тип решаемых задач, ожидаемые результаты и связанные ограничения; сама по себе не предоставляет права на действия.",
+      "plain_language_explanation": "Что именно агент умеет делать в конкретной области.",
+      "domain": "Governance",
+      "synonyms": [
+        "функциональная возможность",
+        "способность агента"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-053",
+        "GL-054",
+        "GL-008"
+      ],
+      "examples": [
+        "Capability «анализ OpenAPI» объединяет задачи, доступные инструменты, критерии качества и разрешённые действия."
+      ],
+      "usage_notes": "Capability — предметная возможность; разрешение выполнять конкретные операции определяется отдельно Policy/Grant.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-052"
+    },
+    {
+      "term_id": "GL-053",
+      "canonical_term": "Action Class",
+      "definition": "Класс операций с общими последствиями, риском и требованиями к разрешению.",
+      "plain_language_explanation": "Группа действий, для которой отдельно задают уровень автономности и контроля.",
+      "domain": "Governance",
+      "synonyms": [
+        "класс действий"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-052",
+        "GL-054",
+        "GL-029",
+        "GL-030"
+      ],
+      "examples": [
+        "Чтение файла и публикация изменения в Git относятся к разным Action Class из-за разных последствий и рисков."
+      ],
+      "usage_notes": "Action Class группирует операции по последствиям и риску; конкретные операции перечисляются в policy.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-053"
+    },
+    {
+      "term_id": "GL-054",
+      "canonical_term": "Autonomy Level",
+      "definition": "Формально разрешённая степень самостоятельности для конкретной capability и класса действий в заданной среде и области действия; не является глобальным свойством всей системы.",
+      "plain_language_explanation": "Насколько агенту разрешено действовать без подтверждения человека.",
+      "domain": "Governance",
+      "synonyms": [
+        "уровень автономности"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-052",
+        "GL-053",
+        "GL-032",
+        "GL-043",
+        "GL-050"
+      ],
+      "examples": [
+        "Для capability анализа задаётся A2, а для публикации во внешнем репозитории — A0 без отдельного approval."
+      ],
+      "usage_notes": "A0–A4 — предложенная шкала AI RES, пока не утверждённая; уровень задаётся по scope, среде и классу действий.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-054"
+    },
+    {
+      "term_id": "GL-055",
+      "canonical_term": "Shadow Mode",
+      "definition": "Режим, в котором кандидатное поведение выполняется для оценки, но не влияет на реальные данные и внешние системы.",
+      "plain_language_explanation": "Агент пробует новое поведение без реальных изменений.",
+      "domain": "Release Governance",
+      "synonyms": [
+        "теневой режим"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-050",
+        "GL-044",
+        "GL-056"
+      ],
+      "examples": [
+        "В Shadow Mode новая версия prompt обрабатывает копии тестовых запросов, но не изменяет проектные данные."
+      ],
+      "usage_notes": "Shadow Mode не должен писать в canonical state и вызывать реальные внешние side effects.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-055"
+    },
+    {
+      "term_id": "GL-056",
+      "canonical_term": "Canary Release",
+      "definition": "Ограниченный выпуск изменения на небольшую долю нагрузки или пользователей с контролем показателей.",
+      "plain_language_explanation": "Сначала включаем изменение на ограниченной части системы.",
+      "domain": "Release Governance",
+      "synonyms": [
+        "канареечный выпуск"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-050",
+        "GL-055",
+        "GL-057"
+      ],
+      "examples": [
+        "Canary Release включает новую версию Worker сначала для ограниченной группы задач и отслеживает guardrails."
+      ],
+      "usage_notes": "Canary не гарантирует безопасность; нужны автоматические stop conditions и наблюдение за guardrails.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-056"
+    },
+    {
+      "term_id": "GL-057",
+      "canonical_term": "Rollback",
+      "definition": "Контролируемый возврат к предыдущей проверенной версии или конфигурации.",
+      "plain_language_explanation": "Откат изменения, если оно ухудшило систему.",
+      "domain": "Release Governance",
+      "synonyms": [
+        "откат версии"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-050",
+        "GL-056",
+        "GL-048"
+      ],
+      "examples": [
+        "При росте критических дефектов Release Controller прекращает rollout и возвращает предыдущую проверенную версию, если это безопасно."
+      ],
+      "usage_notes": "Rollback не всегда возможен для внешних side effects или миграций; может требоваться compensation/reconciliation.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-057"
+    },
+    {
+      "term_id": "GL-058",
+      "canonical_term": "RPO",
+      "definition": "Целевой максимально допустимый период потери данных при восстановлении.",
+      "plain_language_explanation": "Насколько далеко назад могут откатиться данные после аварии.",
+      "domain": "Resilience",
+      "synonyms": [
+        "целевой интервал потери данных"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-059",
+        "GL-046"
+      ],
+      "examples": [
+        "При восстановлении после аварии RPO 1 час означает целевой максимум потери последних данных за один час."
+      ],
+      "usage_notes": "RPO — целевой показатель потери данных, а не время восстановления сервиса.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-058"
+    },
+    {
+      "term_id": "GL-059",
+      "canonical_term": "RTO",
+      "definition": "Целевое максимально допустимое время восстановления сервиса после сбоя.",
+      "plain_language_explanation": "Сколько времени допустимо восстанавливать работу.",
+      "domain": "Resilience",
+      "synonyms": [
+        "целевое время восстановления"
+      ],
+      "deprecated_terms": [],
+      "related_terms": [
+        "GL-058",
+        "GL-046"
+      ],
+      "examples": [
+        "При восстановлении после аварии RTO 4 часа означает целевое время возврата сервиса в согласованное рабочее состояние."
+      ],
+      "usage_notes": "RTO — целевое время восстановления, а не допустимая потеря данных.",
+      "status": "APPROVED",
+      "version": "1.1",
+      "owner": "AI RES Product/Architecture",
+      "source_reference": "AI RES Architecture/Domain Model; GL-059"
+    }
+  ]
+}

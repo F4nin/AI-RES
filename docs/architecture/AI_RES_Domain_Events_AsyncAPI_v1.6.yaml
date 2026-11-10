@@ -1,0 +1,6110 @@
+asyncapi: 3.1.0
+info:
+  title: AI RES Domain Events
+  version: 1.6.0
+  description: CloudEvents 1.0 domain event catalogue. PostgreSQL Transactional Outbox is the MVP transport; delivery is at-least-once,
+    with consumer Inbox deduplication and strict ordering only per aggregate. Canonical Operation/WorkerRun Event Model v1.4; current source map is maintained in Document Registry v4.0.
+    Legacy workerRunAccepted message is deprecated; use workerRunCompleted.
+defaultContentType: application/cloudevents+json
+servers:
+  outbox:
+    host: ai_res_db.audit.outbox_events
+    protocol: postgres
+    description: Logical outbox transport; adapter dispatches authorized events to consumers.
+channels:
+  projectEvents:
+    address: aires.project.events
+    messages:
+      projectCreated:
+        $ref: '#/components/messages/ProjectCreated'
+      taskStateChanged:
+        $ref: '#/components/messages/TaskStateChanged'
+      requirementVersionCreated:
+        $ref: '#/components/messages/RequirementVersionCreated'
+      sourceVersionIngested:
+        $ref: '#/components/messages/SourceVersionIngested'
+      workerRunCompleted:
+        $ref: '#/components/messages/WorkerRunCompleted'
+      artifactValidationCompleted:
+        $ref: '#/components/messages/ArtifactValidationCompleted'
+      planVersionProposed:
+        $ref: '#/components/messages/PlanVersionProposed'
+      readinessGateCompleted:
+        $ref: '#/components/messages/ReadinessGateCompleted'
+      workerResultSubmitted:
+        $ref: '#/components/messages/WorkerResultSubmitted'
+      qAReviewCompleted:
+        $ref: '#/components/messages/QAReviewCompleted'
+      impactAssessmentCompleted:
+        $ref: '#/components/messages/ImpactAssessmentCompleted'
+      changeRequestApproved:
+        $ref: '#/components/messages/ChangeRequestApproved'
+      baselineCreated:
+        $ref: '#/components/messages/BaselineCreated'
+      epicCreated:
+        $ref: '#/components/messages/EpicCreated'
+      epicGoalUpdated:
+        $ref: '#/components/messages/EpicGoalUpdated'
+      managerInteractionReceived:
+        $ref: '#/components/messages/ManagerInteractionReceived'
+      managerQuestionProposed:
+        $ref: '#/components/messages/ManagerQuestionProposed'
+      planVersionApproved:
+        $ref: '#/components/messages/PlanVersionApproved'
+      planVersionRejected:
+        $ref: '#/components/messages/PlanVersionRejected'
+      planReplanned:
+        $ref: '#/components/messages/PlanReplanned'
+      taskCreated:
+        $ref: '#/components/messages/TaskCreated'
+      taskBlocked:
+        $ref: '#/components/messages/TaskBlocked'
+      taskReady:
+        $ref: '#/components/messages/TaskReady'
+      taskStarted:
+        $ref: '#/components/messages/TaskStarted'
+      taskCompleted:
+        $ref: '#/components/messages/TaskCompleted'
+      taskCancelled:
+        $ref: '#/components/messages/TaskCancelled'
+      readinessGateBlocked:
+        $ref: '#/components/messages/ReadinessGateBlocked'
+      readinessGateStale:
+        $ref: '#/components/messages/ReadinessGateStale'
+      workerRunCreated:
+        $ref: '#/components/messages/WorkerRunCreated'
+      workerRunStarted:
+        $ref: '#/components/messages/WorkerRunStarted'
+      workerRunFailed:
+        $ref: '#/components/messages/WorkerRunFailed'
+      workerRunCancelled:
+        $ref: '#/components/messages/WorkerRunCancelled'
+      workerRunAccepted:
+        $ref: '#/components/messages/WorkerRunAccepted'
+      workerRunReworkRequired:
+        $ref: '#/components/messages/WorkerRunReworkRequired'
+      qAReviewRequested:
+        $ref: '#/components/messages/QAReviewRequested'
+      sourceChangeDetected:
+        $ref: '#/components/messages/SourceChangeDetected'
+      impactRevalidationRequired:
+        $ref: '#/components/messages/ImpactRevalidationRequired'
+      artifactVersionCreated:
+        $ref: '#/components/messages/ArtifactVersionCreated'
+      artifactApproved:
+        $ref: '#/components/messages/ArtifactApproved'
+      artifactPublished:
+        $ref: '#/components/messages/ArtifactPublished'
+      changeRequestCreated:
+        $ref: '#/components/messages/ChangeRequestCreated'
+      operationWaitingForHuman:
+        $ref: '#/components/messages/OperationWaitingForHuman'
+      operationResumed:
+        $ref: '#/components/messages/OperationResumed'
+      operationFailed:
+        $ref: '#/components/messages/OperationFailed'
+      workerCoordinationRequested:
+        $ref: '#/components/messages/WorkerCoordinationRequested'
+      workerCoordinationDecisionRecorded:
+        $ref: '#/components/messages/WorkerCoordinationDecisionRecorded'
+      workerCoordinationCompleted:
+        $ref: '#/components/messages/WorkerCoordinationCompleted'
+      operationStateChanged:
+        $ref: '#/components/messages/OperationStateChanged'
+      workerRunBlocked:
+        $ref: '#/components/messages/WorkerRunBlocked'
+      workerRunQueued:
+        $ref: '#/components/messages/WorkerRunQueued'
+      workerRunWaitingForHuman:
+        $ref: '#/components/messages/WorkerRunWaitingForHuman'
+      workerRunWaitingForDependency:
+        $ref: '#/components/messages/WorkerRunWaitingForDependency'
+      workerRunResumed:
+        $ref: '#/components/messages/WorkerRunResumed'
+      workerRunValidationCompleted:
+        $ref: '#/components/messages/WorkerRunValidationCompleted'
+      workerRunReviewRequested:
+        $ref: '#/components/messages/WorkerRunReviewRequested'
+      workerRunQARequested:
+        $ref: '#/components/messages/WorkerRunQARequested'
+      workerRunRejected:
+        $ref: '#/components/messages/WorkerRunRejected'
+      workerRunUnverified:
+        $ref: '#/components/messages/WorkerRunUnverified'
+      workerRunCancelRequested:
+        $ref: '#/components/messages/WorkerRunCancelRequested'
+      workerRunTimedOut:
+        $ref: '#/components/messages/WorkerRunTimedOut'
+      workerRunDerived:
+        $ref: '#/components/messages/WorkerRunDerived'
+      operationChildCreated:
+        $ref: '#/components/messages/OperationChildCreated'
+      operationProgressUpdated:
+        $ref: '#/components/messages/OperationProgressUpdated'
+      operationAccepted:
+        $ref: '#/components/messages/OperationAccepted'
+      operationQueued:
+        $ref: '#/components/messages/OperationQueued'
+      operationStarted:
+        $ref: '#/components/messages/OperationStarted'
+      operationWaitingForDependency:
+        $ref: '#/components/messages/OperationWaitingForDependency'
+      operationRetrying:
+        $ref: '#/components/messages/OperationRetrying'
+      operationCancelRequested:
+        $ref: '#/components/messages/OperationCancelRequested'
+      operationSucceeded:
+        $ref: '#/components/messages/OperationSucceeded'
+      operationPartiallySucceeded:
+        $ref: '#/components/messages/OperationPartiallySucceeded'
+      operationCancelled:
+        $ref: '#/components/messages/OperationCancelled'
+      workerRunPreparationStarted:
+        $ref: '#/components/messages/WorkerRunPreparationStarted'
+      workerRunGateEvaluationRequested:
+        $ref: '#/components/messages/WorkerRunGateEvaluationRequested'
+      workerRunGateEvaluationCompleted:
+        $ref: '#/components/messages/WorkerRunGateEvaluationCompleted'
+      workerRunResultSubmitted:
+        $ref: '#/components/messages/WorkerRunResultSubmitted'
+      operationFailedV1:
+        $ref: '#/components/messages/OperationFailedV1'
+      workerRunFailedV1:
+        $ref: '#/components/messages/WorkerRunFailedV1'
+operations:
+  consumeProjectCreated:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/ProjectCreated'
+  consumeTaskStateChanged:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/TaskStateChanged'
+  consumeRequirementVersionCreated:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/RequirementVersionCreated'
+  consumeSourceVersionIngested:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/SourceVersionIngested'
+  consumeWorkerRunCompleted:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/WorkerRunCompleted'
+  consumeArtifactValidationCompleted:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/ArtifactValidationCompleted'
+  consumePlanVersionProposed:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/PlanVersionProposed'
+  consumeReadinessGateCompleted:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/ReadinessGateCompleted'
+  consumeWorkerResultSubmitted:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/WorkerResultSubmitted'
+  consumeQAReviewCompleted:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/QAReviewCompleted'
+  consumeImpactAssessmentCompleted:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/ImpactAssessmentCompleted'
+  consumeChangeRequestApproved:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/ChangeRequestApproved'
+  consumeBaselineCreated:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/BaselineCreated'
+  consumeEpicCreated:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/EpicCreated'
+  consumeEpicGoalUpdated:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/EpicGoalUpdated'
+  consumeManagerInteractionReceived:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/ManagerInteractionReceived'
+  consumeManagerQuestionProposed:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/ManagerQuestionProposed'
+  consumePlanVersionApproved:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/PlanVersionApproved'
+  consumePlanVersionRejected:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/PlanVersionRejected'
+  consumePlanReplanned:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/PlanReplanned'
+  consumeTaskCreated:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/TaskCreated'
+  consumeTaskBlocked:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/TaskBlocked'
+  consumeTaskReady:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/TaskReady'
+  consumeTaskStarted:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/TaskStarted'
+  consumeTaskCompleted:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/TaskCompleted'
+  consumeTaskCancelled:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/TaskCancelled'
+  consumeReadinessGateBlocked:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/ReadinessGateBlocked'
+  consumeReadinessGateStale:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/ReadinessGateStale'
+  consumeWorkerRunCreated:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/WorkerRunCreated'
+  consumeWorkerRunStarted:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/WorkerRunStarted'
+  consumeWorkerRunFailed:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/WorkerRunFailed'
+  consumeWorkerRunCancelled:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/WorkerRunCancelled'
+  consumeWorkerRunAccepted:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/WorkerRunAccepted'
+  consumeWorkerRunReworkRequired:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/WorkerRunReworkRequired'
+  consumeQAReviewRequested:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/QAReviewRequested'
+  consumeSourceChangeDetected:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/SourceChangeDetected'
+  consumeImpactRevalidationRequired:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/ImpactRevalidationRequired'
+  consumeArtifactVersionCreated:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/ArtifactVersionCreated'
+  consumeArtifactApproved:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/ArtifactApproved'
+  consumeArtifactPublished:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/ArtifactPublished'
+  consumeChangeRequestCreated:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/ChangeRequestCreated'
+  consumeOperationWaitingForHuman:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/OperationWaitingForHuman'
+  consumeOperationResumed:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/OperationResumed'
+  consumeOperationFailed:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/OperationFailed'
+  consumeWorkerCoordinationRequested:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/WorkerCoordinationRequested'
+  consumeWorkerCoordinationDecisionRecorded:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/WorkerCoordinationDecisionRecorded'
+  consumeWorkerCoordinationCompleted:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/WorkerCoordinationCompleted'
+  consumeOperationStateChanged:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/OperationStateChanged'
+  consumeOperationAccepted:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/OperationAccepted'
+  consumeOperationQueued:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/OperationQueued'
+  consumeOperationStarted:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/OperationStarted'
+  consumeOperationWaitingForDependency:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/OperationWaitingForDependency'
+  consumeOperationRetrying:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/OperationRetrying'
+  consumeOperationCancelRequested:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/OperationCancelRequested'
+  consumeOperationSucceeded:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/OperationSucceeded'
+  consumeOperationPartiallySucceeded:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/OperationPartiallySucceeded'
+  consumeOperationCancelled:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/OperationCancelled'
+  consumeOperationChildCreated:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/OperationChildCreated'
+  consumeOperationProgressUpdated:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/OperationProgressUpdated'
+  consumeWorkerRunPreparationStarted:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/WorkerRunPreparationStarted'
+  consumeWorkerRunGateEvaluationRequested:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/WorkerRunGateEvaluationRequested'
+  consumeWorkerRunGateEvaluationCompleted:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/WorkerRunGateEvaluationCompleted'
+  consumeWorkerRunBlocked:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/WorkerRunBlocked'
+  consumeWorkerRunQueued:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/WorkerRunQueued'
+  consumeWorkerRunWaitingForHuman:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/WorkerRunWaitingForHuman'
+  consumeWorkerRunWaitingForDependency:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/WorkerRunWaitingForDependency'
+  consumeWorkerRunResumed:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/WorkerRunResumed'
+  consumeWorkerRunResultSubmitted:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/WorkerRunResultSubmitted'
+  consumeWorkerRunValidationCompleted:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/WorkerRunValidationCompleted'
+  consumeWorkerRunReviewRequested:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/WorkerRunReviewRequested'
+  consumeWorkerRunQARequested:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/WorkerRunQARequested'
+  consumeWorkerRunRejected:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/WorkerRunRejected'
+  consumeWorkerRunUnverified:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/WorkerRunUnverified'
+  consumeWorkerRunCancelRequested:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/WorkerRunCancelRequested'
+  consumeWorkerRunTimedOut:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/WorkerRunTimedOut'
+  consumeWorkerRunDerived:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/WorkerRunDerived'
+  consumeOperationFailedV1:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/OperationFailedV1'
+  consumeWorkerRunFailedV1:
+    action: receive
+    channel:
+      $ref: '#/channels/projectEvents'
+    messages:
+    - $ref: '#/components/messages/WorkerRunFailedV1'
+components:
+  messages:
+    ProjectCreated:
+      name: ProjectCreated
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/ProjectCreatedEvent'
+    TaskStateChanged:
+      name: TaskStateChanged
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/TaskStateChangedEvent'
+    RequirementVersionCreated:
+      name: RequirementVersionCreated
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/RequirementVersionCreatedEvent'
+    SourceVersionIngested:
+      name: SourceVersionIngested
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/SourceVersionIngestedEvent'
+    WorkerRunCompleted:
+      name: com.aires.worker_run.completed.v1
+      title: WorkerRunCompleted
+      summary: Canonical com.aires.worker_run.completed.v1 domain event.
+      contentType: application/cloudevents+json
+      headers:
+        type: object
+        properties:
+          ce_specversion:
+            type: string
+            const: '1.0'
+          ce_id:
+            type: string
+            format: uuid
+          ce_source:
+            type: string
+          ce_type:
+            type: string
+            const: com.aires.worker_run.completed.v1
+          ce_subject:
+            type: string
+          ce_time:
+            type: string
+            format: date-time
+        required:
+        - ce_specversion
+        - ce_id
+        - ce_source
+        - ce_type
+        - ce_subject
+        - ce_time
+      payload:
+        type: object
+        required:
+        - specversion
+        - id
+        - source
+        - type
+        - subject
+        - time
+        - datacontenttype
+        - dataschema
+        - data
+        properties:
+          specversion:
+            type: string
+            const: '1.0'
+          id:
+            type: string
+            format: uuid
+          source:
+            type: string
+          type:
+            type: string
+            const: com.aires.worker_run.completed.v1
+          subject:
+            type: string
+          time:
+            type: string
+            format: date-time
+          datacontenttype:
+            type: string
+            const: application/json
+          dataschema:
+            type: string
+          data:
+            $ref: '#/components/schemas/OperationWorkerRunEventData'
+        additionalProperties: false
+    ArtifactValidationCompleted:
+      name: ArtifactValidationCompleted
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/ArtifactValidationCompletedEvent'
+    PlanVersionProposed:
+      name: PlanVersionProposed
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/PlanVersionProposedEvent'
+    ReadinessGateCompleted:
+      name: ReadinessGateCompleted
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/ReadinessGateCompletedEvent'
+    WorkerResultSubmitted:
+      name: WorkerResultSubmitted
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/WorkerResultSubmittedEvent'
+    QAReviewCompleted:
+      name: QAReviewCompleted
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/QAReviewCompletedEvent'
+    ImpactAssessmentCompleted:
+      name: ImpactAssessmentCompleted
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/ImpactAssessmentCompletedEvent'
+    ChangeRequestApproved:
+      name: ChangeRequestApproved
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/ChangeRequestApprovedEvent'
+    BaselineCreated:
+      name: BaselineCreated
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/BaselineCreatedEvent'
+    EpicCreated:
+      name: EpicCreated
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/EpicCreatedEvent'
+    EpicGoalUpdated:
+      name: EpicGoalUpdated
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/EpicGoalUpdatedEvent'
+    ManagerInteractionReceived:
+      name: ManagerInteractionReceived
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/ManagerInteractionReceivedEvent'
+    ManagerQuestionProposed:
+      name: ManagerQuestionProposed
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/ManagerQuestionProposedEvent'
+    PlanVersionApproved:
+      name: PlanVersionApproved
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/PlanVersionApprovedEvent'
+    PlanVersionRejected:
+      name: PlanVersionRejected
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/PlanVersionRejectedEvent'
+    PlanReplanned:
+      name: PlanReplanned
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/PlanReplannedEvent'
+    TaskCreated:
+      name: TaskCreated
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/TaskCreatedEvent'
+    TaskBlocked:
+      name: TaskBlocked
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/TaskBlockedEvent'
+    TaskReady:
+      name: TaskReady
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/TaskReadyEvent'
+    TaskStarted:
+      name: TaskStarted
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/TaskStartedEvent'
+    TaskCompleted:
+      name: TaskCompleted
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/TaskCompletedEvent'
+    TaskCancelled:
+      name: TaskCancelled
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/TaskCancelledEvent'
+    ReadinessGateBlocked:
+      name: ReadinessGateBlocked
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/ReadinessGateBlockedEvent'
+    ReadinessGateStale:
+      name: ReadinessGateStale
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/ReadinessGateStaleEvent'
+    WorkerRunCreated:
+      name: WorkerRunCreated
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/WorkerRunCreatedEvent'
+    WorkerRunStarted:
+      name: com.aires.worker_run.started.v1
+      title: WorkerRunStarted
+      summary: Canonical com.aires.worker_run.started.v1 domain event.
+      contentType: application/cloudevents+json
+      headers:
+        type: object
+        properties:
+          ce_specversion:
+            type: string
+            const: '1.0'
+          ce_id:
+            type: string
+            format: uuid
+          ce_source:
+            type: string
+          ce_type:
+            type: string
+            const: com.aires.worker_run.started.v1
+          ce_subject:
+            type: string
+          ce_time:
+            type: string
+            format: date-time
+        required:
+        - ce_specversion
+        - ce_id
+        - ce_source
+        - ce_type
+        - ce_subject
+        - ce_time
+      payload:
+        type: object
+        required:
+        - specversion
+        - id
+        - source
+        - type
+        - subject
+        - time
+        - datacontenttype
+        - dataschema
+        - data
+        properties:
+          specversion:
+            type: string
+            const: '1.0'
+          id:
+            type: string
+            format: uuid
+          source:
+            type: string
+          type:
+            type: string
+            const: com.aires.worker_run.started.v1
+          subject:
+            type: string
+          time:
+            type: string
+            format: date-time
+          datacontenttype:
+            type: string
+            const: application/json
+          dataschema:
+            type: string
+          data:
+            $ref: '#/components/schemas/OperationWorkerRunEventData'
+        additionalProperties: false
+    WorkerRunFailed:
+      name: WorkerRunFailed
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/WorkerRunFailedEvent'
+    WorkerRunCancelled:
+      name: com.aires.worker_run.cancelled.v1
+      title: WorkerRunCancelled
+      summary: Canonical com.aires.worker_run.cancelled.v1 domain event.
+      contentType: application/cloudevents+json
+      headers:
+        type: object
+        properties:
+          ce_specversion:
+            type: string
+            const: '1.0'
+          ce_id:
+            type: string
+            format: uuid
+          ce_source:
+            type: string
+          ce_type:
+            type: string
+            const: com.aires.worker_run.cancelled.v1
+          ce_subject:
+            type: string
+          ce_time:
+            type: string
+            format: date-time
+        required:
+        - ce_specversion
+        - ce_id
+        - ce_source
+        - ce_type
+        - ce_subject
+        - ce_time
+      payload:
+        type: object
+        required:
+        - specversion
+        - id
+        - source
+        - type
+        - subject
+        - time
+        - datacontenttype
+        - dataschema
+        - data
+        properties:
+          specversion:
+            type: string
+            const: '1.0'
+          id:
+            type: string
+            format: uuid
+          source:
+            type: string
+          type:
+            type: string
+            const: com.aires.worker_run.cancelled.v1
+          subject:
+            type: string
+          time:
+            type: string
+            format: date-time
+          datacontenttype:
+            type: string
+            const: application/json
+          dataschema:
+            type: string
+          data:
+            $ref: '#/components/schemas/OperationWorkerRunEventData'
+        additionalProperties: false
+    WorkerRunAccepted:
+      name: WorkerRunAccepted
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/WorkerRunAcceptedEvent'
+      deprecated: true
+      summary: 'DEPRECATED: use WorkerRunCompleted; ACCEPTED is not a WorkerRun terminal status.'
+    WorkerRunReworkRequired:
+      name: com.aires.worker_run.rework_required.v1
+      title: WorkerRunReworkRequired
+      summary: Canonical com.aires.worker_run.rework_required.v1 domain event.
+      contentType: application/cloudevents+json
+      headers:
+        type: object
+        properties:
+          ce_specversion:
+            type: string
+            const: '1.0'
+          ce_id:
+            type: string
+            format: uuid
+          ce_source:
+            type: string
+          ce_type:
+            type: string
+            const: com.aires.worker_run.rework_required.v1
+          ce_subject:
+            type: string
+          ce_time:
+            type: string
+            format: date-time
+        required:
+        - ce_specversion
+        - ce_id
+        - ce_source
+        - ce_type
+        - ce_subject
+        - ce_time
+      payload:
+        type: object
+        required:
+        - specversion
+        - id
+        - source
+        - type
+        - subject
+        - time
+        - datacontenttype
+        - dataschema
+        - data
+        properties:
+          specversion:
+            type: string
+            const: '1.0'
+          id:
+            type: string
+            format: uuid
+          source:
+            type: string
+          type:
+            type: string
+            const: com.aires.worker_run.rework_required.v1
+          subject:
+            type: string
+          time:
+            type: string
+            format: date-time
+          datacontenttype:
+            type: string
+            const: application/json
+          dataschema:
+            type: string
+          data:
+            $ref: '#/components/schemas/OperationWorkerRunEventData'
+        additionalProperties: false
+    QAReviewRequested:
+      name: QAReviewRequested
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/QAReviewRequestedEvent'
+    SourceChangeDetected:
+      name: SourceChangeDetected
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/SourceChangeDetectedEvent'
+    ImpactRevalidationRequired:
+      name: ImpactRevalidationRequired
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/ImpactRevalidationRequiredEvent'
+    ArtifactVersionCreated:
+      name: ArtifactVersionCreated
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/ArtifactVersionCreatedEvent'
+    ArtifactApproved:
+      name: ArtifactApproved
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/ArtifactApprovedEvent'
+    ArtifactPublished:
+      name: ArtifactPublished
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/ArtifactPublishedEvent'
+    ChangeRequestCreated:
+      name: ChangeRequestCreated
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/ChangeRequestCreatedEvent'
+    OperationWaitingForHuman:
+      name: com.aires.operation.waiting_for_human.v1
+      title: OperationWaitingForHuman
+      summary: Canonical com.aires.operation.waiting_for_human.v1 domain event.
+      contentType: application/cloudevents+json
+      headers:
+        type: object
+        properties:
+          ce_specversion:
+            type: string
+            const: '1.0'
+          ce_id:
+            type: string
+            format: uuid
+          ce_source:
+            type: string
+          ce_type:
+            type: string
+            const: com.aires.operation.waiting_for_human.v1
+          ce_subject:
+            type: string
+          ce_time:
+            type: string
+            format: date-time
+        required:
+        - ce_specversion
+        - ce_id
+        - ce_source
+        - ce_type
+        - ce_subject
+        - ce_time
+      payload:
+        type: object
+        required:
+        - specversion
+        - id
+        - source
+        - type
+        - subject
+        - time
+        - datacontenttype
+        - dataschema
+        - data
+        properties:
+          specversion:
+            type: string
+            const: '1.0'
+          id:
+            type: string
+            format: uuid
+          source:
+            type: string
+          type:
+            type: string
+            const: com.aires.operation.waiting_for_human.v1
+          subject:
+            type: string
+          time:
+            type: string
+            format: date-time
+          datacontenttype:
+            type: string
+            const: application/json
+          dataschema:
+            type: string
+          data:
+            $ref: '#/components/schemas/OperationWorkerRunEventData'
+        additionalProperties: false
+    OperationResumed:
+      name: com.aires.operation.resumed.v1
+      title: OperationResumed
+      summary: Canonical com.aires.operation.resumed.v1 domain event.
+      contentType: application/cloudevents+json
+      headers:
+        type: object
+        properties:
+          ce_specversion:
+            type: string
+            const: '1.0'
+          ce_id:
+            type: string
+            format: uuid
+          ce_source:
+            type: string
+          ce_type:
+            type: string
+            const: com.aires.operation.resumed.v1
+          ce_subject:
+            type: string
+          ce_time:
+            type: string
+            format: date-time
+        required:
+        - ce_specversion
+        - ce_id
+        - ce_source
+        - ce_type
+        - ce_subject
+        - ce_time
+      payload:
+        type: object
+        required:
+        - specversion
+        - id
+        - source
+        - type
+        - subject
+        - time
+        - datacontenttype
+        - dataschema
+        - data
+        properties:
+          specversion:
+            type: string
+            const: '1.0'
+          id:
+            type: string
+            format: uuid
+          source:
+            type: string
+          type:
+            type: string
+            const: com.aires.operation.resumed.v1
+          subject:
+            type: string
+          time:
+            type: string
+            format: date-time
+          datacontenttype:
+            type: string
+            const: application/json
+          dataschema:
+            type: string
+          data:
+            $ref: '#/components/schemas/OperationWorkerRunEventData'
+        additionalProperties: false
+    OperationFailed:
+      name: OperationFailed
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/OperationFailedEvent'
+    WorkerCoordinationRequested:
+      name: WorkerCoordinationRequested
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/WorkerCoordinationRequestedEvent'
+    WorkerCoordinationDecisionRecorded:
+      name: WorkerCoordinationDecisionRecorded
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/WorkerCoordinationDecisionRecordedEvent'
+    WorkerCoordinationCompleted:
+      name: WorkerCoordinationCompleted
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/WorkerCoordinationCompletedEvent'
+    OperationStateChanged:
+      name: OperationStateChanged
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/OperationStateChangedEvent'
+    WorkerRunBlocked:
+      name: com.aires.worker_run.blocked.v1
+      title: WorkerRunBlocked
+      summary: Canonical com.aires.worker_run.blocked.v1 domain event.
+      contentType: application/cloudevents+json
+      headers:
+        type: object
+        properties:
+          ce_specversion:
+            type: string
+            const: '1.0'
+          ce_id:
+            type: string
+            format: uuid
+          ce_source:
+            type: string
+          ce_type:
+            type: string
+            const: com.aires.worker_run.blocked.v1
+          ce_subject:
+            type: string
+          ce_time:
+            type: string
+            format: date-time
+        required:
+        - ce_specversion
+        - ce_id
+        - ce_source
+        - ce_type
+        - ce_subject
+        - ce_time
+      payload:
+        type: object
+        required:
+        - specversion
+        - id
+        - source
+        - type
+        - subject
+        - time
+        - datacontenttype
+        - dataschema
+        - data
+        properties:
+          specversion:
+            type: string
+            const: '1.0'
+          id:
+            type: string
+            format: uuid
+          source:
+            type: string
+          type:
+            type: string
+            const: com.aires.worker_run.blocked.v1
+          subject:
+            type: string
+          time:
+            type: string
+            format: date-time
+          datacontenttype:
+            type: string
+            const: application/json
+          dataschema:
+            type: string
+          data:
+            $ref: '#/components/schemas/OperationWorkerRunEventData'
+        additionalProperties: false
+    WorkerRunQueued:
+      name: com.aires.worker_run.queued.v1
+      title: WorkerRunQueued
+      summary: Canonical com.aires.worker_run.queued.v1 domain event.
+      contentType: application/cloudevents+json
+      headers:
+        type: object
+        properties:
+          ce_specversion:
+            type: string
+            const: '1.0'
+          ce_id:
+            type: string
+            format: uuid
+          ce_source:
+            type: string
+          ce_type:
+            type: string
+            const: com.aires.worker_run.queued.v1
+          ce_subject:
+            type: string
+          ce_time:
+            type: string
+            format: date-time
+        required:
+        - ce_specversion
+        - ce_id
+        - ce_source
+        - ce_type
+        - ce_subject
+        - ce_time
+      payload:
+        type: object
+        required:
+        - specversion
+        - id
+        - source
+        - type
+        - subject
+        - time
+        - datacontenttype
+        - dataschema
+        - data
+        properties:
+          specversion:
+            type: string
+            const: '1.0'
+          id:
+            type: string
+            format: uuid
+          source:
+            type: string
+          type:
+            type: string
+            const: com.aires.worker_run.queued.v1
+          subject:
+            type: string
+          time:
+            type: string
+            format: date-time
+          datacontenttype:
+            type: string
+            const: application/json
+          dataschema:
+            type: string
+          data:
+            $ref: '#/components/schemas/OperationWorkerRunEventData'
+        additionalProperties: false
+    WorkerRunWaitingForHuman:
+      name: com.aires.worker_run.waiting_for_human.v1
+      title: WorkerRunWaitingForHuman
+      summary: Canonical com.aires.worker_run.waiting_for_human.v1 domain event.
+      contentType: application/cloudevents+json
+      headers:
+        type: object
+        properties:
+          ce_specversion:
+            type: string
+            const: '1.0'
+          ce_id:
+            type: string
+            format: uuid
+          ce_source:
+            type: string
+          ce_type:
+            type: string
+            const: com.aires.worker_run.waiting_for_human.v1
+          ce_subject:
+            type: string
+          ce_time:
+            type: string
+            format: date-time
+        required:
+        - ce_specversion
+        - ce_id
+        - ce_source
+        - ce_type
+        - ce_subject
+        - ce_time
+      payload:
+        type: object
+        required:
+        - specversion
+        - id
+        - source
+        - type
+        - subject
+        - time
+        - datacontenttype
+        - dataschema
+        - data
+        properties:
+          specversion:
+            type: string
+            const: '1.0'
+          id:
+            type: string
+            format: uuid
+          source:
+            type: string
+          type:
+            type: string
+            const: com.aires.worker_run.waiting_for_human.v1
+          subject:
+            type: string
+          time:
+            type: string
+            format: date-time
+          datacontenttype:
+            type: string
+            const: application/json
+          dataschema:
+            type: string
+          data:
+            $ref: '#/components/schemas/OperationWorkerRunEventData'
+        additionalProperties: false
+    WorkerRunWaitingForDependency:
+      name: com.aires.worker_run.waiting_for_dependency.v1
+      title: WorkerRunWaitingForDependency
+      summary: Canonical com.aires.worker_run.waiting_for_dependency.v1 domain event.
+      contentType: application/cloudevents+json
+      headers:
+        type: object
+        properties:
+          ce_specversion:
+            type: string
+            const: '1.0'
+          ce_id:
+            type: string
+            format: uuid
+          ce_source:
+            type: string
+          ce_type:
+            type: string
+            const: com.aires.worker_run.waiting_for_dependency.v1
+          ce_subject:
+            type: string
+          ce_time:
+            type: string
+            format: date-time
+        required:
+        - ce_specversion
+        - ce_id
+        - ce_source
+        - ce_type
+        - ce_subject
+        - ce_time
+      payload:
+        type: object
+        required:
+        - specversion
+        - id
+        - source
+        - type
+        - subject
+        - time
+        - datacontenttype
+        - dataschema
+        - data
+        properties:
+          specversion:
+            type: string
+            const: '1.0'
+          id:
+            type: string
+            format: uuid
+          source:
+            type: string
+          type:
+            type: string
+            const: com.aires.worker_run.waiting_for_dependency.v1
+          subject:
+            type: string
+          time:
+            type: string
+            format: date-time
+          datacontenttype:
+            type: string
+            const: application/json
+          dataschema:
+            type: string
+          data:
+            $ref: '#/components/schemas/OperationWorkerRunEventData'
+        additionalProperties: false
+    WorkerRunResumed:
+      name: com.aires.worker_run.resumed.v1
+      title: WorkerRunResumed
+      summary: Canonical com.aires.worker_run.resumed.v1 domain event.
+      contentType: application/cloudevents+json
+      headers:
+        type: object
+        properties:
+          ce_specversion:
+            type: string
+            const: '1.0'
+          ce_id:
+            type: string
+            format: uuid
+          ce_source:
+            type: string
+          ce_type:
+            type: string
+            const: com.aires.worker_run.resumed.v1
+          ce_subject:
+            type: string
+          ce_time:
+            type: string
+            format: date-time
+        required:
+        - ce_specversion
+        - ce_id
+        - ce_source
+        - ce_type
+        - ce_subject
+        - ce_time
+      payload:
+        type: object
+        required:
+        - specversion
+        - id
+        - source
+        - type
+        - subject
+        - time
+        - datacontenttype
+        - dataschema
+        - data
+        properties:
+          specversion:
+            type: string
+            const: '1.0'
+          id:
+            type: string
+            format: uuid
+          source:
+            type: string
+          type:
+            type: string
+            const: com.aires.worker_run.resumed.v1
+          subject:
+            type: string
+          time:
+            type: string
+            format: date-time
+          datacontenttype:
+            type: string
+            const: application/json
+          dataschema:
+            type: string
+          data:
+            $ref: '#/components/schemas/OperationWorkerRunEventData'
+        additionalProperties: false
+    WorkerRunValidationCompleted:
+      name: com.aires.worker_run.validation_completed.v1
+      title: WorkerRunValidationCompleted
+      summary: Canonical com.aires.worker_run.validation_completed.v1 domain event.
+      contentType: application/cloudevents+json
+      headers:
+        type: object
+        properties:
+          ce_specversion:
+            type: string
+            const: '1.0'
+          ce_id:
+            type: string
+            format: uuid
+          ce_source:
+            type: string
+          ce_type:
+            type: string
+            const: com.aires.worker_run.validation_completed.v1
+          ce_subject:
+            type: string
+          ce_time:
+            type: string
+            format: date-time
+        required:
+        - ce_specversion
+        - ce_id
+        - ce_source
+        - ce_type
+        - ce_subject
+        - ce_time
+      payload:
+        type: object
+        required:
+        - specversion
+        - id
+        - source
+        - type
+        - subject
+        - time
+        - datacontenttype
+        - dataschema
+        - data
+        properties:
+          specversion:
+            type: string
+            const: '1.0'
+          id:
+            type: string
+            format: uuid
+          source:
+            type: string
+          type:
+            type: string
+            const: com.aires.worker_run.validation_completed.v1
+          subject:
+            type: string
+          time:
+            type: string
+            format: date-time
+          datacontenttype:
+            type: string
+            const: application/json
+          dataschema:
+            type: string
+          data:
+            $ref: '#/components/schemas/OperationWorkerRunEventData'
+        additionalProperties: false
+    WorkerRunReviewRequested:
+      name: com.aires.worker_run.review_requested.v1
+      title: WorkerRunReviewRequested
+      summary: Canonical com.aires.worker_run.review_requested.v1 domain event.
+      contentType: application/cloudevents+json
+      headers:
+        type: object
+        properties:
+          ce_specversion:
+            type: string
+            const: '1.0'
+          ce_id:
+            type: string
+            format: uuid
+          ce_source:
+            type: string
+          ce_type:
+            type: string
+            const: com.aires.worker_run.review_requested.v1
+          ce_subject:
+            type: string
+          ce_time:
+            type: string
+            format: date-time
+        required:
+        - ce_specversion
+        - ce_id
+        - ce_source
+        - ce_type
+        - ce_subject
+        - ce_time
+      payload:
+        type: object
+        required:
+        - specversion
+        - id
+        - source
+        - type
+        - subject
+        - time
+        - datacontenttype
+        - dataschema
+        - data
+        properties:
+          specversion:
+            type: string
+            const: '1.0'
+          id:
+            type: string
+            format: uuid
+          source:
+            type: string
+          type:
+            type: string
+            const: com.aires.worker_run.review_requested.v1
+          subject:
+            type: string
+          time:
+            type: string
+            format: date-time
+          datacontenttype:
+            type: string
+            const: application/json
+          dataschema:
+            type: string
+          data:
+            $ref: '#/components/schemas/OperationWorkerRunEventData'
+        additionalProperties: false
+    WorkerRunQARequested:
+      name: com.aires.worker_run.qa_requested.v1
+      title: WorkerRunQARequested
+      summary: Canonical com.aires.worker_run.qa_requested.v1 domain event.
+      contentType: application/cloudevents+json
+      headers:
+        type: object
+        properties:
+          ce_specversion:
+            type: string
+            const: '1.0'
+          ce_id:
+            type: string
+            format: uuid
+          ce_source:
+            type: string
+          ce_type:
+            type: string
+            const: com.aires.worker_run.qa_requested.v1
+          ce_subject:
+            type: string
+          ce_time:
+            type: string
+            format: date-time
+        required:
+        - ce_specversion
+        - ce_id
+        - ce_source
+        - ce_type
+        - ce_subject
+        - ce_time
+      payload:
+        type: object
+        required:
+        - specversion
+        - id
+        - source
+        - type
+        - subject
+        - time
+        - datacontenttype
+        - dataschema
+        - data
+        properties:
+          specversion:
+            type: string
+            const: '1.0'
+          id:
+            type: string
+            format: uuid
+          source:
+            type: string
+          type:
+            type: string
+            const: com.aires.worker_run.qa_requested.v1
+          subject:
+            type: string
+          time:
+            type: string
+            format: date-time
+          datacontenttype:
+            type: string
+            const: application/json
+          dataschema:
+            type: string
+          data:
+            $ref: '#/components/schemas/OperationWorkerRunEventData'
+        additionalProperties: false
+    WorkerRunRejected:
+      name: com.aires.worker_run.rejected.v1
+      title: WorkerRunRejected
+      summary: Canonical com.aires.worker_run.rejected.v1 domain event.
+      contentType: application/cloudevents+json
+      headers:
+        type: object
+        properties:
+          ce_specversion:
+            type: string
+            const: '1.0'
+          ce_id:
+            type: string
+            format: uuid
+          ce_source:
+            type: string
+          ce_type:
+            type: string
+            const: com.aires.worker_run.rejected.v1
+          ce_subject:
+            type: string
+          ce_time:
+            type: string
+            format: date-time
+        required:
+        - ce_specversion
+        - ce_id
+        - ce_source
+        - ce_type
+        - ce_subject
+        - ce_time
+      payload:
+        type: object
+        required:
+        - specversion
+        - id
+        - source
+        - type
+        - subject
+        - time
+        - datacontenttype
+        - dataschema
+        - data
+        properties:
+          specversion:
+            type: string
+            const: '1.0'
+          id:
+            type: string
+            format: uuid
+          source:
+            type: string
+          type:
+            type: string
+            const: com.aires.worker_run.rejected.v1
+          subject:
+            type: string
+          time:
+            type: string
+            format: date-time
+          datacontenttype:
+            type: string
+            const: application/json
+          dataschema:
+            type: string
+          data:
+            $ref: '#/components/schemas/OperationWorkerRunEventData'
+        additionalProperties: false
+    WorkerRunUnverified:
+      name: com.aires.worker_run.unverified.v1
+      title: WorkerRunUnverified
+      summary: Canonical com.aires.worker_run.unverified.v1 domain event.
+      contentType: application/cloudevents+json
+      headers:
+        type: object
+        properties:
+          ce_specversion:
+            type: string
+            const: '1.0'
+          ce_id:
+            type: string
+            format: uuid
+          ce_source:
+            type: string
+          ce_type:
+            type: string
+            const: com.aires.worker_run.unverified.v1
+          ce_subject:
+            type: string
+          ce_time:
+            type: string
+            format: date-time
+        required:
+        - ce_specversion
+        - ce_id
+        - ce_source
+        - ce_type
+        - ce_subject
+        - ce_time
+      payload:
+        type: object
+        required:
+        - specversion
+        - id
+        - source
+        - type
+        - subject
+        - time
+        - datacontenttype
+        - dataschema
+        - data
+        properties:
+          specversion:
+            type: string
+            const: '1.0'
+          id:
+            type: string
+            format: uuid
+          source:
+            type: string
+          type:
+            type: string
+            const: com.aires.worker_run.unverified.v1
+          subject:
+            type: string
+          time:
+            type: string
+            format: date-time
+          datacontenttype:
+            type: string
+            const: application/json
+          dataschema:
+            type: string
+          data:
+            $ref: '#/components/schemas/OperationWorkerRunEventData'
+        additionalProperties: false
+    WorkerRunCancelRequested:
+      name: com.aires.worker_run.cancel_requested.v1
+      title: WorkerRunCancelRequested
+      summary: Canonical com.aires.worker_run.cancel_requested.v1 domain event.
+      contentType: application/cloudevents+json
+      headers:
+        type: object
+        properties:
+          ce_specversion:
+            type: string
+            const: '1.0'
+          ce_id:
+            type: string
+            format: uuid
+          ce_source:
+            type: string
+          ce_type:
+            type: string
+            const: com.aires.worker_run.cancel_requested.v1
+          ce_subject:
+            type: string
+          ce_time:
+            type: string
+            format: date-time
+        required:
+        - ce_specversion
+        - ce_id
+        - ce_source
+        - ce_type
+        - ce_subject
+        - ce_time
+      payload:
+        type: object
+        required:
+        - specversion
+        - id
+        - source
+        - type
+        - subject
+        - time
+        - datacontenttype
+        - dataschema
+        - data
+        properties:
+          specversion:
+            type: string
+            const: '1.0'
+          id:
+            type: string
+            format: uuid
+          source:
+            type: string
+          type:
+            type: string
+            const: com.aires.worker_run.cancel_requested.v1
+          subject:
+            type: string
+          time:
+            type: string
+            format: date-time
+          datacontenttype:
+            type: string
+            const: application/json
+          dataschema:
+            type: string
+          data:
+            $ref: '#/components/schemas/OperationWorkerRunEventData'
+        additionalProperties: false
+    WorkerRunTimedOut:
+      name: com.aires.worker_run.timed_out.v1
+      title: WorkerRunTimedOut
+      summary: Canonical com.aires.worker_run.timed_out.v1 domain event.
+      contentType: application/cloudevents+json
+      headers:
+        type: object
+        properties:
+          ce_specversion:
+            type: string
+            const: '1.0'
+          ce_id:
+            type: string
+            format: uuid
+          ce_source:
+            type: string
+          ce_type:
+            type: string
+            const: com.aires.worker_run.timed_out.v1
+          ce_subject:
+            type: string
+          ce_time:
+            type: string
+            format: date-time
+        required:
+        - ce_specversion
+        - ce_id
+        - ce_source
+        - ce_type
+        - ce_subject
+        - ce_time
+      payload:
+        type: object
+        required:
+        - specversion
+        - id
+        - source
+        - type
+        - subject
+        - time
+        - datacontenttype
+        - dataschema
+        - data
+        properties:
+          specversion:
+            type: string
+            const: '1.0'
+          id:
+            type: string
+            format: uuid
+          source:
+            type: string
+          type:
+            type: string
+            const: com.aires.worker_run.timed_out.v1
+          subject:
+            type: string
+          time:
+            type: string
+            format: date-time
+          datacontenttype:
+            type: string
+            const: application/json
+          dataschema:
+            type: string
+          data:
+            $ref: '#/components/schemas/OperationWorkerRunEventData'
+        additionalProperties: false
+    WorkerRunDerived:
+      name: com.aires.worker_run.derived.v1
+      title: WorkerRunDerived
+      summary: Canonical com.aires.worker_run.derived.v1 domain event.
+      contentType: application/cloudevents+json
+      headers:
+        type: object
+        properties:
+          ce_specversion:
+            type: string
+            const: '1.0'
+          ce_id:
+            type: string
+            format: uuid
+          ce_source:
+            type: string
+          ce_type:
+            type: string
+            const: com.aires.worker_run.derived.v1
+          ce_subject:
+            type: string
+          ce_time:
+            type: string
+            format: date-time
+        required:
+        - ce_specversion
+        - ce_id
+        - ce_source
+        - ce_type
+        - ce_subject
+        - ce_time
+      payload:
+        type: object
+        required:
+        - specversion
+        - id
+        - source
+        - type
+        - subject
+        - time
+        - datacontenttype
+        - dataschema
+        - data
+        properties:
+          specversion:
+            type: string
+            const: '1.0'
+          id:
+            type: string
+            format: uuid
+          source:
+            type: string
+          type:
+            type: string
+            const: com.aires.worker_run.derived.v1
+          subject:
+            type: string
+          time:
+            type: string
+            format: date-time
+          datacontenttype:
+            type: string
+            const: application/json
+          dataschema:
+            type: string
+          data:
+            $ref: '#/components/schemas/OperationWorkerRunEventData'
+        additionalProperties: false
+    OperationChildCreated:
+      name: com.aires.operation.child_created.v1
+      title: OperationChildCreated
+      summary: Canonical com.aires.operation.child_created.v1 domain event.
+      contentType: application/cloudevents+json
+      headers:
+        type: object
+        properties:
+          ce_specversion:
+            type: string
+            const: '1.0'
+          ce_id:
+            type: string
+            format: uuid
+          ce_source:
+            type: string
+          ce_type:
+            type: string
+            const: com.aires.operation.child_created.v1
+          ce_subject:
+            type: string
+          ce_time:
+            type: string
+            format: date-time
+        required:
+        - ce_specversion
+        - ce_id
+        - ce_source
+        - ce_type
+        - ce_subject
+        - ce_time
+      payload:
+        type: object
+        required:
+        - specversion
+        - id
+        - source
+        - type
+        - subject
+        - time
+        - datacontenttype
+        - dataschema
+        - data
+        properties:
+          specversion:
+            type: string
+            const: '1.0'
+          id:
+            type: string
+            format: uuid
+          source:
+            type: string
+          type:
+            type: string
+            const: com.aires.operation.child_created.v1
+          subject:
+            type: string
+          time:
+            type: string
+            format: date-time
+          datacontenttype:
+            type: string
+            const: application/json
+          dataschema:
+            type: string
+          data:
+            $ref: '#/components/schemas/OperationWorkerRunEventData'
+        additionalProperties: false
+    OperationProgressUpdated:
+      name: com.aires.operation.progress_updated.v1
+      title: OperationProgressUpdated
+      summary: Canonical com.aires.operation.progress_updated.v1 domain event.
+      contentType: application/cloudevents+json
+      headers:
+        type: object
+        properties:
+          ce_specversion:
+            type: string
+            const: '1.0'
+          ce_id:
+            type: string
+            format: uuid
+          ce_source:
+            type: string
+          ce_type:
+            type: string
+            const: com.aires.operation.progress_updated.v1
+          ce_subject:
+            type: string
+          ce_time:
+            type: string
+            format: date-time
+        required:
+        - ce_specversion
+        - ce_id
+        - ce_source
+        - ce_type
+        - ce_subject
+        - ce_time
+      payload:
+        type: object
+        required:
+        - specversion
+        - id
+        - source
+        - type
+        - subject
+        - time
+        - datacontenttype
+        - dataschema
+        - data
+        properties:
+          specversion:
+            type: string
+            const: '1.0'
+          id:
+            type: string
+            format: uuid
+          source:
+            type: string
+          type:
+            type: string
+            const: com.aires.operation.progress_updated.v1
+          subject:
+            type: string
+          time:
+            type: string
+            format: date-time
+          datacontenttype:
+            type: string
+            const: application/json
+          dataschema:
+            type: string
+          data:
+            $ref: '#/components/schemas/OperationWorkerRunEventData'
+        additionalProperties: false
+    OperationAccepted:
+      name: com.aires.operation.accepted.v1
+      title: OperationAccepted
+      summary: Canonical com.aires.operation.accepted.v1 domain event.
+      contentType: application/cloudevents+json
+      headers:
+        type: object
+        properties:
+          ce_specversion:
+            type: string
+            const: '1.0'
+          ce_id:
+            type: string
+            format: uuid
+          ce_source:
+            type: string
+          ce_type:
+            type: string
+            const: com.aires.operation.accepted.v1
+          ce_subject:
+            type: string
+          ce_time:
+            type: string
+            format: date-time
+        required:
+        - ce_specversion
+        - ce_id
+        - ce_source
+        - ce_type
+        - ce_subject
+        - ce_time
+      payload:
+        type: object
+        required:
+        - specversion
+        - id
+        - source
+        - type
+        - subject
+        - time
+        - datacontenttype
+        - dataschema
+        - data
+        properties:
+          specversion:
+            type: string
+            const: '1.0'
+          id:
+            type: string
+            format: uuid
+          source:
+            type: string
+          type:
+            type: string
+            const: com.aires.operation.accepted.v1
+          subject:
+            type: string
+          time:
+            type: string
+            format: date-time
+          datacontenttype:
+            type: string
+            const: application/json
+          dataschema:
+            type: string
+          data:
+            $ref: '#/components/schemas/OperationWorkerRunEventData'
+        additionalProperties: false
+    OperationQueued:
+      name: com.aires.operation.queued.v1
+      title: OperationQueued
+      summary: Canonical com.aires.operation.queued.v1 domain event.
+      contentType: application/cloudevents+json
+      headers:
+        type: object
+        properties:
+          ce_specversion:
+            type: string
+            const: '1.0'
+          ce_id:
+            type: string
+            format: uuid
+          ce_source:
+            type: string
+          ce_type:
+            type: string
+            const: com.aires.operation.queued.v1
+          ce_subject:
+            type: string
+          ce_time:
+            type: string
+            format: date-time
+        required:
+        - ce_specversion
+        - ce_id
+        - ce_source
+        - ce_type
+        - ce_subject
+        - ce_time
+      payload:
+        type: object
+        required:
+        - specversion
+        - id
+        - source
+        - type
+        - subject
+        - time
+        - datacontenttype
+        - dataschema
+        - data
+        properties:
+          specversion:
+            type: string
+            const: '1.0'
+          id:
+            type: string
+            format: uuid
+          source:
+            type: string
+          type:
+            type: string
+            const: com.aires.operation.queued.v1
+          subject:
+            type: string
+          time:
+            type: string
+            format: date-time
+          datacontenttype:
+            type: string
+            const: application/json
+          dataschema:
+            type: string
+          data:
+            $ref: '#/components/schemas/OperationWorkerRunEventData'
+        additionalProperties: false
+    OperationStarted:
+      name: com.aires.operation.started.v1
+      title: OperationStarted
+      summary: Canonical com.aires.operation.started.v1 domain event.
+      contentType: application/cloudevents+json
+      headers:
+        type: object
+        properties:
+          ce_specversion:
+            type: string
+            const: '1.0'
+          ce_id:
+            type: string
+            format: uuid
+          ce_source:
+            type: string
+          ce_type:
+            type: string
+            const: com.aires.operation.started.v1
+          ce_subject:
+            type: string
+          ce_time:
+            type: string
+            format: date-time
+        required:
+        - ce_specversion
+        - ce_id
+        - ce_source
+        - ce_type
+        - ce_subject
+        - ce_time
+      payload:
+        type: object
+        required:
+        - specversion
+        - id
+        - source
+        - type
+        - subject
+        - time
+        - datacontenttype
+        - dataschema
+        - data
+        properties:
+          specversion:
+            type: string
+            const: '1.0'
+          id:
+            type: string
+            format: uuid
+          source:
+            type: string
+          type:
+            type: string
+            const: com.aires.operation.started.v1
+          subject:
+            type: string
+          time:
+            type: string
+            format: date-time
+          datacontenttype:
+            type: string
+            const: application/json
+          dataschema:
+            type: string
+          data:
+            $ref: '#/components/schemas/OperationWorkerRunEventData'
+        additionalProperties: false
+    OperationWaitingForDependency:
+      name: com.aires.operation.waiting_for_dependency.v1
+      title: OperationWaitingForDependency
+      summary: Canonical com.aires.operation.waiting_for_dependency.v1 domain event.
+      contentType: application/cloudevents+json
+      headers:
+        type: object
+        properties:
+          ce_specversion:
+            type: string
+            const: '1.0'
+          ce_id:
+            type: string
+            format: uuid
+          ce_source:
+            type: string
+          ce_type:
+            type: string
+            const: com.aires.operation.waiting_for_dependency.v1
+          ce_subject:
+            type: string
+          ce_time:
+            type: string
+            format: date-time
+        required:
+        - ce_specversion
+        - ce_id
+        - ce_source
+        - ce_type
+        - ce_subject
+        - ce_time
+      payload:
+        type: object
+        required:
+        - specversion
+        - id
+        - source
+        - type
+        - subject
+        - time
+        - datacontenttype
+        - dataschema
+        - data
+        properties:
+          specversion:
+            type: string
+            const: '1.0'
+          id:
+            type: string
+            format: uuid
+          source:
+            type: string
+          type:
+            type: string
+            const: com.aires.operation.waiting_for_dependency.v1
+          subject:
+            type: string
+          time:
+            type: string
+            format: date-time
+          datacontenttype:
+            type: string
+            const: application/json
+          dataschema:
+            type: string
+          data:
+            $ref: '#/components/schemas/OperationWorkerRunEventData'
+        additionalProperties: false
+    OperationRetrying:
+      name: com.aires.operation.retrying.v1
+      title: OperationRetrying
+      summary: Canonical com.aires.operation.retrying.v1 domain event.
+      contentType: application/cloudevents+json
+      headers:
+        type: object
+        properties:
+          ce_specversion:
+            type: string
+            const: '1.0'
+          ce_id:
+            type: string
+            format: uuid
+          ce_source:
+            type: string
+          ce_type:
+            type: string
+            const: com.aires.operation.retrying.v1
+          ce_subject:
+            type: string
+          ce_time:
+            type: string
+            format: date-time
+        required:
+        - ce_specversion
+        - ce_id
+        - ce_source
+        - ce_type
+        - ce_subject
+        - ce_time
+      payload:
+        type: object
+        required:
+        - specversion
+        - id
+        - source
+        - type
+        - subject
+        - time
+        - datacontenttype
+        - dataschema
+        - data
+        properties:
+          specversion:
+            type: string
+            const: '1.0'
+          id:
+            type: string
+            format: uuid
+          source:
+            type: string
+          type:
+            type: string
+            const: com.aires.operation.retrying.v1
+          subject:
+            type: string
+          time:
+            type: string
+            format: date-time
+          datacontenttype:
+            type: string
+            const: application/json
+          dataschema:
+            type: string
+          data:
+            $ref: '#/components/schemas/OperationWorkerRunEventData'
+        additionalProperties: false
+    OperationCancelRequested:
+      name: com.aires.operation.cancel_requested.v1
+      title: OperationCancelRequested
+      summary: Canonical com.aires.operation.cancel_requested.v1 domain event.
+      contentType: application/cloudevents+json
+      headers:
+        type: object
+        properties:
+          ce_specversion:
+            type: string
+            const: '1.0'
+          ce_id:
+            type: string
+            format: uuid
+          ce_source:
+            type: string
+          ce_type:
+            type: string
+            const: com.aires.operation.cancel_requested.v1
+          ce_subject:
+            type: string
+          ce_time:
+            type: string
+            format: date-time
+        required:
+        - ce_specversion
+        - ce_id
+        - ce_source
+        - ce_type
+        - ce_subject
+        - ce_time
+      payload:
+        type: object
+        required:
+        - specversion
+        - id
+        - source
+        - type
+        - subject
+        - time
+        - datacontenttype
+        - dataschema
+        - data
+        properties:
+          specversion:
+            type: string
+            const: '1.0'
+          id:
+            type: string
+            format: uuid
+          source:
+            type: string
+          type:
+            type: string
+            const: com.aires.operation.cancel_requested.v1
+          subject:
+            type: string
+          time:
+            type: string
+            format: date-time
+          datacontenttype:
+            type: string
+            const: application/json
+          dataschema:
+            type: string
+          data:
+            $ref: '#/components/schemas/OperationWorkerRunEventData'
+        additionalProperties: false
+    OperationSucceeded:
+      name: com.aires.operation.succeeded.v1
+      title: OperationSucceeded
+      summary: Canonical com.aires.operation.succeeded.v1 domain event.
+      contentType: application/cloudevents+json
+      headers:
+        type: object
+        properties:
+          ce_specversion:
+            type: string
+            const: '1.0'
+          ce_id:
+            type: string
+            format: uuid
+          ce_source:
+            type: string
+          ce_type:
+            type: string
+            const: com.aires.operation.succeeded.v1
+          ce_subject:
+            type: string
+          ce_time:
+            type: string
+            format: date-time
+        required:
+        - ce_specversion
+        - ce_id
+        - ce_source
+        - ce_type
+        - ce_subject
+        - ce_time
+      payload:
+        type: object
+        required:
+        - specversion
+        - id
+        - source
+        - type
+        - subject
+        - time
+        - datacontenttype
+        - dataschema
+        - data
+        properties:
+          specversion:
+            type: string
+            const: '1.0'
+          id:
+            type: string
+            format: uuid
+          source:
+            type: string
+          type:
+            type: string
+            const: com.aires.operation.succeeded.v1
+          subject:
+            type: string
+          time:
+            type: string
+            format: date-time
+          datacontenttype:
+            type: string
+            const: application/json
+          dataschema:
+            type: string
+          data:
+            $ref: '#/components/schemas/OperationWorkerRunEventData'
+        additionalProperties: false
+    OperationPartiallySucceeded:
+      name: com.aires.operation.partially_succeeded.v1
+      title: OperationPartiallySucceeded
+      summary: Canonical com.aires.operation.partially_succeeded.v1 domain event.
+      contentType: application/cloudevents+json
+      headers:
+        type: object
+        properties:
+          ce_specversion:
+            type: string
+            const: '1.0'
+          ce_id:
+            type: string
+            format: uuid
+          ce_source:
+            type: string
+          ce_type:
+            type: string
+            const: com.aires.operation.partially_succeeded.v1
+          ce_subject:
+            type: string
+          ce_time:
+            type: string
+            format: date-time
+        required:
+        - ce_specversion
+        - ce_id
+        - ce_source
+        - ce_type
+        - ce_subject
+        - ce_time
+      payload:
+        type: object
+        required:
+        - specversion
+        - id
+        - source
+        - type
+        - subject
+        - time
+        - datacontenttype
+        - dataschema
+        - data
+        properties:
+          specversion:
+            type: string
+            const: '1.0'
+          id:
+            type: string
+            format: uuid
+          source:
+            type: string
+          type:
+            type: string
+            const: com.aires.operation.partially_succeeded.v1
+          subject:
+            type: string
+          time:
+            type: string
+            format: date-time
+          datacontenttype:
+            type: string
+            const: application/json
+          dataschema:
+            type: string
+          data:
+            $ref: '#/components/schemas/OperationWorkerRunEventData'
+        additionalProperties: false
+    OperationCancelled:
+      name: com.aires.operation.cancelled.v1
+      title: OperationCancelled
+      summary: Canonical com.aires.operation.cancelled.v1 domain event.
+      contentType: application/cloudevents+json
+      headers:
+        type: object
+        properties:
+          ce_specversion:
+            type: string
+            const: '1.0'
+          ce_id:
+            type: string
+            format: uuid
+          ce_source:
+            type: string
+          ce_type:
+            type: string
+            const: com.aires.operation.cancelled.v1
+          ce_subject:
+            type: string
+          ce_time:
+            type: string
+            format: date-time
+        required:
+        - ce_specversion
+        - ce_id
+        - ce_source
+        - ce_type
+        - ce_subject
+        - ce_time
+      payload:
+        type: object
+        required:
+        - specversion
+        - id
+        - source
+        - type
+        - subject
+        - time
+        - datacontenttype
+        - dataschema
+        - data
+        properties:
+          specversion:
+            type: string
+            const: '1.0'
+          id:
+            type: string
+            format: uuid
+          source:
+            type: string
+          type:
+            type: string
+            const: com.aires.operation.cancelled.v1
+          subject:
+            type: string
+          time:
+            type: string
+            format: date-time
+          datacontenttype:
+            type: string
+            const: application/json
+          dataschema:
+            type: string
+          data:
+            $ref: '#/components/schemas/OperationWorkerRunEventData'
+        additionalProperties: false
+    WorkerRunPreparationStarted:
+      name: com.aires.worker_run.preparation_started.v1
+      title: WorkerRunPreparationStarted
+      summary: Canonical com.aires.worker_run.preparation_started.v1 domain event.
+      contentType: application/cloudevents+json
+      headers:
+        type: object
+        properties:
+          ce_specversion:
+            type: string
+            const: '1.0'
+          ce_id:
+            type: string
+            format: uuid
+          ce_source:
+            type: string
+          ce_type:
+            type: string
+            const: com.aires.worker_run.preparation_started.v1
+          ce_subject:
+            type: string
+          ce_time:
+            type: string
+            format: date-time
+        required:
+        - ce_specversion
+        - ce_id
+        - ce_source
+        - ce_type
+        - ce_subject
+        - ce_time
+      payload:
+        type: object
+        required:
+        - specversion
+        - id
+        - source
+        - type
+        - subject
+        - time
+        - datacontenttype
+        - dataschema
+        - data
+        properties:
+          specversion:
+            type: string
+            const: '1.0'
+          id:
+            type: string
+            format: uuid
+          source:
+            type: string
+          type:
+            type: string
+            const: com.aires.worker_run.preparation_started.v1
+          subject:
+            type: string
+          time:
+            type: string
+            format: date-time
+          datacontenttype:
+            type: string
+            const: application/json
+          dataschema:
+            type: string
+          data:
+            $ref: '#/components/schemas/OperationWorkerRunEventData'
+        additionalProperties: false
+    WorkerRunGateEvaluationRequested:
+      name: com.aires.worker_run.gate_evaluation_requested.v1
+      title: WorkerRunGateEvaluationRequested
+      summary: Canonical com.aires.worker_run.gate_evaluation_requested.v1 domain event.
+      contentType: application/cloudevents+json
+      headers:
+        type: object
+        properties:
+          ce_specversion:
+            type: string
+            const: '1.0'
+          ce_id:
+            type: string
+            format: uuid
+          ce_source:
+            type: string
+          ce_type:
+            type: string
+            const: com.aires.worker_run.gate_evaluation_requested.v1
+          ce_subject:
+            type: string
+          ce_time:
+            type: string
+            format: date-time
+        required:
+        - ce_specversion
+        - ce_id
+        - ce_source
+        - ce_type
+        - ce_subject
+        - ce_time
+      payload:
+        type: object
+        required:
+        - specversion
+        - id
+        - source
+        - type
+        - subject
+        - time
+        - datacontenttype
+        - dataschema
+        - data
+        properties:
+          specversion:
+            type: string
+            const: '1.0'
+          id:
+            type: string
+            format: uuid
+          source:
+            type: string
+          type:
+            type: string
+            const: com.aires.worker_run.gate_evaluation_requested.v1
+          subject:
+            type: string
+          time:
+            type: string
+            format: date-time
+          datacontenttype:
+            type: string
+            const: application/json
+          dataschema:
+            type: string
+          data:
+            $ref: '#/components/schemas/OperationWorkerRunEventData'
+        additionalProperties: false
+    WorkerRunGateEvaluationCompleted:
+      name: com.aires.worker_run.gate_evaluation_completed.v1
+      title: WorkerRunGateEvaluationCompleted
+      summary: Canonical com.aires.worker_run.gate_evaluation_completed.v1 domain event.
+      contentType: application/cloudevents+json
+      headers:
+        type: object
+        properties:
+          ce_specversion:
+            type: string
+            const: '1.0'
+          ce_id:
+            type: string
+            format: uuid
+          ce_source:
+            type: string
+          ce_type:
+            type: string
+            const: com.aires.worker_run.gate_evaluation_completed.v1
+          ce_subject:
+            type: string
+          ce_time:
+            type: string
+            format: date-time
+        required:
+        - ce_specversion
+        - ce_id
+        - ce_source
+        - ce_type
+        - ce_subject
+        - ce_time
+      payload:
+        type: object
+        required:
+        - specversion
+        - id
+        - source
+        - type
+        - subject
+        - time
+        - datacontenttype
+        - dataschema
+        - data
+        properties:
+          specversion:
+            type: string
+            const: '1.0'
+          id:
+            type: string
+            format: uuid
+          source:
+            type: string
+          type:
+            type: string
+            const: com.aires.worker_run.gate_evaluation_completed.v1
+          subject:
+            type: string
+          time:
+            type: string
+            format: date-time
+          datacontenttype:
+            type: string
+            const: application/json
+          dataschema:
+            type: string
+          data:
+            $ref: '#/components/schemas/OperationWorkerRunEventData'
+        additionalProperties: false
+    WorkerRunResultSubmitted:
+      name: com.aires.worker_run.result_submitted.v1
+      title: WorkerRunResultSubmitted
+      summary: Canonical com.aires.worker_run.result_submitted.v1 domain event.
+      contentType: application/cloudevents+json
+      headers:
+        type: object
+        properties:
+          ce_specversion:
+            type: string
+            const: '1.0'
+          ce_id:
+            type: string
+            format: uuid
+          ce_source:
+            type: string
+          ce_type:
+            type: string
+            const: com.aires.worker_run.result_submitted.v1
+          ce_subject:
+            type: string
+          ce_time:
+            type: string
+            format: date-time
+        required:
+        - ce_specversion
+        - ce_id
+        - ce_source
+        - ce_type
+        - ce_subject
+        - ce_time
+      payload:
+        type: object
+        required:
+        - specversion
+        - id
+        - source
+        - type
+        - subject
+        - time
+        - datacontenttype
+        - dataschema
+        - data
+        properties:
+          specversion:
+            type: string
+            const: '1.0'
+          id:
+            type: string
+            format: uuid
+          source:
+            type: string
+          type:
+            type: string
+            const: com.aires.worker_run.result_submitted.v1
+          subject:
+            type: string
+          time:
+            type: string
+            format: date-time
+          datacontenttype:
+            type: string
+            const: application/json
+          dataschema:
+            type: string
+          data:
+            $ref: '#/components/schemas/OperationWorkerRunEventData'
+        additionalProperties: false
+    OperationFailedV1:
+      name: com.aires.operation.failed.v1
+      title: OperationFailedV1
+      summary: Canonical com.aires.operation.failed.v1 domain event.
+      contentType: application/cloudevents+json
+      payload:
+        type: object
+        required:
+        - specversion
+        - id
+        - source
+        - type
+        - subject
+        - time
+        - datacontenttype
+        - dataschema
+        - data
+        properties:
+          specversion:
+            type: string
+            const: '1.0'
+          id:
+            type: string
+            format: uuid
+          source:
+            type: string
+          type:
+            type: string
+            const: com.aires.operation.failed.v1
+          subject:
+            type: string
+          time:
+            type: string
+            format: date-time
+          datacontenttype:
+            type: string
+            const: application/json
+          dataschema:
+            type: string
+          data:
+            $ref: '#/components/schemas/OperationWorkerRunEventData'
+        additionalProperties: false
+    WorkerRunFailedV1:
+      name: com.aires.worker_run.failed.v1
+      title: WorkerRunFailedV1
+      summary: Canonical com.aires.worker_run.failed.v1 domain event.
+      contentType: application/cloudevents+json
+      payload:
+        type: object
+        required:
+        - specversion
+        - id
+        - source
+        - type
+        - subject
+        - time
+        - datacontenttype
+        - dataschema
+        - data
+        properties:
+          specversion:
+            type: string
+            const: '1.0'
+          id:
+            type: string
+            format: uuid
+          source:
+            type: string
+          type:
+            type: string
+            const: com.aires.worker_run.failed.v1
+          subject:
+            type: string
+          time:
+            type: string
+            format: date-time
+          datacontenttype:
+            type: string
+            const: application/json
+          dataschema:
+            type: string
+          data:
+            $ref: '#/components/schemas/OperationWorkerRunEventData'
+        additionalProperties: false
+  schemas:
+    CloudEventBase:
+      type: object
+      required:
+      - specversion
+      - id
+      - source
+      - type
+      - time
+      - datacontenttype
+      - data
+      properties:
+        specversion:
+          const: '1.0'
+        id:
+          type: string
+          format: uuid
+        source:
+          type: string
+        type:
+          type: string
+        subject:
+          type: string
+        time:
+          type: string
+          format: date-time
+        datacontenttype:
+          const: application/json
+        dataschema:
+          type: string
+          format: uri
+        correlationid:
+          type: string
+          format: uuid
+        causationid:
+          type: string
+          format: uuid
+        traceparent:
+          type: string
+        data:
+          type: object
+    ProjectCreatedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventBase'
+      properties:
+        type:
+          const: aires.project.created.v1
+        data:
+          type: object
+          required:
+          - organizationId
+          - projectId
+          - aggregateVersion
+          properties:
+            organizationId:
+              type: string
+              format: uuid
+            projectId:
+              type: string
+              format: uuid
+            aggregateVersion:
+              type: integer
+              minimum: 1
+    TaskStateChangedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventBase'
+      properties:
+        type:
+          const: aires.task.state.changed.v1
+        data:
+          type: object
+          required:
+          - projectId
+          - epicId
+          - taskId
+          - previousStatus
+          - currentStatus
+          - aggregateVersion
+          properties:
+            projectId:
+              type: string
+              format: uuid
+            epicId:
+              type: string
+              format: uuid
+            taskId:
+              type: string
+              format: uuid
+            previousStatus:
+              type: string
+            currentStatus:
+              type: string
+            aggregateVersion:
+              type: integer
+              minimum: 1
+    RequirementVersionCreatedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventBase'
+      properties:
+        type:
+          const: aires.requirement.version.created.v1
+        data:
+          type: object
+          required:
+          - projectId
+          - requirementId
+          - requirementVersionId
+          - versionNumber
+          - aggregateVersion
+          properties:
+            projectId:
+              type: string
+              format: uuid
+            requirementId:
+              type: string
+              format: uuid
+            requirementVersionId:
+              type: string
+              format: uuid
+            versionNumber:
+              type: integer
+              minimum: 1
+            aggregateVersion:
+              type: integer
+              minimum: 1
+    SourceVersionIngestedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventBase'
+      properties:
+        type:
+          const: aires.source.version.ingested.v1
+        data:
+          type: object
+          required:
+          - projectId
+          - sourceId
+          - sourceVersionId
+          - checksum
+          - aggregateVersion
+          properties:
+            projectId:
+              type: string
+              format: uuid
+            sourceId:
+              type: string
+              format: uuid
+            sourceVersionId:
+              type: string
+              format: uuid
+            checksum:
+              type: string
+            aggregateVersion:
+              type: integer
+              minimum: 1
+    WorkerRunCompletedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventBase'
+      properties:
+        type:
+          const: aires.worker.run.completed.v1
+        data:
+          type: object
+          required:
+          - projectId
+          - epicId
+          - taskId
+          - workerRunId
+          - resultRef
+          properties:
+            projectId:
+              type: string
+              format: uuid
+            epicId:
+              type: string
+              format: uuid
+            taskId:
+              type: string
+              format: uuid
+            workerRunId:
+              type: string
+              format: uuid
+            resultRef:
+              type: string
+    ArtifactValidationCompletedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventBase'
+      properties:
+        type:
+          const: aires.artifact.validation.completed.v1
+        data:
+          type: object
+          required:
+          - projectId
+          - artifactId
+          - artifactVersionId
+          - validationReportId
+          - outcome
+          properties:
+            projectId:
+              type: string
+              format: uuid
+            artifactId:
+              type: string
+              format: uuid
+            artifactVersionId:
+              type: string
+              format: uuid
+            validationReportId:
+              type: string
+              format: uuid
+            outcome:
+              type: string
+              enum:
+              - PASSED
+              - FAILED
+              - PASSED_WITH_WARNINGS
+    PlanVersionProposedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventBase'
+      properties:
+        type:
+          const: aires.plan.version.proposed.v1
+        data:
+          type: object
+          required:
+          - projectId
+          - epicId
+          - planId
+          - planVersionId
+          - aggregateVersion
+          properties:
+            projectId:
+              type: string
+              format: uuid
+            epicId:
+              type: string
+              format: uuid
+            planId:
+              type: string
+              format: uuid
+            planVersionId:
+              type: string
+              format: uuid
+            aggregateVersion:
+              type: integer
+              minimum: 1
+    ReadinessGateCompletedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventBase'
+      properties:
+        type:
+          const: aires.readiness_gate.completed.v1
+        data:
+          type: object
+          required:
+          - projectId
+          - taskId
+          - workerRunId
+          - gateResultId
+          - outcome
+          - aggregateVersion
+          - evaluationNumber
+          - evaluationStatus
+          - snapshotHash
+          - contextPackageVersionId
+          properties:
+            projectId:
+              type: string
+              format: uuid
+            taskId:
+              type: string
+              format: uuid
+            workerRunId:
+              type: string
+              format: uuid
+            gateResultId:
+              type: string
+              format: uuid
+            outcome:
+              type: string
+              enum:
+              - READY
+              - BLOCKED
+              - READY_WITH_LIMITATIONS
+              - STALE
+            aggregateVersion:
+              type: integer
+              minimum: 1
+            evaluationNumber:
+              type: integer
+              minimum: 1
+            evaluationStatus:
+              type: string
+              enum:
+              - COMPLETED
+              - EVALUATOR_ERROR
+            snapshotHash:
+              type: string
+              minLength: 32
+            contextPackageVersionId:
+              type: string
+              format: uuid
+    WorkerResultSubmittedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventBase'
+      properties:
+        type:
+          const: aires.worker.result.submitted.v1
+        data:
+          type: object
+          required:
+          - projectId
+          - epicId
+          - taskId
+          - workerRunId
+          - workerResultId
+          - aggregateVersion
+          properties:
+            projectId:
+              type: string
+              format: uuid
+            epicId:
+              type: string
+              format: uuid
+            taskId:
+              type: string
+              format: uuid
+            workerRunId:
+              type: string
+              format: uuid
+            workerResultId:
+              type: string
+              format: uuid
+            aggregateVersion:
+              type: integer
+              minimum: 1
+    QAReviewCompletedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventBase'
+      properties:
+        type:
+          const: aires.qa.review.completed.v1
+        data:
+          type: object
+          required:
+          - projectId
+          - workerRunId
+          - reviewId
+          - outcome
+          - aggregateVersion
+          properties:
+            projectId:
+              type: string
+              format: uuid
+            workerRunId:
+              type: string
+              format: uuid
+            reviewId:
+              type: string
+              format: uuid
+            outcome:
+              type: string
+              enum:
+              - PASS
+              - FAIL
+              - NEEDS_CLARIFICATION
+              - UNABLE_TO_VERIFY
+            aggregateVersion:
+              type: integer
+              minimum: 1
+    ImpactAssessmentCompletedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventBase'
+      properties:
+        type:
+          const: aires.impact.assessment.completed.v1
+        data:
+          type: object
+          required:
+          - projectId
+          - impactAssessmentId
+          - changeSetId
+          - impactClass
+          - aggregateVersion
+          properties:
+            projectId:
+              type: string
+              format: uuid
+            impactAssessmentId:
+              type: string
+              format: uuid
+            changeSetId:
+              type: string
+              format: uuid
+            impactClass:
+              type: string
+              enum:
+              - I0_NO_IMPACT
+              - I1_LOCAL
+              - I2_DEPENDENT
+              - I3_BROAD
+              - I4_CRITICAL
+            aggregateVersion:
+              type: integer
+              minimum: 1
+    ChangeRequestApprovedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventBase'
+      properties:
+        type:
+          const: aires.change_request.approved.v1
+        data:
+          type: object
+          required:
+          - projectId
+          - changeRequestId
+          - approvedBy
+          - aggregateVersion
+          properties:
+            projectId:
+              type: string
+              format: uuid
+            changeRequestId:
+              type: string
+              format: uuid
+            approvedBy:
+              type: string
+              format: uuid
+            aggregateVersion:
+              type: integer
+              minimum: 1
+    BaselineCreatedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventBase'
+      properties:
+        type:
+          const: aires.baseline.created.v1
+        data:
+          type: object
+          required:
+          - projectId
+          - baselineId
+          - scopeType
+          - scopeId
+          - manifestChecksum
+          - aggregateVersion
+          properties:
+            projectId:
+              type: string
+              format: uuid
+            baselineId:
+              type: string
+              format: uuid
+            scopeType:
+              type: string
+            scopeId:
+              type: string
+              format: uuid
+            manifestChecksum:
+              type: string
+            aggregateVersion:
+              type: integer
+              minimum: 1
+    EpicCreatedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventBase'
+      properties:
+        type:
+          const: aires.epic.created.v1
+        data:
+          type: object
+          required:
+          - projectId
+          - epicId
+          - aggregateVersion
+          properties:
+            projectId:
+              type: string
+              format: uuid
+            epicId:
+              type: string
+              format: uuid
+            aggregateVersion:
+              type: integer
+              minimum: 1
+    EpicGoalUpdatedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventBase'
+      properties:
+        type:
+          const: aires.epic.goal.updated.v1
+        data:
+          type: object
+          required:
+          - projectId
+          - epicId
+          - aggregateVersion
+          properties:
+            projectId:
+              type: string
+              format: uuid
+            epicId:
+              type: string
+              format: uuid
+            aggregateVersion:
+              type: integer
+              minimum: 1
+    ManagerInteractionReceivedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventBase'
+      properties:
+        type:
+          const: aires.manager.interaction.received.v1
+        data:
+          type: object
+          required:
+          - projectId
+          - interactionId
+          - aggregateVersion
+          properties:
+            projectId:
+              type: string
+              format: uuid
+            interactionId:
+              type: string
+              format: uuid
+            aggregateVersion:
+              type: integer
+              minimum: 1
+    ManagerQuestionProposedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventBase'
+      properties:
+        type:
+          const: aires.manager.question.proposed.v1
+        data:
+          type: object
+          required:
+          - projectId
+          - interactionId
+          - questionId
+          - aggregateVersion
+          properties:
+            projectId:
+              type: string
+              format: uuid
+            interactionId:
+              type: string
+              format: uuid
+            questionId:
+              type: string
+              format: uuid
+            aggregateVersion:
+              type: integer
+              minimum: 1
+    PlanVersionApprovedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventBase'
+      properties:
+        type:
+          const: aires.plan.version.approved.v1
+        data:
+          type: object
+          required:
+          - projectId
+          - epicId
+          - planVersionId
+          - approvedBy
+          - aggregateVersion
+          properties:
+            projectId:
+              type: string
+              format: uuid
+            epicId:
+              type: string
+              format: uuid
+            planVersionId:
+              type: string
+              format: uuid
+            approvedBy:
+              type: string
+              format: uuid
+            aggregateVersion:
+              type: integer
+              minimum: 1
+    PlanVersionRejectedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventBase'
+      properties:
+        type:
+          const: aires.plan.version.rejected.v1
+        data:
+          type: object
+          required:
+          - projectId
+          - epicId
+          - planVersionId
+          - rejectedBy
+          - aggregateVersion
+          properties:
+            projectId:
+              type: string
+              format: uuid
+            epicId:
+              type: string
+              format: uuid
+            planVersionId:
+              type: string
+              format: uuid
+            rejectedBy:
+              type: string
+              format: uuid
+            aggregateVersion:
+              type: integer
+              minimum: 1
+    PlanReplannedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventBase'
+      properties:
+        type:
+          const: aires.plan.replanned.v1
+        data:
+          type: object
+          required:
+          - projectId
+          - epicId
+          - planId
+          - newPlanVersionId
+          - reasonCode
+          - aggregateVersion
+          properties:
+            projectId:
+              type: string
+              format: uuid
+            epicId:
+              type: string
+              format: uuid
+            planId:
+              type: string
+              format: uuid
+            newPlanVersionId:
+              type: string
+              format: uuid
+            reasonCode:
+              type: string
+            aggregateVersion:
+              type: integer
+              minimum: 1
+    TaskCreatedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventBase'
+      properties:
+        type:
+          const: aires.task.created.v1
+        data:
+          type: object
+          required:
+          - projectId
+          - epicId
+          - taskId
+          - aggregateVersion
+          properties:
+            projectId:
+              type: string
+              format: uuid
+            epicId:
+              type: string
+              format: uuid
+            taskId:
+              type: string
+              format: uuid
+            aggregateVersion:
+              type: integer
+              minimum: 1
+    TaskBlockedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventBase'
+      properties:
+        type:
+          const: aires.task.blocked.v1
+        data:
+          type: object
+          required:
+          - projectId
+          - epicId
+          - taskId
+          - blockerId
+          - aggregateVersion
+          properties:
+            projectId:
+              type: string
+              format: uuid
+            epicId:
+              type: string
+              format: uuid
+            taskId:
+              type: string
+              format: uuid
+            blockerId:
+              type: string
+              format: uuid
+            aggregateVersion:
+              type: integer
+              minimum: 1
+    TaskReadyEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventBase'
+      properties:
+        type:
+          const: aires.task.ready.v1
+        data:
+          type: object
+          required:
+          - projectId
+          - epicId
+          - taskId
+          - aggregateVersion
+          properties:
+            projectId:
+              type: string
+              format: uuid
+            epicId:
+              type: string
+              format: uuid
+            taskId:
+              type: string
+              format: uuid
+            aggregateVersion:
+              type: integer
+              minimum: 1
+    TaskStartedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventBase'
+      properties:
+        type:
+          const: aires.task.started.v1
+        data:
+          type: object
+          required:
+          - projectId
+          - epicId
+          - taskId
+          - aggregateVersion
+          properties:
+            projectId:
+              type: string
+              format: uuid
+            epicId:
+              type: string
+              format: uuid
+            taskId:
+              type: string
+              format: uuid
+            aggregateVersion:
+              type: integer
+              minimum: 1
+    TaskCompletedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventBase'
+      properties:
+        type:
+          const: aires.task.completed.v1
+        data:
+          type: object
+          required:
+          - projectId
+          - epicId
+          - taskId
+          - aggregateVersion
+          properties:
+            projectId:
+              type: string
+              format: uuid
+            epicId:
+              type: string
+              format: uuid
+            taskId:
+              type: string
+              format: uuid
+            aggregateVersion:
+              type: integer
+              minimum: 1
+    TaskCancelledEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventBase'
+      properties:
+        type:
+          const: aires.task.cancelled.v1
+        data:
+          type: object
+          required:
+          - projectId
+          - epicId
+          - taskId
+          - reasonCode
+          - aggregateVersion
+          properties:
+            projectId:
+              type: string
+              format: uuid
+            epicId:
+              type: string
+              format: uuid
+            taskId:
+              type: string
+              format: uuid
+            reasonCode:
+              type: string
+            aggregateVersion:
+              type: integer
+              minimum: 1
+    ReadinessGateBlockedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventBase'
+      properties:
+        type:
+          const: aires.readiness_gate.blocked.v1
+        data:
+          type: object
+          required:
+          - projectId
+          - taskId
+          - workerRunId
+          - gateResultId
+          - aggregateVersion
+          properties:
+            projectId:
+              type: string
+              format: uuid
+            taskId:
+              type: string
+              format: uuid
+            workerRunId:
+              type: string
+              format: uuid
+            gateResultId:
+              type: string
+              format: uuid
+            aggregateVersion:
+              type: integer
+              minimum: 1
+    ReadinessGateStaleEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventBase'
+      properties:
+        type:
+          const: aires.readiness_gate.stale.v1
+        data:
+          type: object
+          required:
+          - projectId
+          - taskId
+          - workerRunId
+          - gateResultId
+          - aggregateVersion
+          properties:
+            projectId:
+              type: string
+              format: uuid
+            taskId:
+              type: string
+              format: uuid
+            workerRunId:
+              type: string
+              format: uuid
+            gateResultId:
+              type: string
+              format: uuid
+            aggregateVersion:
+              type: integer
+              minimum: 1
+    WorkerRunCreatedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventBase'
+      properties:
+        type:
+          const: aires.worker.run.created.v1
+        data:
+          type: object
+          required:
+          - projectId
+          - taskId
+          - workerRunId
+          - aggregateVersion
+          properties:
+            projectId:
+              type: string
+              format: uuid
+            taskId:
+              type: string
+              format: uuid
+            workerRunId:
+              type: string
+              format: uuid
+            aggregateVersion:
+              type: integer
+              minimum: 1
+    WorkerRunStartedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventBase'
+      properties:
+        type:
+          const: aires.worker.run.started.v1
+        data:
+          type: object
+          required:
+          - projectId
+          - taskId
+          - workerRunId
+          - aggregateVersion
+          properties:
+            projectId:
+              type: string
+              format: uuid
+            taskId:
+              type: string
+              format: uuid
+            workerRunId:
+              type: string
+              format: uuid
+            aggregateVersion:
+              type: integer
+              minimum: 1
+    WorkerRunFailedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventBase'
+      properties:
+        type:
+          const: aires.worker.run.failed.v1
+        data:
+          type: object
+          required:
+          - projectId
+          - taskId
+          - workerRunId
+          - errorCode
+          - aggregateVersion
+          properties:
+            projectId:
+              type: string
+              format: uuid
+            taskId:
+              type: string
+              format: uuid
+            workerRunId:
+              type: string
+              format: uuid
+            errorCode:
+              type: string
+            aggregateVersion:
+              type: integer
+              minimum: 1
+    WorkerRunCancelledEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventBase'
+      properties:
+        type:
+          const: aires.worker.run.cancelled.v1
+        data:
+          type: object
+          required:
+          - projectId
+          - taskId
+          - workerRunId
+          - aggregateVersion
+          properties:
+            projectId:
+              type: string
+              format: uuid
+            taskId:
+              type: string
+              format: uuid
+            workerRunId:
+              type: string
+              format: uuid
+            aggregateVersion:
+              type: integer
+              minimum: 1
+    WorkerRunAcceptedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventBase'
+      properties:
+        type:
+          const: aires.worker.run.accepted.v1
+        data:
+          type: object
+          required:
+          - projectId
+          - taskId
+          - workerRunId
+          - workerResultId
+          - aggregateVersion
+          properties:
+            projectId:
+              type: string
+              format: uuid
+            taskId:
+              type: string
+              format: uuid
+            workerRunId:
+              type: string
+              format: uuid
+            workerResultId:
+              type: string
+              format: uuid
+            aggregateVersion:
+              type: integer
+              minimum: 1
+    WorkerRunReworkRequiredEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventBase'
+      properties:
+        type:
+          const: aires.worker.run.rework_required.v1
+        data:
+          type: object
+          required:
+          - projectId
+          - taskId
+          - workerRunId
+          - workerResultId
+          - reasonCode
+          - aggregateVersion
+          properties:
+            projectId:
+              type: string
+              format: uuid
+            taskId:
+              type: string
+              format: uuid
+            workerRunId:
+              type: string
+              format: uuid
+            workerResultId:
+              type: string
+              format: uuid
+            reasonCode:
+              type: string
+            aggregateVersion:
+              type: integer
+              minimum: 1
+    QAReviewRequestedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventBase'
+      properties:
+        type:
+          const: aires.qa.review.requested.v1
+        data:
+          type: object
+          required:
+          - projectId
+          - workerRunId
+          - reviewId
+          - aggregateVersion
+          properties:
+            projectId:
+              type: string
+              format: uuid
+            workerRunId:
+              type: string
+              format: uuid
+            reviewId:
+              type: string
+              format: uuid
+            aggregateVersion:
+              type: integer
+              minimum: 1
+    SourceChangeDetectedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventBase'
+      properties:
+        type:
+          const: aires.source.change.detected.v1
+        data:
+          type: object
+          required:
+          - projectId
+          - sourceId
+          - previousSourceVersionId
+          - newSourceVersionId
+          - changeSetId
+          - aggregateVersion
+          properties:
+            projectId:
+              type: string
+              format: uuid
+            sourceId:
+              type: string
+              format: uuid
+            previousSourceVersionId:
+              type: string
+              format: uuid
+            newSourceVersionId:
+              type: string
+              format: uuid
+            changeSetId:
+              type: string
+              format: uuid
+            aggregateVersion:
+              type: integer
+              minimum: 1
+    ImpactRevalidationRequiredEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventBase'
+      properties:
+        type:
+          const: aires.impact.revalidation.required.v1
+        data:
+          type: object
+          required:
+          - projectId
+          - impactAssessmentId
+          - affectedObjectCount
+          - aggregateVersion
+          properties:
+            projectId:
+              type: string
+              format: uuid
+            impactAssessmentId:
+              type: string
+              format: uuid
+            affectedObjectCount:
+              type: integer
+              minimum: 0
+            aggregateVersion:
+              type: integer
+              minimum: 1
+    ArtifactVersionCreatedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventBase'
+      properties:
+        type:
+          const: aires.artifact.version.created.v1
+        data:
+          type: object
+          required:
+          - projectId
+          - artifactId
+          - artifactVersionId
+          - aggregateVersion
+          properties:
+            projectId:
+              type: string
+              format: uuid
+            artifactId:
+              type: string
+              format: uuid
+            artifactVersionId:
+              type: string
+              format: uuid
+            aggregateVersion:
+              type: integer
+              minimum: 1
+    ArtifactApprovedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventBase'
+      properties:
+        type:
+          const: aires.artifact.approved.v1
+        data:
+          type: object
+          required:
+          - projectId
+          - artifactId
+          - artifactVersionId
+          - approvedBy
+          - aggregateVersion
+          properties:
+            projectId:
+              type: string
+              format: uuid
+            artifactId:
+              type: string
+              format: uuid
+            artifactVersionId:
+              type: string
+              format: uuid
+            approvedBy:
+              type: string
+              format: uuid
+            aggregateVersion:
+              type: integer
+              minimum: 1
+    ArtifactPublishedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventBase'
+      properties:
+        type:
+          const: aires.artifact.published.v1
+        data:
+          type: object
+          required:
+          - projectId
+          - artifactId
+          - artifactVersionId
+          - publicationId
+          - aggregateVersion
+          properties:
+            projectId:
+              type: string
+              format: uuid
+            artifactId:
+              type: string
+              format: uuid
+            artifactVersionId:
+              type: string
+              format: uuid
+            publicationId:
+              type: string
+              format: uuid
+            aggregateVersion:
+              type: integer
+              minimum: 1
+    ChangeRequestCreatedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventBase'
+      properties:
+        type:
+          const: aires.change_request.created.v1
+        data:
+          type: object
+          required:
+          - projectId
+          - changeRequestId
+          - initiatedBy
+          - aggregateVersion
+          properties:
+            projectId:
+              type: string
+              format: uuid
+            changeRequestId:
+              type: string
+              format: uuid
+            initiatedBy:
+              type: string
+              format: uuid
+            aggregateVersion:
+              type: integer
+              minimum: 1
+    OperationWaitingForHumanEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventBase'
+      properties:
+        type:
+          const: aires.operation.waiting_for_human.v1
+        data:
+          type: object
+          required:
+          - projectId
+          - operationId
+          - decisionRequestId
+          - aggregateVersion
+          properties:
+            projectId:
+              type: string
+              format: uuid
+            operationId:
+              type: string
+              format: uuid
+            decisionRequestId:
+              type: string
+              format: uuid
+            aggregateVersion:
+              type: integer
+              minimum: 1
+    OperationResumedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventBase'
+      properties:
+        type:
+          const: aires.operation.resumed.v1
+        data:
+          type: object
+          required:
+          - projectId
+          - operationId
+          - resumedBy
+          - aggregateVersion
+          properties:
+            projectId:
+              type: string
+              format: uuid
+            operationId:
+              type: string
+              format: uuid
+            resumedBy:
+              type: string
+              format: uuid
+            aggregateVersion:
+              type: integer
+              minimum: 1
+    OperationFailedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventBase'
+      properties:
+        type:
+          const: aires.operation.failed.v1
+        data:
+          type: object
+          required:
+          - projectId
+          - operationId
+          - errorCode
+          - aggregateVersion
+          properties:
+            projectId:
+              type: string
+              format: uuid
+            operationId:
+              type: string
+              format: uuid
+            errorCode:
+              type: string
+            aggregateVersion:
+              type: integer
+              minimum: 1
+    WorkerCoordinationRequestedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventBase'
+      - type: object
+        properties:
+          type:
+            const: aires.worker.coordination.requested.v1
+          data:
+            type: object
+            required:
+            - projectId
+            - epicId
+            - taskId
+            - coordinationRequestId
+            - sourceWorkerRunId
+            - requestType
+            - targetCapability
+            - aggregateVersion
+            properties:
+              projectId:
+                type: string
+                format: uuid
+              epicId:
+                type: string
+                format: uuid
+              taskId:
+                type: string
+                format: uuid
+              coordinationRequestId:
+                type: string
+                format: uuid
+              sourceWorkerRunId:
+                type: string
+                format: uuid
+              requestType:
+                type: string
+                enum:
+                - CONSULTATION
+                - DELEGATED_SUBTASK
+                - HANDOFF
+              targetCapability:
+                type: string
+              aggregateVersion:
+                type: integer
+                minimum: 1
+            additionalProperties: false
+    WorkerCoordinationDecisionRecordedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventBase'
+      - type: object
+        properties:
+          type:
+            const: aires.worker.coordination.decision_recorded.v1
+          data:
+            type: object
+            required:
+            - projectId
+            - coordinationRequestId
+            - managerDecision
+            - policyDecision
+            - aggregateVersion
+            properties:
+              projectId:
+                type: string
+                format: uuid
+              coordinationRequestId:
+                type: string
+                format: uuid
+              managerDecision:
+                type: string
+                enum:
+                - APPROVE
+                - REJECT
+                - NEEDS_CLARIFICATION
+                - CONVERT_TO_TASK
+              policyDecision:
+                type: string
+                enum:
+                - ALLOW
+                - DENY
+                - PENDING
+              resultingTaskId:
+                type: string
+                format: uuid
+              resultingWorkerRunId:
+                type: string
+                format: uuid
+              aggregateVersion:
+                type: integer
+                minimum: 1
+            additionalProperties: false
+    WorkerCoordinationCompletedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventBase'
+      - type: object
+        properties:
+          type:
+            const: aires.worker.coordination.completed.v1
+          data:
+            type: object
+            required:
+            - projectId
+            - coordinationRequestId
+            - resultingWorkerRunId
+            - resultStatus
+            - aggregateVersion
+            properties:
+              projectId:
+                type: string
+                format: uuid
+              coordinationRequestId:
+                type: string
+                format: uuid
+              resultingWorkerRunId:
+                type: string
+                format: uuid
+              resultStatus:
+                type: string
+                enum:
+                - COMPLETED
+                - PARTIAL
+                - BLOCKED
+                - FAILED
+                - CANCELLED
+              aggregateVersion:
+                type: integer
+                minimum: 1
+            additionalProperties: false
+    OperationStateChangedEvent:
+      allOf:
+      - $ref: '#/components/schemas/CloudEventBase'
+      properties:
+        type:
+          const: aires.operation.state_changed.v1
+        data:
+          type: object
+          required:
+          - organizationId
+          - operationId
+          - operationType
+          - status
+          - aggregateVersion
+          properties:
+            organizationId:
+              type: string
+              format: uuid
+            projectId:
+              type:
+              - string
+              - 'null'
+              format: uuid
+            operationId:
+              type: string
+              format: uuid
+            operationType:
+              type: string
+            status:
+              type: string
+              enum:
+              - ACCEPTED
+              - QUEUED
+              - RUNNING
+              - WAITING_FOR_HUMAN
+              - WAITING_FOR_DEPENDENCY
+              - RETRYING
+              - CANCEL_REQUESTED
+              - SUCCEEDED
+              - PARTIALLY_SUCCEEDED
+              - FAILED
+              - CANCELLED
+            previousStatus:
+              type:
+              - string
+              - 'null'
+            reasonCode:
+              type:
+              - string
+              - 'null'
+            aggregateVersion:
+              type: integer
+              minimum: 1
+    WorkerRunBlockedPayload:
+      type: object
+      required:
+      - eventId
+      - eventType
+      - occurredAt
+      - aggregateId
+      - aggregateVersion
+      - correlationId
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        eventType:
+          type: string
+          const: aires.worker_run.blocked.v1
+        occurredAt:
+          type: string
+          format: date-time
+        aggregateId:
+          type: string
+          format: uuid
+        aggregateVersion:
+          type: integer
+          minimum: 1
+        correlationId:
+          type: string
+        causationId:
+          type:
+          - string
+          - 'null'
+        fromStatus:
+          type:
+          - string
+          - 'null'
+        toStatus:
+          type:
+          - string
+          - 'null'
+        reasonCode:
+          type:
+          - string
+          - 'null'
+        operationId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        taskId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        workerRunId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        derivedFromWorkerRunId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        derivationReason:
+          type:
+          - string
+          - 'null'
+        resultRef:
+          type:
+          - string
+          - 'null'
+        readinessEvaluationId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+      additionalProperties: false
+    WorkerRunQueuedPayload:
+      type: object
+      required:
+      - eventId
+      - eventType
+      - occurredAt
+      - aggregateId
+      - aggregateVersion
+      - correlationId
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        eventType:
+          type: string
+          const: aires.worker_run.queued.v1
+        occurredAt:
+          type: string
+          format: date-time
+        aggregateId:
+          type: string
+          format: uuid
+        aggregateVersion:
+          type: integer
+          minimum: 1
+        correlationId:
+          type: string
+        causationId:
+          type:
+          - string
+          - 'null'
+        fromStatus:
+          type:
+          - string
+          - 'null'
+        toStatus:
+          type:
+          - string
+          - 'null'
+        reasonCode:
+          type:
+          - string
+          - 'null'
+        operationId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        taskId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        workerRunId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        derivedFromWorkerRunId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        derivationReason:
+          type:
+          - string
+          - 'null'
+        resultRef:
+          type:
+          - string
+          - 'null'
+        readinessEvaluationId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+      additionalProperties: false
+    WorkerRunWaitingForHumanPayload:
+      type: object
+      required:
+      - eventId
+      - eventType
+      - occurredAt
+      - aggregateId
+      - aggregateVersion
+      - correlationId
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        eventType:
+          type: string
+          const: aires.worker_run.waiting_for_human.v1
+        occurredAt:
+          type: string
+          format: date-time
+        aggregateId:
+          type: string
+          format: uuid
+        aggregateVersion:
+          type: integer
+          minimum: 1
+        correlationId:
+          type: string
+        causationId:
+          type:
+          - string
+          - 'null'
+        fromStatus:
+          type:
+          - string
+          - 'null'
+        toStatus:
+          type:
+          - string
+          - 'null'
+        reasonCode:
+          type:
+          - string
+          - 'null'
+        operationId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        taskId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        workerRunId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        derivedFromWorkerRunId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        derivationReason:
+          type:
+          - string
+          - 'null'
+        resultRef:
+          type:
+          - string
+          - 'null'
+        readinessEvaluationId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+      additionalProperties: false
+    WorkerRunWaitingForDependencyPayload:
+      type: object
+      required:
+      - eventId
+      - eventType
+      - occurredAt
+      - aggregateId
+      - aggregateVersion
+      - correlationId
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        eventType:
+          type: string
+          const: aires.worker_run.waiting_for_dependency.v1
+        occurredAt:
+          type: string
+          format: date-time
+        aggregateId:
+          type: string
+          format: uuid
+        aggregateVersion:
+          type: integer
+          minimum: 1
+        correlationId:
+          type: string
+        causationId:
+          type:
+          - string
+          - 'null'
+        fromStatus:
+          type:
+          - string
+          - 'null'
+        toStatus:
+          type:
+          - string
+          - 'null'
+        reasonCode:
+          type:
+          - string
+          - 'null'
+        operationId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        taskId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        workerRunId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        derivedFromWorkerRunId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        derivationReason:
+          type:
+          - string
+          - 'null'
+        resultRef:
+          type:
+          - string
+          - 'null'
+        readinessEvaluationId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+      additionalProperties: false
+    WorkerRunResumedPayload:
+      type: object
+      required:
+      - eventId
+      - eventType
+      - occurredAt
+      - aggregateId
+      - aggregateVersion
+      - correlationId
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        eventType:
+          type: string
+          const: aires.worker_run.resumed.v1
+        occurredAt:
+          type: string
+          format: date-time
+        aggregateId:
+          type: string
+          format: uuid
+        aggregateVersion:
+          type: integer
+          minimum: 1
+        correlationId:
+          type: string
+        causationId:
+          type:
+          - string
+          - 'null'
+        fromStatus:
+          type:
+          - string
+          - 'null'
+        toStatus:
+          type:
+          - string
+          - 'null'
+        reasonCode:
+          type:
+          - string
+          - 'null'
+        operationId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        taskId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        workerRunId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        derivedFromWorkerRunId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        derivationReason:
+          type:
+          - string
+          - 'null'
+        resultRef:
+          type:
+          - string
+          - 'null'
+        readinessEvaluationId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+      additionalProperties: false
+    WorkerRunValidationCompletedPayload:
+      type: object
+      required:
+      - eventId
+      - eventType
+      - occurredAt
+      - aggregateId
+      - aggregateVersion
+      - correlationId
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        eventType:
+          type: string
+          const: aires.worker_run.validation_completed.v1
+        occurredAt:
+          type: string
+          format: date-time
+        aggregateId:
+          type: string
+          format: uuid
+        aggregateVersion:
+          type: integer
+          minimum: 1
+        correlationId:
+          type: string
+        causationId:
+          type:
+          - string
+          - 'null'
+        fromStatus:
+          type:
+          - string
+          - 'null'
+        toStatus:
+          type:
+          - string
+          - 'null'
+        reasonCode:
+          type:
+          - string
+          - 'null'
+        operationId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        taskId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        workerRunId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        derivedFromWorkerRunId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        derivationReason:
+          type:
+          - string
+          - 'null'
+        resultRef:
+          type:
+          - string
+          - 'null'
+        readinessEvaluationId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+      additionalProperties: false
+    WorkerRunReviewRequestedPayload:
+      type: object
+      required:
+      - eventId
+      - eventType
+      - occurredAt
+      - aggregateId
+      - aggregateVersion
+      - correlationId
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        eventType:
+          type: string
+          const: aires.worker_run.review_requested.v1
+        occurredAt:
+          type: string
+          format: date-time
+        aggregateId:
+          type: string
+          format: uuid
+        aggregateVersion:
+          type: integer
+          minimum: 1
+        correlationId:
+          type: string
+        causationId:
+          type:
+          - string
+          - 'null'
+        fromStatus:
+          type:
+          - string
+          - 'null'
+        toStatus:
+          type:
+          - string
+          - 'null'
+        reasonCode:
+          type:
+          - string
+          - 'null'
+        operationId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        taskId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        workerRunId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        derivedFromWorkerRunId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        derivationReason:
+          type:
+          - string
+          - 'null'
+        resultRef:
+          type:
+          - string
+          - 'null'
+        readinessEvaluationId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+      additionalProperties: false
+    WorkerRunQARequestedPayload:
+      type: object
+      required:
+      - eventId
+      - eventType
+      - occurredAt
+      - aggregateId
+      - aggregateVersion
+      - correlationId
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        eventType:
+          type: string
+          const: aires.worker_run.q_a_requested.v1
+        occurredAt:
+          type: string
+          format: date-time
+        aggregateId:
+          type: string
+          format: uuid
+        aggregateVersion:
+          type: integer
+          minimum: 1
+        correlationId:
+          type: string
+        causationId:
+          type:
+          - string
+          - 'null'
+        fromStatus:
+          type:
+          - string
+          - 'null'
+        toStatus:
+          type:
+          - string
+          - 'null'
+        reasonCode:
+          type:
+          - string
+          - 'null'
+        operationId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        taskId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        workerRunId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        derivedFromWorkerRunId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        derivationReason:
+          type:
+          - string
+          - 'null'
+        resultRef:
+          type:
+          - string
+          - 'null'
+        readinessEvaluationId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+      additionalProperties: false
+    WorkerRunCompletedPayload:
+      type: object
+      required:
+      - eventId
+      - eventType
+      - occurredAt
+      - aggregateId
+      - aggregateVersion
+      - correlationId
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        eventType:
+          type: string
+          const: aires.worker_run.completed.v1
+        occurredAt:
+          type: string
+          format: date-time
+        aggregateId:
+          type: string
+          format: uuid
+        aggregateVersion:
+          type: integer
+          minimum: 1
+        correlationId:
+          type: string
+        causationId:
+          type:
+          - string
+          - 'null'
+        fromStatus:
+          type:
+          - string
+          - 'null'
+        toStatus:
+          type:
+          - string
+          - 'null'
+        reasonCode:
+          type:
+          - string
+          - 'null'
+        operationId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        taskId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        workerRunId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        derivedFromWorkerRunId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        derivationReason:
+          type:
+          - string
+          - 'null'
+        resultRef:
+          type:
+          - string
+          - 'null'
+        readinessEvaluationId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+      additionalProperties: false
+    WorkerRunRejectedPayload:
+      type: object
+      required:
+      - eventId
+      - eventType
+      - occurredAt
+      - aggregateId
+      - aggregateVersion
+      - correlationId
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        eventType:
+          type: string
+          const: aires.worker_run.rejected.v1
+        occurredAt:
+          type: string
+          format: date-time
+        aggregateId:
+          type: string
+          format: uuid
+        aggregateVersion:
+          type: integer
+          minimum: 1
+        correlationId:
+          type: string
+        causationId:
+          type:
+          - string
+          - 'null'
+        fromStatus:
+          type:
+          - string
+          - 'null'
+        toStatus:
+          type:
+          - string
+          - 'null'
+        reasonCode:
+          type:
+          - string
+          - 'null'
+        operationId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        taskId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        workerRunId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        derivedFromWorkerRunId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        derivationReason:
+          type:
+          - string
+          - 'null'
+        resultRef:
+          type:
+          - string
+          - 'null'
+        readinessEvaluationId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+      additionalProperties: false
+    WorkerRunUnverifiedPayload:
+      type: object
+      required:
+      - eventId
+      - eventType
+      - occurredAt
+      - aggregateId
+      - aggregateVersion
+      - correlationId
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        eventType:
+          type: string
+          const: aires.worker_run.unverified.v1
+        occurredAt:
+          type: string
+          format: date-time
+        aggregateId:
+          type: string
+          format: uuid
+        aggregateVersion:
+          type: integer
+          minimum: 1
+        correlationId:
+          type: string
+        causationId:
+          type:
+          - string
+          - 'null'
+        fromStatus:
+          type:
+          - string
+          - 'null'
+        toStatus:
+          type:
+          - string
+          - 'null'
+        reasonCode:
+          type:
+          - string
+          - 'null'
+        operationId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        taskId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        workerRunId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        derivedFromWorkerRunId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        derivationReason:
+          type:
+          - string
+          - 'null'
+        resultRef:
+          type:
+          - string
+          - 'null'
+        readinessEvaluationId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+      additionalProperties: false
+    WorkerRunCancelRequestedPayload:
+      type: object
+      required:
+      - eventId
+      - eventType
+      - occurredAt
+      - aggregateId
+      - aggregateVersion
+      - correlationId
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        eventType:
+          type: string
+          const: aires.worker_run.cancel_requested.v1
+        occurredAt:
+          type: string
+          format: date-time
+        aggregateId:
+          type: string
+          format: uuid
+        aggregateVersion:
+          type: integer
+          minimum: 1
+        correlationId:
+          type: string
+        causationId:
+          type:
+          - string
+          - 'null'
+        fromStatus:
+          type:
+          - string
+          - 'null'
+        toStatus:
+          type:
+          - string
+          - 'null'
+        reasonCode:
+          type:
+          - string
+          - 'null'
+        operationId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        taskId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        workerRunId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        derivedFromWorkerRunId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        derivationReason:
+          type:
+          - string
+          - 'null'
+        resultRef:
+          type:
+          - string
+          - 'null'
+        readinessEvaluationId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+      additionalProperties: false
+    WorkerRunTimedOutPayload:
+      type: object
+      required:
+      - eventId
+      - eventType
+      - occurredAt
+      - aggregateId
+      - aggregateVersion
+      - correlationId
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        eventType:
+          type: string
+          const: aires.worker_run.timed_out.v1
+        occurredAt:
+          type: string
+          format: date-time
+        aggregateId:
+          type: string
+          format: uuid
+        aggregateVersion:
+          type: integer
+          minimum: 1
+        correlationId:
+          type: string
+        causationId:
+          type:
+          - string
+          - 'null'
+        fromStatus:
+          type:
+          - string
+          - 'null'
+        toStatus:
+          type:
+          - string
+          - 'null'
+        reasonCode:
+          type:
+          - string
+          - 'null'
+        operationId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        taskId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        workerRunId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        derivedFromWorkerRunId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        derivationReason:
+          type:
+          - string
+          - 'null'
+        resultRef:
+          type:
+          - string
+          - 'null'
+        readinessEvaluationId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+      additionalProperties: false
+    WorkerRunDerivedPayload:
+      type: object
+      required:
+      - eventId
+      - eventType
+      - occurredAt
+      - aggregateId
+      - aggregateVersion
+      - correlationId
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        eventType:
+          type: string
+          const: aires.worker_run.derived.v1
+        occurredAt:
+          type: string
+          format: date-time
+        aggregateId:
+          type: string
+          format: uuid
+        aggregateVersion:
+          type: integer
+          minimum: 1
+        correlationId:
+          type: string
+        causationId:
+          type:
+          - string
+          - 'null'
+        fromStatus:
+          type:
+          - string
+          - 'null'
+        toStatus:
+          type:
+          - string
+          - 'null'
+        reasonCode:
+          type:
+          - string
+          - 'null'
+        operationId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        taskId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        workerRunId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        derivedFromWorkerRunId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        derivationReason:
+          type:
+          - string
+          - 'null'
+        resultRef:
+          type:
+          - string
+          - 'null'
+        readinessEvaluationId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+      additionalProperties: false
+    OperationChildCreatedPayload:
+      type: object
+      required:
+      - eventId
+      - eventType
+      - occurredAt
+      - aggregateId
+      - aggregateVersion
+      - correlationId
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        eventType:
+          type: string
+          const: aires.operation.child_created.v1
+        occurredAt:
+          type: string
+          format: date-time
+        aggregateId:
+          type: string
+          format: uuid
+        aggregateVersion:
+          type: integer
+          minimum: 1
+        correlationId:
+          type: string
+        causationId:
+          type:
+          - string
+          - 'null'
+        fromStatus:
+          type:
+          - string
+          - 'null'
+        toStatus:
+          type:
+          - string
+          - 'null'
+        reasonCode:
+          type:
+          - string
+          - 'null'
+        operationId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        taskId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        workerRunId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        derivedFromWorkerRunId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        derivationReason:
+          type:
+          - string
+          - 'null'
+        resultRef:
+          type:
+          - string
+          - 'null'
+        readinessEvaluationId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+      additionalProperties: false
+    OperationProgressUpdatedPayload:
+      type: object
+      required:
+      - eventId
+      - eventType
+      - occurredAt
+      - aggregateId
+      - aggregateVersion
+      - correlationId
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        eventType:
+          type: string
+          const: aires.operation.progress_updated.v1
+        occurredAt:
+          type: string
+          format: date-time
+        aggregateId:
+          type: string
+          format: uuid
+        aggregateVersion:
+          type: integer
+          minimum: 1
+        correlationId:
+          type: string
+        causationId:
+          type:
+          - string
+          - 'null'
+        fromStatus:
+          type:
+          - string
+          - 'null'
+        toStatus:
+          type:
+          - string
+          - 'null'
+        reasonCode:
+          type:
+          - string
+          - 'null'
+        operationId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        taskId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        workerRunId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        derivedFromWorkerRunId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        derivationReason:
+          type:
+          - string
+          - 'null'
+        resultRef:
+          type:
+          - string
+          - 'null'
+        readinessEvaluationId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+      additionalProperties: false
+    OperationWorkerRunEventData:
+      type: object
+      required:
+      - eventId
+      - schemaVersion
+      - aggregateType
+      - aggregateId
+      - aggregateSequence
+      - aggregateVersion
+      - organizationId
+      - projectId
+      - operationId
+      - occurredAt
+      - actor
+      - correlationId
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        schemaVersion:
+          type: integer
+          minimum: 1
+        aggregateType:
+          type: string
+          enum:
+          - OPERATION
+          - WORKER_RUN
+        aggregateId:
+          type: string
+          format: uuid
+        aggregateSequence:
+          type: integer
+          minimum: 1
+        aggregateVersion:
+          type: integer
+          minimum: 1
+        organizationId:
+          type: string
+          format: uuid
+        projectId:
+          type: string
+          format: uuid
+        operationId:
+          type: string
+          format: uuid
+        occurredAt:
+          type: string
+          format: date-time
+        actor:
+          type: object
+          required:
+          - type
+          properties:
+            type:
+              type: string
+              enum:
+              - SYSTEM
+              - USER
+              - MANAGER
+              - WORKER
+              - SERVICE
+            id:
+              type:
+              - string
+              - 'null'
+              format: uuid
+          additionalProperties: false
+        correlationId:
+          type: string
+          format: uuid
+        causationId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        reasonCode:
+          type:
+          - string
+          - 'null'
+        transition:
+          type:
+          - object
+          - 'null'
+          properties:
+            from:
+              type:
+              - string
+              - 'null'
+            to:
+              type:
+              - string
+              - 'null'
+          additionalProperties: false
+        refs:
+          type: array
+          items:
+            type: object
+            required:
+            - resourceType
+            - resourceId
+            properties:
+              resourceType:
+                type: string
+              resourceId:
+                type: string
+                format: uuid
+              versionId:
+                type:
+                - string
+                - 'null'
+                format: uuid
+            additionalProperties: false
+        details:
+          type: object
+          description: Event-specific typed fields; must not contain secrets, prompts, full source/result bodies or raw provider
+            payload.
+      additionalProperties: false
+    EventDeliveryGuarantees:
+      type: object
+      properties:
+        delivery:
+          const: AT_LEAST_ONCE
+        ordering:
+          const: PER_AGGREGATE_ONLY
+        deduplication:
+          const: CONSUMER_INBOX_BY_EVENT_ID
+        exactlyOnce:
+          const: false
+      additionalProperties: false

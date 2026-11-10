@@ -1,0 +1,736 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-res.local/schemas/continuous-improvement-contracts-v1.0.json",
+  "title": "AI RES Continuous Improvement and Autonomy Contracts",
+  "$defs": {
+    "EvidenceReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evidenceId",
+        "evidenceType",
+        "sourceRef",
+        "capturedAt",
+        "accessScope"
+      ],
+      "properties": {
+        "evidenceId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "evidenceType": {
+          "enum": [
+            "RUN_OUTCOME",
+            "QA_FINDING",
+            "USER_FEEDBACK",
+            "INCIDENT",
+            "EVALUATION_RESULT",
+            "METRIC_WINDOW",
+            "SOURCE_EXAMPLE",
+            "AUDIT_EVENT"
+          ]
+        },
+        "sourceRef": {
+          "type": "string",
+          "minLength": 1
+        },
+        "capturedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "accessScope": {
+          "type": "object",
+          "required": [
+            "organizationId"
+          ],
+          "properties": {
+            "organizationId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "projectId": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "uuid"
+            }
+          },
+          "additionalProperties": false
+        },
+        "redactionStatus": {
+          "enum": [
+            "NOT_REQUIRED",
+            "REDACTED",
+            "PENDING",
+            "REJECTED"
+          ]
+        },
+        "classification": {
+          "enum": [
+            "PUBLIC",
+            "INTERNAL",
+            "CONFIDENTIAL",
+            "RESTRICTED"
+          ]
+        },
+        "provenanceRef": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "MetricSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "metricKey",
+        "aggregation",
+        "baseline",
+        "target",
+        "direction",
+        "measurementWindow"
+      ],
+      "properties": {
+        "metricKey": {
+          "type": "string",
+          "minLength": 1
+        },
+        "aggregation": {
+          "enum": [
+            "COUNT",
+            "RATE",
+            "MEAN",
+            "MEDIAN",
+            "P95",
+            "P99",
+            "SUM",
+            "BOOLEAN_GUARDRAIL"
+          ]
+        },
+        "baseline": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "target": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "direction": {
+          "enum": [
+            "INCREASE",
+            "DECREASE",
+            "NO_REGRESSION",
+            "BOOLEAN_FALSE"
+          ]
+        },
+        "measurementWindow": {
+          "type": "string",
+          "minLength": 1
+        },
+        "segmentationKeys": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "hardGuardrail": {
+          "type": "boolean",
+          "default": false
+        }
+      }
+    },
+    "ImprovementProposal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "proposalId",
+        "version",
+        "status",
+        "title",
+        "problemStatement",
+        "hypothesis",
+        "affectedScope",
+        "evidence",
+        "expectedOutcomes",
+        "riskLevel",
+        "ownerId",
+        "createdAt",
+        "updatedAt"
+      ],
+      "properties": {
+        "proposalId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "status": {
+          "enum": [
+            "DRAFT",
+            "SUBMITTED",
+            "TRIAGE",
+            "EVALUATION_PENDING",
+            "EVALUATION_FAILED",
+            "READY_FOR_APPROVAL",
+            "APPROVED",
+            "REJECTED",
+            "SCHEDULED",
+            "SHADOW",
+            "CANARY",
+            "ACTIVE",
+            "ROLLED_BACK",
+            "CLOSED"
+          ]
+        },
+        "title": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 200
+        },
+        "problemStatement": {
+          "type": "string",
+          "minLength": 1
+        },
+        "hypothesis": {
+          "type": "string",
+          "minLength": 1
+        },
+        "changeClass": {
+          "enum": [
+            "KNOWLEDGE",
+            "RETRIEVAL",
+            "PROMPT_TEMPLATE",
+            "WORKFLOW",
+            "TOOL_CONNECTOR",
+            "EVALUATION_ASSET",
+            "MODEL_PROFILE",
+            "GLOSSARY",
+            "UX"
+          ]
+        },
+        "affectedScope": {
+          "type": "object",
+          "required": [
+            "capabilityIds",
+            "componentRefs",
+            "environment",
+            "scopeType"
+          ],
+          "properties": {
+            "capabilityIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            },
+            "actionClasses": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "uniqueItems": true
+            },
+            "componentRefs": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1
+            },
+            "environment": {
+              "enum": [
+                "DEV",
+                "TEST",
+                "STAGING",
+                "PRODUCTION"
+              ]
+            },
+            "scopeType": {
+              "enum": [
+                "GLOBAL",
+                "ORGANIZATION",
+                "PROJECT",
+                "CAPABILITY"
+              ]
+            },
+            "organizationId": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "uuid"
+            },
+            "projectIds": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EvidenceReference"
+          },
+          "minItems": 1
+        },
+        "expectedOutcomes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MetricSpec"
+          },
+          "minItems": 1
+        },
+        "riskLevel": {
+          "enum": [
+            "LOW",
+            "MEDIUM",
+            "HIGH",
+            "CRITICAL"
+          ]
+        },
+        "ownerId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "evaluationPlanRef": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "changeArtifactRefs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "rollbackPlanRef": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "supersedesVersion": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        }
+      }
+    },
+    "EvaluationManifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evaluationRunId",
+        "proposalId",
+        "proposalVersion",
+        "datasetRef",
+        "datasetVersion",
+        "rubricRef",
+        "rubricVersion",
+        "evaluatorVersion",
+        "applicationBuild",
+        "modelProfileVersion",
+        "promptVersions",
+        "toolVersions",
+        "workflowVersion",
+        "startedAt",
+        "result"
+      ],
+      "properties": {
+        "evaluationRunId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "proposalId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "proposalVersion": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "datasetRef": {
+          "type": "string"
+        },
+        "datasetVersion": {
+          "type": "string"
+        },
+        "rubricRef": {
+          "type": "string"
+        },
+        "rubricVersion": {
+          "type": "string"
+        },
+        "evaluatorVersion": {
+          "type": "string"
+        },
+        "applicationBuild": {
+          "type": "string"
+        },
+        "modelProfileVersion": {
+          "type": "string"
+        },
+        "promptVersions": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "toolVersions": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "workflowVersion": {
+          "type": "string"
+        },
+        "seed": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "completedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "result": {
+          "enum": [
+            "PASS",
+            "PASS_WITH_LIMITATIONS",
+            "FAIL",
+            "INCONCLUSIVE"
+          ]
+        },
+        "sampleCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "metrics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MetricSpec"
+          }
+        },
+        "hardGuardrailViolations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "reportRef": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "AutonomyGrant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "grantId",
+        "version",
+        "status",
+        "capabilityId",
+        "actionClass",
+        "environment",
+        "scope",
+        "autonomyLevel",
+        "allowedOperations",
+        "explicitDenials",
+        "limits",
+        "preconditions",
+        "escalationConditions",
+        "approvalRef",
+        "effectiveFrom",
+        "expiresAt",
+        "reviewAt",
+        "policyVersion",
+        "createdBy"
+      ],
+      "properties": {
+        "grantId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "status": {
+          "enum": [
+            "DRAFT",
+            "PENDING_APPROVAL",
+            "ACTIVE",
+            "SUSPENDED",
+            "REVOKED",
+            "EXPIRED"
+          ]
+        },
+        "capabilityId": {
+          "type": "string"
+        },
+        "actionClass": {
+          "type": "string"
+        },
+        "environment": {
+          "enum": [
+            "DEV",
+            "TEST",
+            "STAGING",
+            "PRODUCTION"
+          ]
+        },
+        "scope": {
+          "type": "object",
+          "required": [
+            "scopeType"
+          ],
+          "properties": {
+            "scopeType": {
+              "enum": [
+                "GLOBAL",
+                "ORGANIZATION",
+                "PROJECT"
+              ]
+            },
+            "organizationId": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "uuid"
+            },
+            "projectIds": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "autonomyLevel": {
+          "enum": [
+            "A0",
+            "A1",
+            "A2",
+            "A3",
+            "A4"
+          ]
+        },
+        "allowedOperations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "explicitDenials": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "limits": {
+          "type": "object",
+          "required": [
+            "maxActions",
+            "maxDurationSeconds",
+            "maxConcurrency"
+          ],
+          "properties": {
+            "maxActions": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "maxCost": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "maxTokens": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "maxDurationSeconds": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "maxConcurrency": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "additionalProperties": false
+        },
+        "preconditions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "escalationConditions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "approvalRef": {
+          "type": "string"
+        },
+        "evidenceRefs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "rollbackProcedureRef": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "effectiveFrom": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "reviewAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "policyVersion": {
+          "type": "string"
+        },
+        "createdBy": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "revokedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "revocationReason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "GovernanceDecision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "decisionId",
+        "subjectType",
+        "subjectId",
+        "decision",
+        "approverId",
+        "rationale",
+        "decidedAt"
+      ],
+      "properties": {
+        "decisionId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "subjectType": {
+          "enum": [
+            "IMPROVEMENT_PROPOSAL",
+            "AUTONOMY_GRANT",
+            "GLOSSARY_CHANGE",
+            "EVALUATION_ASSET",
+            "RELEASE"
+          ]
+        },
+        "subjectId": {
+          "type": "string"
+        },
+        "decision": {
+          "enum": [
+            "APPROVE",
+            "REJECT",
+            "REQUEST_CHANGES",
+            "SUSPEND",
+            "REVOKE"
+          ]
+        },
+        "approverId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidenceRefs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "decidedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    }
+  }
+}

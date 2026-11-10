@@ -1,0 +1,470 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aires.local/schemas/operation-readiness/v1.0",
+  "title": "AI RES Operation and Readiness Evaluation Schemas",
+  "type": "object",
+  "$defs": {
+    "Operation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "organizationId",
+        "operationType",
+        "status",
+        "initiatorType",
+        "correlationId",
+        "submittedAt",
+        "rowVersion"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "projectId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "epicId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "operationType": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "enum": [
+            "ACCEPTED",
+            "QUEUED",
+            "RUNNING",
+            "WAITING_FOR_HUMAN",
+            "WAITING_FOR_DEPENDENCY",
+            "RETRYING",
+            "CANCEL_REQUESTED",
+            "SUCCEEDED",
+            "PARTIALLY_SUCCEEDED",
+            "FAILED",
+            "CANCELLED"
+          ]
+        },
+        "initiatorType": {
+          "enum": [
+            "HUMAN",
+            "SYSTEM",
+            "MANAGER",
+            "SCHEDULED"
+          ]
+        },
+        "initiatorId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "subjectType": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "subjectId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "causationId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "submittedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "acceptedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "startedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "completedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "lastProgressAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "resultRef": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "problem": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "cancelRequestedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "temporalWorkflowId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "temporalRunId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "rowVersion": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "OperationEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "operationId",
+        "sequence",
+        "eventType",
+        "occurredAt"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "operationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "eventType": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fromStatus": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "toStatus": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "occurredAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "actorType": {
+          "enum": [
+            "HUMAN",
+            "SYSTEM",
+            "MANAGER",
+            "SCHEDULED"
+          ]
+        },
+        "actorId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "reasonCode": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "correlationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "causationId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        }
+      }
+    },
+    "ReadinessEvaluation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "organizationId",
+        "projectId",
+        "taskId",
+        "workerRunId",
+        "evaluationNumber",
+        "outcome",
+        "evaluationStatus",
+        "evaluatedAt",
+        "evaluatorVersion",
+        "snapshotHash",
+        "checks"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "projectId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "epicId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "taskId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "workerRunId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "evaluationNumber": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "outcome": {
+          "enum": [
+            "READY",
+            "READY_WITH_LIMITATIONS",
+            "BLOCKED",
+            "STALE"
+          ]
+        },
+        "evaluationStatus": {
+          "enum": [
+            "COMPLETED",
+            "EVALUATOR_ERROR"
+          ]
+        },
+        "evaluatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "evaluatorVersion": {
+          "type": "string"
+        },
+        "policyEngineVersion": {
+          "type": "string"
+        },
+        "planVersionId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "planItemId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "workerDefinitionId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "workerDefinitionVersion": {
+          "type": "string"
+        },
+        "contextPackageVersionId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "contextManifestHash": {
+          "type": "string",
+          "minLength": 32
+        },
+        "rulesetVersion": {
+          "type": "string"
+        },
+        "grantSetHash": {
+          "type": "string",
+          "minLength": 32
+        },
+        "toolAllowlistHash": {
+          "type": "string",
+          "minLength": 32
+        },
+        "outputContractVersion": {
+          "type": "string"
+        },
+        "budgetProfileVersion": {
+          "type": "string"
+        },
+        "dependencySnapshotHash": {
+          "type": "string",
+          "minLength": 32
+        },
+        "managerAssessmentRef": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "snapshotHash": {
+          "type": "string",
+          "minLength": 32
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "evidenceRefs": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ReadinessCheckResult"
+          }
+        }
+      }
+    },
+    "ReadinessCheckResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "checkCode",
+        "category",
+        "result",
+        "severity",
+        "required",
+        "checkVersion"
+      ],
+      "properties": {
+        "checkCode": {
+          "type": "string",
+          "minLength": 1
+        },
+        "category": {
+          "type": "string",
+          "minLength": 1
+        },
+        "result": {
+          "enum": [
+            "PASS",
+            "FAIL",
+            "WARN",
+            "NOT_APPLICABLE"
+          ]
+        },
+        "severity": {
+          "enum": [
+            "INFO",
+            "LOW",
+            "MEDIUM",
+            "HIGH",
+            "CRITICAL"
+          ]
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "reasonCode": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "safeMessage": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "checkVersion": {
+          "type": "string"
+        },
+        "evidenceRefs": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    }
+  }
+}
