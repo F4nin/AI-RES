@@ -1,0 +1,238 @@
+x-status: WORKING
+x-source:
+  - AI_RES_Authentication_and_Session_Management_v1.1.md §3, §5, §6
+  - AI_RES_Security_Architecture_v1.2.md
+  - docs/implementation/increments/prompts/S07_identity_auth_policy_audit_idempotency.md
+paths:
+  /auth/login:
+    post:
+      tags: [Identity]
+      operationId: login
+      summary: Password login; sets the opaque session cookie.
+      description: Password login; sets the opaque session cookie. WORKING overlay (ADR-038); not part of the canonical v1.3 slice.
+      security: []
+      x-idempotency-exempt: Credential exchange - a replay must never return a previously issued session, so no Idempotency-Key.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Authenticated. `Set-Cookie` carries the new session; if `mfaRequired` the session is not second-factor verified yet.
+          headers:
+            Set-Cookie:
+              schema: {type: string}
+              description: ai_res_session; HttpOnly, Secure, SameSite=Lax, Path=/api/v1, no Domain.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionInfo'
+        '401':
+          description: Invalid credentials (one generic answer for every cause).
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
+        '403':
+          description: Origin not allowed.
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
+        '429':
+          description: Progressive delay; see Retry-After.
+          headers:
+            Retry-After:
+              schema: {type: integer, minimum: 1}
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
+        default:
+          $ref: '#/components/responses/Problem'
+  /auth/logout:
+    post:
+      tags: [Identity]
+      operationId: logout
+      summary: Revokes the current session and clears the cookie.
+      description: Revokes the current session and clears the cookie. WORKING overlay (ADR-038); not part of the canonical v1.3 slice.
+      x-idempotency-exempt: Session teardown is naturally idempotent; a repeat is a 401 because the session is already revoked.
+      security:
+      - sessionCookie: []
+        csrfToken: []
+      responses:
+        '204':
+          description: Signed out.
+        default:
+          $ref: '#/components/responses/Problem'
+  /auth/csrf:
+    get:
+      tags: [Identity]
+      operationId: getCsrfToken
+      summary: Returns the CSRF token bound to the current session (re-readable after a page reload).
+      description: Returns the CSRF token bound to the current session (re-readable after a page reload). WORKING overlay (ADR-038); not part of the canonical v1.3 slice.
+      responses:
+        '200':
+          description: CSRF token for the X-CSRF-Token header.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CsrfToken'
+        default:
+          $ref: '#/components/responses/Problem'
+  /auth/password:
+    post:
+      tags: [Identity]
+      operationId: changePassword
+      summary: Changes the password after re-authentication (wrong current password is 422, not 401); every other session of the user is revoked.
+      description: Changes the password after re-authentication; every other session of the user is revoked. WORKING overlay (ADR-038); not part of the canonical v1.3 slice.
+      x-idempotency-exempt: Re-authentication with the current password; a replay fails because the current password has changed.
+      security:
+      - sessionCookie: []
+        csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+      responses:
+        '204':
+          description: Password changed.
+        default:
+          $ref: '#/components/responses/Problem'
+  /auth/mfa/enrollment:
+    post:
+      tags: [Identity]
+      operationId: beginMfaEnrollment
+      summary: Starts TOTP enrolment after a fresh password proof; the secret is returned once.
+      description: Starts TOTP enrolment; the secret is returned once. Requires the current password (422 invalid_current_password otherwise, ADR-072). WORKING overlay (ADR-038); not part of the canonical v1.3 slice.
+      x-idempotency-exempt: Each call replaces the pending enrolment; the secret must never be stored for replay.
+      security:
+      - sessionCookie: []
+        csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReauthRequest'
+      responses:
+        '201':
+          description: Pending enrolment.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MfaEnrollment'
+        default:
+          $ref: '#/components/responses/Problem'
+  /auth/mfa/enrollment/confirm:
+    post:
+      tags: [Identity]
+      operationId: confirmMfaEnrollment
+      summary: Confirms enrolment with a TOTP code; rotates the session and returns recovery codes once.
+      description: Confirms enrolment with a TOTP code; rotates the session and returns recovery codes once. WORKING overlay (ADR-038); not part of the canonical v1.3 slice.
+      x-idempotency-exempt: A TOTP step is single-use (replay guard) and recovery codes are shown once; replay must not re-issue them.
+      security:
+      - sessionCookie: []
+        csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MfaCodeRequest'
+      responses:
+        '200':
+          description: MFA enabled; the session cookie was rotated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MfaConfirmed'
+        default:
+          $ref: '#/components/responses/Problem'
+  /auth/mfa/verify:
+    post:
+      tags: [Identity]
+      operationId: verifyMfa
+      summary: Presents the second factor (TOTP or recovery code); rotates the session.
+      description: Presents the second factor (TOTP or recovery code); rotates the session. WORKING overlay (ADR-038); not part of the canonical v1.3 slice.
+      x-idempotency-exempt: A TOTP step and a recovery code are single-use by design; replay must fail.
+      security:
+      - sessionCookie: []
+        csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MfaCodeRequest'
+      responses:
+        '200':
+          description: Second factor verified; the session cookie was rotated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CsrfToken'
+        default:
+          $ref: '#/components/responses/Problem'
+components:
+  schemas:
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        organizationId:
+          type: string
+          format: uuid
+          description: Optional when the deployment has a configured default organization.
+        email: {type: string, minLength: 3, maxLength: 320}
+        password: {type: string, minLength: 1, maxLength: 1024, writeOnly: true}
+    SessionInfo:
+      type: object
+      required: [userId, organizationId, mfaRequired, csrfToken, idleExpiresAt, absoluteExpiresAt]
+      properties:
+        userId: {type: string, format: uuid}
+        organizationId: {type: string, format: uuid}
+        mfaRequired: {type: boolean}
+        csrfToken: {type: string}
+        idleExpiresAt: {type: string, format: date-time}
+        absoluteExpiresAt: {type: string, format: date-time}
+    CsrfToken:
+      type: object
+      required: [csrfToken]
+      properties:
+        csrfToken: {type: string}
+    ChangePasswordRequest:
+      type: object
+      additionalProperties: false
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword: {type: string, minLength: 1, maxLength: 1024, writeOnly: true}
+        newPassword: {type: string, minLength: 1, maxLength: 1024, writeOnly: true}
+    ReauthRequest:
+      type: object
+      additionalProperties: false
+      required: [currentPassword]
+      properties:
+        currentPassword: {type: string, minLength: 1, maxLength: 1024, writeOnly: true}
+    MfaEnrollment:
+      type: object
+      required: [secret, otpauthUri]
+      properties:
+        secret: {type: string}
+        otpauthUri: {type: string}
+    MfaCodeRequest:
+      type: object
+      additionalProperties: false
+      required: [code]
+      properties:
+        code: {type: string, minLength: 6, maxLength: 64, writeOnly: true}
+    MfaConfirmed:
+      type: object
+      required: [csrfToken, recoveryCodes]
+      properties:
+        csrfToken: {type: string}
+        recoveryCodes:
+          type: array
+          items: {type: string}

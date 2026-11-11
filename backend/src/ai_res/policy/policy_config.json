@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "version": "2026-11-11.1",
+  "status": "WORKING",
+  "privilegedRoles": ["ORGANIZATION_OWNER", "ORGANIZATION_ADMIN", "PROJECT_ADMIN"],
+  "actions": {
+    "iam.self.read":            {"resourceType": "USER", "allow": {"self": true}, "auditAllow": false},
+    "iam.self.logout":          {"resourceType": "USER",    "allow": {"self": true}, "auditAllow": false},
+    "iam.self.password_change": {"resourceType": "USER", "allow": {"self": true}},
+    "iam.self.mfa_manage":      {"resourceType": "USER", "allow": {"self": true}},
+    "iam.user.disable":         {"resourceType": "USER", "allow": {"orgRoles": ["ORGANIZATION_OWNER", "ORGANIZATION_ADMIN"]}, "humanOnly": true},
+    "iam.user.mfa_reset":       {"resourceType": "USER", "allow": {"orgRoles": ["ORGANIZATION_OWNER", "ORGANIZATION_ADMIN"]}, "humanOnly": true, "requiresMfa": true},
+    "iam.membership.revoke":    {"resourceType": "USER", "allow": {"orgRoles": ["ORGANIZATION_OWNER", "ORGANIZATION_ADMIN"]}, "humanOnly": true}
+  }
+}

@@ -3,10 +3,11 @@
 Shapes are fixed here because S07 implementations and every later enforcement point depend on them.
 """
 import asyncio
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
-from typing import Protocol
+from typing import Any, Protocol
 
 from ai_res.platform.problems import ErrorCode, ProblemError
 
@@ -71,6 +72,9 @@ class PolicyRequest:
     resource_id: str | None = None
     organization_id: str | None = None
     project_id: str | None = None
+    # Server-derived facts the engine cannot look up itself (never copied from the client): `mfa_verified` (bool, from the session),
+    # `actor_type` (USER | SERVICE | MANAGER | WORKER_RUN; default USER), `autonomy_level` (A0..A4).
+    attributes: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not self.actor_id or not self.action or not self.resource_type:
@@ -100,10 +104,8 @@ def _require_timeout(value: float) -> None:
         raise ValueError("timeout_seconds must be a positive number (None would disable fail-closed behaviour)")
 
 
-async def decide_fail_closed(policy: PolicyDecisionPort, request: PolicyRequest, *, timeout_seconds: float) -> PolicyDecision:
-    """Returns only ALLOW decisions. Outage, malformed decision or unexpected error -> 503 POLICY_ENGINE_UNAVAILABLE
-    (never allow); DENY -> 403 (object-scoped reads must map this to a controlled 404
-    at the call site, security.md); APPROVAL_REQUIRED -> 403 with reason `approval_required` (a human decision is needed)."""
+async def decide_or_fail(policy: PolicyDecisionPort, request: PolicyRequest, *, timeout_seconds: float) -> PolicyDecision:
+    """The engine's decision of ANY effect. Outage, timeout, malformed decision or unexpected error -> 503 POLICY_ENGINE_UNAVAILABLE (never allow)."""
     _require_timeout(timeout_seconds)
     try:
         async with asyncio.timeout(timeout_seconds):  # a hung engine fails closed; the timeout value is set by the caller (WORKING)
@@ -114,6 +116,14 @@ async def decide_fail_closed(policy: PolicyDecisionPort, request: PolicyRequest,
         raise
     except Exception as exc:
         raise ProblemError(ErrorCode.POLICY_ENGINE_UNAVAILABLE, "Policy decision unavailable.") from exc
+    return decision
+
+
+async def decide_fail_closed(policy: PolicyDecisionPort, request: PolicyRequest, *, timeout_seconds: float) -> PolicyDecision:
+    """Returns only ALLOW decisions. Outage, malformed decision or unexpected error -> 503 POLICY_ENGINE_UNAVAILABLE
+    (never allow); DENY -> 403 (object-scoped reads must map this to a controlled 404
+    at the call site, security.md); APPROVAL_REQUIRED -> 403 with reason `approval_required` (a human decision is needed)."""
+    decision = await decide_or_fail(policy, request, timeout_seconds=timeout_seconds)
     if decision.effect is Effect.ALLOW:
         return decision
     reason = "approval_required" if decision.effect is Effect.APPROVAL_REQUIRED else "denied"
@@ -123,23 +133,26 @@ async def decide_fail_closed(policy: PolicyDecisionPort, request: PolicyRequest,
 
 # ---------- audit ----------
 class AuditOutcome(StrEnum):
-    ALLOWED = "ALLOWED"
+    ALLOWED = "ALLOWED"  # a policy decision that permitted the action; stored as result SUCCEEDED
+    SUCCEEDED = "SUCCEEDED"
     DENIED = "DENIED"
     FAILED = "FAILED"
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class AuditRecord:
-    actor_id: str
-    action: str
+    action: str  # UPPER_SNAKE, e.g. AUTH_LOGIN_FAILED
     outcome: AuditOutcome
     resource_type: str
+    actor_id: str | None = None  # None for an unauthenticated actor (failed login of an unknown account)
+    actor_type: str = "USER"  # USER | SYSTEM | MANAGER | SERVICE | WORKER_RUN (audit.audit_events.actor_type)
     resource_id: str | None = None
     organization_id: str | None = None
     project_id: str | None = None
     reason_code: str | None = None
     policy_version: str | None = None
     request_id: str | None = None
+    details: Mapping[str, Any] | None = None  # structured, secret-free (checked by the writer)
     occurred_at: datetime | None = field(default=None)  # set by the writer (server clock) when None
 
 

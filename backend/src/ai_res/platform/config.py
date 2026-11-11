@@ -3,18 +3,27 @@
 Environment variables use the AI_RES_ prefix. Secrets are NEVER read from env values: only `*_file` paths
 (Compose secrets) are accepted (security.md, ADR-022).
 """
+import ipaddress
 import re
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 from urllib.parse import urlsplit
+from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from ai_res.platform.pagination import KeyRing
 
 PREFIX = "AI_RES_"
 _SECRET_NAME = re.compile(r"(KEY|SECRET|TOKEN|PASSWORD|PASSWD|CREDENTIAL)(?!.*_FILE$)", re.I)
+
+
+def _split_csv(value: object) -> object:
+    """Environment values are strings: `a,b` -> ('a', 'b'); an empty string is the empty tuple."""
+    if isinstance(value, str):
+        return tuple(part.strip() for part in value.split(",") if part.strip())
+    return value
 
 
 class ConfigError(Exception):
@@ -44,6 +53,46 @@ class Settings(BaseModel):
     db_idle_in_transaction_timeout_ms: int = Field(default=30_000, ge=1)
     db_pool_size: int = Field(default=5, ge=1, le=100)
     db_pool_recycle_s: int = Field(default=1_800, ge=30)
+    # Authentication (S07, ADR-061/062). Names are configurable because the wire names await security-owner approval (OD-03).
+    # Numeric defaults: idle 30 min / absolute 12 h are normative defaults (Auth v1.1 §6, §11); every other number is a WORKING technical value.
+    session_cookie_name: str = Field(default="ai_res_session", pattern=r"^[A-Za-z0-9_-]{1,64}$")
+    csrf_header_name: str = Field(default="X-CSRF-Token", pattern=r"^[A-Za-z0-9-]{1,64}$")
+    session_idle_seconds: int = Field(default=1_800, ge=60)
+    session_absolute_seconds: int = Field(default=43_200, ge=60)
+    session_touch_interval_seconds: int = Field(default=60, ge=1)  # WORKING: idle expiry is extended at most this often (write amplification)
+    cookie_secure: bool = True
+    allowed_origins: Annotated[tuple[str, ...], BeforeValidator(_split_csv)] = ()  # exact origins allowed to make cookie-authenticated state changes / CORS
+    default_organization_id: UUID | None = None  # MVP is one organization per installation; login without an explicit organization uses it
+    # Argon2id (OWASP Password Storage Cheat Sheet minimum profile m=19 MiB, t=2, p=1): WORKING until benchmarked on the target (ADR-061).
+    argon2_time_cost: int = Field(default=2, ge=1)
+    argon2_memory_kib: int = Field(default=19_456, ge=8)
+    argon2_parallelism: int = Field(default=1, ge=1)
+    password_min_length: int = Field(default=15, ge=15)  # the normative floor can be raised, never lowered
+    password_denylist_file: Path | None = None
+    # Login throttling (Auth v1.1 §4): WORKING numbers, configuration only. Process-local state (KNOWN_GAPS).
+    login_account_ip_threshold: int = Field(default=5, ge=1)
+    login_ip_threshold: int = Field(default=20, ge=1)
+    login_account_threshold: int = Field(default=10, ge=1)
+    login_global_threshold: int = Field(default=500, ge=1)
+    login_enforce_ip_global: bool = False  # WORKING (ADR-071): False = ip/global only signal; True = they also refuse
+    login_delay_base_seconds: int = Field(default=2, ge=1)
+    login_delay_max_seconds: int = Field(default=300, ge=1)
+    login_window_seconds: int = Field(default=900, ge=1)
+    # TOTP seeds are encrypted at rest (AES-256-GCM). The key is a base64 32-byte secret supplied ONLY as a file (Secrets v1.1).
+    mfa_encryption_key_id: str = Field(default="k1", pattern=r"^[A-Za-z0-9._-]{1,32}$")
+    mfa_encryption_key_file: Path | None = None
+    mfa_issuer: str = Field(default="AI RES", pattern=r"^[A-Za-z0-9 ._-]{1,48}$")
+    mfa_window_steps: int = Field(default=1, ge=0, le=2)  # WORKING: accepted clock drift in 30 s steps either side
+    bootstrap_secret_file: Path | None = None  # Compose secret authorising the one-time creation of the first administrator (Auth v1.1 §3.1)
+    # Idempotency (ADR-024): a key-ring FILE (Compose secret), first line = active key, one `<key_id> <base64 32 bytes>` per line. Retention is WORKING (G-58).
+    idempotency_keyring_file: Path | None = None
+    idempotency_ttl_hours: int = Field(default=24, ge=1)
+    # Service identities (Auth v1.1 §8): per-service Ed25519 signing key (own Compose secret) and the public-key registry used to verify callers.
+    service_signing_key_file: Path | None = None
+    service_public_keys_file: Path | None = None
+    service_token_max_ttl_seconds: int = Field(default=300, ge=1)  # WORKING cap on any service credential's lifetime
+    policy_timeout_seconds: float = Field(default=2.0, gt=0, le=30)  # WORKING: Policy Engine decision budget; exceeded => fail-closed 503
+    trusted_proxy_cidrs: Annotated[tuple[str, ...], BeforeValidator(_split_csv)] = ()  # peers allowed to set X-Forwarded-For (Caddy); empty = ignore XFF
 
     @field_validator("otlp_endpoint")
     @classmethod
@@ -62,6 +111,24 @@ class Settings(BaseModel):
             raise ValueError("db_sslmode=disable is allowed only when environment is local or test (TLS verify-full is mandatory, DBM-014)")
         if self.db_sslmode == "verify-full" and self.db_host is not None and self.db_sslrootcert_file is None:
             raise ValueError("db_sslrootcert_file is required when db_sslmode=verify-full")
+        if self.cookie_secure is False and self.environment not in ("local", "test"):
+            raise ValueError("cookie_secure=false is allowed only when environment is local or test (Auth v1.1 §6)")
+        if self.session_idle_seconds > self.session_absolute_seconds:
+            raise ValueError("session_idle_seconds cannot exceed session_absolute_seconds")
+        if self.login_delay_max_seconds < self.login_delay_base_seconds:
+            raise ValueError("login_delay_max_seconds cannot be below login_delay_base_seconds")
+        for cidr in self.trusted_proxy_cidrs:
+            try:
+                ipaddress.ip_network(cidr, strict=False)
+            except ValueError as exc:
+                raise ValueError("trusted_proxy_cidrs must be CIDR networks") from exc
+        for origin in self.allowed_origins:
+            u = urlsplit(origin)
+            if (u.scheme not in ("http", "https") or not u.hostname or u.path not in ("", "/") or u.query or u.fragment
+                    or u.username or u.password or origin.endswith("/")):
+                raise ValueError("allowed_origins must be exact origins like https://app.example.com (no path, wildcard or credentials)")
+            if u.scheme == "http" and self.environment not in ("local", "test"):
+                raise ValueError("http origins are allowed only when environment is local or test")
         return self
 
 

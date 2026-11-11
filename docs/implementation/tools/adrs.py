@@ -514,3 +514,139 @@ _s06('ADR-060', 'S06: артефакты, review/approval/publication, baseline;
      'S26–S31 (artifact/baseline/change control), S07 (approvals через Policy)',
      'Открытые пункты review → G-72 (validation как предпосылка approval, xid-запечатывание, привязка номеров к счётчикам, статус CR, разделение обязанностей).',
      'test_domain_content_schema (artifact facts, baseline, lifecycle on INSERT, rule item tenant)')
+
+
+def _s07(id_, title, context, reqs, docs, alts, decision, why, impact, risks, tests):
+    ADRS.append(dict(id=id_, title=title, status='ACCEPTED', date='2026-11-11', owner='Implementation Lead (делегированные полномочия)', context=context, reqs=reqs,
+                     docs=docs, alts=alts, decision=decision, why=why, impact=impact, risks=risks, tests=tests))
+
+
+_s07('ADR-061', 'S07: Argon2id и политика паролей',
+     'Параметры Argon2id и состав denylist нормативно не заданы; минимум длины 15 — нормативен.',
+     'AUTH-003, AUTH-005, AUTH-MVP-003', 'Authentication and Session Management v1.1 §4; Security Controls v1.2',
+     'bcrypt/scrypt — отвергнуто (требование Argon2id); «тяжёлые» параметры без замеров — отвергнуто.',
+     'argon2-cffi, Argon2id; по умолчанию t=2, m=19456 KiB, p=1 (минимум OWASP; **WORKING** — до замера на целевом оборудовании, G-75), параметры в Settings. Минимум длины 15 — пол, ниже настроить нельзя; denylist — упакованный seed из 22 строк + файл (**WORKING**, G-75). Для неизвестной учётки проверяется хеш-«приманка» тех же параметров (одна проверка на любой путь). `needs_rehash` при входе. Пароль нигде не логируется и не попадает в аудит.',
+     'Единый стоимостной профиль входа не даёт отличить существующую учётку; WORKING-значения вынесены в конфигурацию, а не зашиты.',
+     'modules/iam/passwords.py, Settings, bootstrap, login, смена пароля',
+     'Параметры могут оказаться слабее/тяжелее нужного (нет benchmark); denylist неполный.',
+     'test_iam_passwords, test_iam_login (счётчик проверок = 1 на любом пути)')
+
+_s07('ADR-062', 'S07: pre-auth поиск (закрывает G-48), токен сессии и CSRF',
+     'Таблицы `iam.users`/`iam.sessions` под FORCE RLS по организации, а поиск по cookie/логину происходит до tenant-контекста (G-48); SECURITY DEFINER и BYPASSRLS запрещены.',
+     'AUTH-007, AUTH-008, SEC-001', 'Authentication v1.1 §5–§6; Persistence Blueprint (RLS); database-and-migrations.md',
+     'SECURITY DEFINER-функция поиска — отвергнуто (ослабляет модель ролей); отдельная роль с BYPASSRLS — запрещено; глобальный индекс сессий вне RLS — отвергнуто.',
+     'Токен сессии `<org-hex>.<random 256 бит>`: организация — только **подсказка для выбора tenant-контекста**, полномочия даёт совпадение SHA-256 дайджеста под RLS (поддельная подсказка даёт 0 строк). Логин принимает `organizationId` (или `default_organization_id` установки). В БД только дайджесты. Idle 30 мин / absolute 12 ч (конфиг.), ротация при login/MFA/смене пароля не продлевает absolute; revoke write-once (триггер). CSRF-токен = HMAC-SHA256(ключ = токен сессии, «ai-res-csrf-v1»), его можно получить заново через `GET /auth/csrf`; сравнение constant-time. Миграция не потребовалась.',
+     'Не вводит привилегированный путь мимо RLS; утечка БД не раскрывает токены.',
+     'modules/iam/{tokens,sessions}.py, api/identity.py',
+     'Утечка токена из памяти/логов даёт сессию — закрыто редактированием логов и тестом golden.',
+     'test_iam_sessions, test_iam_tokens_and_request_security, test_identity_http')
+
+_s07('ADR-063', 'S07: маршруты auth в overlay; cookie, Origin и CORS',
+     'В Public API v1.3 нет login/logout/MFA/password (кроме getCurrentUser); handler без контракта запрещён.',
+     'AUTH-007, API-MVP, ADR-009/ADR-038', 'Public API v1.3; Authentication v1.1 §6; api-and-contracts.md',
+     'Handler без overlay — запрещено; изменение canonical v1.3 — только через NCP-06.',
+     'Overlay `contracts/openapi/extensions/identity_auth.yaml` (**WORKING**): login, logout, csrf, password, mfa/enrollment, mfa/enrollment/confirm, mfa/verify. Spectral-правило `aires-idempotency-key`: операция может не объявлять `Idempotency-Key` только с письменным `x-idempotency-exempt` (≥20 символов) — для обмена учётными данными повтор не должен возвращать выданную сессию. Cookie `ai_res_session` (OD-03): HttpOnly, Secure, SameSite=Lax, Path=/api/v1, без Domain; все небезопасные запросы (включая login — login-CSRF) проходят allowlist Origin/Referer; CORS не включается (deny-by-default), пустой allowlist отказывает всё.',
+     'Контракт предшествует коду; исключение из идемпотентности явное и проверяемое.',
+     'contracts/, api/identity.py, api/request_security.py, infra (AI_RES_ALLOWED_ORIGINS)',
+     'Overlay WORKING до NCP-06; wire-имена cookie/CSRF ждут security owner (OD-03).',
+     'contracts tests (3), test_identity_http, infra runtime (origin/CORS через Caddy)')
+
+_s07('ADR-064', 'S07: прогрессивная задержка входа и определение IP клиента',
+     'DOC-023 §4 требует rate limiting без hard lockout; пороги нормативно не заданы.',
+     'AUTH-005, AUTH-MVP-004', 'Authentication v1.1 §4.3; Infrastructure (ADR-020: Caddy перезаписывает X-Forwarded-For)',
+     'Постоянная блокировка учётки — отвергнуто (DoS по чужой учётке); Redis — не в топологии MVP.',
+     'Счётчики по ключам account+ip, ip, account, global; задержка растёт экспоненциально от base до max, решение принимается ДО проверки пароля (верный пароль во время задержки тоже ждёт); состояние процесса, ограниченное по размеру. Все пороги — Settings (**WORKING**). XFF учитывается только от пиров из `trusted_proxy_cidrs`, берётся самый правый недоверенный хоп; пусто = XFF игнорируется.',
+     'Подделка XFF не обходит лимиты (счётчик account остаётся); нет вектора вечной блокировки.',
+     'modules/iam/throttle.py, api/client_ip.py, Settings',
+     'Состояние process-local: при нескольких процессах API лимит ослабляется (G-76); без фиксированной подсети app за Caddy IP клиента не доверяется (G-77).',
+     'test_iam_throttle_and_client_ip, test_identity_http (forged XFF)')
+
+_s07('ADR-065', 'S07: TOTP MFA, recovery codes и шифрование seed',
+     'MFA обязательна для привилегированных ролей; хранение seed и защита от повтора кода не заданы.',
+     'AUTH-006, AUTH-MVP-005', 'Authentication v1.1 §7; Security Architecture v1.2',
+     'Хранить seed открытым — запрещено; SMS/e-mail — вне MVP.',
+     'pyotp (SHA1, 6 цифр, 30 с; окно `mfa_window_steps` — **WORKING**). Seed шифруется AES-256-GCM (`SecretBox`, id ключа в blob, AAD = org/user/factor), ключ — Compose-секрет `mfa_encryption_key`. Recovery codes: 120 бит, хранится SHA-256, одноразовые. Повтор TOTP отклоняется compare-and-set по `last_used_step` + монотонный триггер БД (миграция 0012). Подтверждение enrolment и verify ротируют сессию. Сброс MFA — отдельный привилегированный путь с аудитом.',
+     'Повтор кода и подмена блоба seed между пользователями отсекаются на уровне БД/AAD.',
+     'modules/iam/{totp,secretbox,mfa}.py, миграция 0012, infra secret',
+     'Ротация ключа MFA — отдельный runbook (SEC-027, не сделан); факт «MFA обязательна для роли» принуждается Policy на привилегированных действиях, не при входе.',
+     'test_iam_secretbox_and_totp, test_iam_mfa, test_identity_http (MFA flow)')
+
+_s07('ADR-066', 'S07: bootstrap первого администратора',
+     'Default credentials запрещены; нужен одноразовый путь создания первого admin.',
+     'AUTH-004, AUTH-MVP-003', 'Authentication v1.1 §3.3; security.md',
+     'Admin из миграции/seed — отвергнуто (default credentials); HTTP-endpoint — отвергнуто (публичная поверхность).',
+     'CLI `python -m ai_res.cli.bootstrap` (профиль Compose `bootstrap`, `make bootstrap`): секрет и пароль — только через `getpass`, не argv/env/логи; секрет читается из Compose-файла и сравнивается constant-time. Одноразовость — singleton `platform.bootstrap_state` (миграция 0013, append-only, атомарный claim по PK); повтор → отказ, аудит `AUTH_ACCOUNT_INVITED` (SYSTEM). Печатает только идентификаторы. Секрет не монтируется в API.',
+     'Окно атаки — одна процедура с секретом, а не постоянная поверхность.',
+     'modules/iam/bootstrap.py, cli/bootstrap.py, миграция 0013, compose',
+     'Секрет не инвалидируется файлом (одноразовость — в БД); runbook не написан (G-78).',
+     'test_iam_bootstrap, infra check_compose')
+
+_s07('ADR-067', 'S07: Policy Engine — конфигурация, решения, enforcer, аудит',
+     'ADR-017: in-process, deny-by-default, fail-closed; матрица ролей и действий нормативно не задана.',
+     'SEC-001, SEC-002, SEC-MVP-001, AUTH-006, AUTH-012', 'Identity & Access Control v1.5; Security Architecture v1.2',
+     'Решения в коде handler-ов — отвергнуто; RLS как замена Policy — запрещено.',
+     'Версионируемый `policy_config.json` с закреплённым SHA-256; недопустимая/без версии/с дубликатами конфигурация = deny-all (`policy_config_invalid`). Решение: неизвестное действие, неверный тип ресурса, нет scope, не-USER актор, автономия > A2, неактивный субъект/членство, нет grant, нет MFA — DENY с reason code; человеко-только действия (`humanOnly`) недоступны сервисам/агентам. `PolicyEnforcer`: ALLOW аудируется в транзакции вызывающего (откат действия откатывает аудит), DENY — в собственной транзакции, затем 403 или одинаковый 404 при `conceal`; недоступность/таймаут/мусор → 503 (fail-closed). Матрица (`iam.*`) — **WORKING** (OD-15).',
+     'Каждое решение воспроизводимо (policy_version) и аудируется; ослабить матрицу можно только изменением конфигурации с новой контрольной суммой.',
+     'ai_res/policy/*, ports (PolicyRequest.attributes, decide_or_fail), modules/iam/accounts.py',
+     'Для `iam.self.read/logout` ALLOW не аудируется (`auditAllow:false`) — отступление от «каждое решение аудируется» (G-79); матрица не утверждена владельцем.',
+     'test_policy_config (22), test_policy_engine (98), test_iam_accounts')
+
+_s07('ADR-068', 'S07: сервис идемпотентности (HMAC + key_id)',
+     'ADR-024; репозиторий S05 принимает готовые дайджесты — нужен слой, который их строит.',
+     'API-MVP (Idempotency-Key), ADR-024', 'API and Interaction Contracts v1.10; api-and-contracts.md',
+     'Хранить ключ открытым — запрещено; общий хеш без ключа — отвергнуто (перебор).',
+     'Ключ 16..128 печатных ASCII. Дайджест = HMAC-SHA256(ключ из key ring, org|тип/id актора|команда|ключ); отпечаток запроса — тоже HMAC (тот же ключ записи) от канонического JSON. Поиск по дайджестам под всеми принятыми ключами кольца (ротация); advisory xact lock по неключевому хешу scope сериализует гонку на границе ротации. Файл кольца: `<id> <base64 32 байта>`, первая строка активна. Повтор → REPLAY, тот же ключ с другим телом → 409 `IDEMPOTENCY_KEY_REUSED`. TTL (`idempotency_ttl_hours`, **WORKING**, G-58).',
+     'Сырой ключ и тело не попадают в БД; параллельные одинаковые запросы дают одну запись.',
+     'modules/idempotency/service.py, Settings',
+     'Кольцо ключей не подключено к compose до первого идемпотентного endpoint (G-80); политика очистки/takeover — G-58.',
+     'test_idempotency_service (18, включая мутацию: без lock гонка проваливается)')
+
+_s07('ADR-069', 'S07: идентичности сервисов — короткоживущие токены Ed25519',
+     'AUTH-012: человек, сервис и Worker не подменяют друг друга; браузерная сессия не принимается Runtime.',
+     'AUTH-012, AUTH-MVP-008, SEC-013', 'Authentication v1.1 §8; Identity & Access Control v1.5 §3',
+     'Общий HMAC-секрет — отвергнуто (любой сервис подделает другого); mTLS — вне scope S07.',
+     'Токен `ar1.<payload>.<подпись>`: claims `iss, aud, iat, exp, jti` (без ролей и секретов), подпись Ed25519 с доменным префиксом; у каждого сервиса свой закрытый ключ, верификатор держит только публичные ключи по издателям (две записи при ротации). Срок ограничен при выпуске и при проверке (`service_token_max_ttl_seconds`, **WORKING** 300 с); неизвестная версия/лишние или дублирующиеся claims/чужая аудитория/срок — отказ; верификатор не бросает исключений. Не является Worker Run grant и не даёт прав.',
+     'Подделать токен другого сервиса можно только его ключом; сессия и сервисный токен имеют разные форматы.',
+     'modules/iam/service_tokens.py, ServiceIdentityPort',
+     'Потребителей пока нет (Manager/Worker/dispatcher — S11/S23); ключи не в compose (G-80); защиты от повтора jti нет (токены короткоживущие, аудитория ограничена).',
+     'test_iam_service_tokens (22)')
+
+_s07('ADR-070', 'S07: аудит аутентификации и отзыв сессий при изменении аккаунта',
+     'AUTH-008/013: события входа, MFA, смены пароля аудируются без секретов; отключение и отзыв роли немедленно закрывают сессии; сбой аудита отказывает действию.',
+     'AUTH-008, AUTH-013, SEC-019, SEC-020', 'Authentication v1.1 §6, §9; Security Architecture v1.2',
+     'Аудит «после коммита» — отвергнуто (потеря при сбое); логирование вместо аудита — запрещено.',
+     '`SqlAuditWriter` пишет в `audit.audit_events` в транзакции действия; ключи `details` проверяются фильтром чувствительных имён; организация обязательна. Неуспех входа аудируется в закоммиченной транзакции. `AccountService.disable_user_in/revoke_membership_in` меняют статус, отзывают все сессии (USER_DISABLED/ROLE_REVOKED) и пишут аудит одной транзакцией; нельзя отключить себя и последнего активного владельца; чужой/несуществующий пользователь — одинаковый 404.',
+     'Утверждённое событие и его аудит атомарны; отзыв не зависит от обновления UI.',
+     'modules/audit/writer.py, modules/iam/accounts.py',
+     'Расхождение портов: `AuditOutcome.ALLOWED` порта и `SUCCEEDED` в БД сведены маппингом; статусы пользователя Auth §3.1 (INVITED/SUSPENDED/LOCKED) шире `iam.users.status` (ACTIVE/DISABLED) — G-81.',
+     'test_iam_audit_writer, test_iam_accounts, test_identity_http (golden логов и аудита)')
+
+_s07('ADR-071', 'S07: счётчики ip и global — сигнал, а не отказ; фиксированная подсеть app',
+     'Review S07 (R01/SEC-03): за одним адресом прокси лимит по IP превращается в способ отключить вход всем. Auth v1.1 §4 требует rate limit по account, source signal и глобальному порогу, но не фиксирует, что порог отказывает.',
+     'AUTH-005', 'Authentication v1.1 §4; Security Architecture v1.2',
+     'Жёсткий отказ по ip/global — отвергнуто (DoS на всех пользователей); убрать счётчики — отвергнуто (нужен сигнал атаки по многим аккаунтам).',
+     'Отказывают (progressive delay с потолком) только счётчики (account, ip) и account. Счётчики ip и global при достижении порога один раз пишут AUTH_RATE_LIMITED с исходом FAILED и причиной `ip_threshold_signal`/`global_threshold_signal`; режим переключается `AI_RES_LOGIN_ENFORCE_IP_GLOBAL` (WORKING, по умолчанию false). Сеть `app` получает фиксированную подсеть 172.28.20.0/24, Caddy — адрес 172.28.20.2, API доверяет X-Forwarded-For только от 172.28.20.2/32 (WORKING; подсеть может конфликтовать с сетями хоста). Решение владельца, делегировано 2026-11-12.',
+     'Задержка по аккаунту остаётся против подбора пароля; атакующий может временно замедлить конкретную жертву (принятый риск, смягчается MFA и потолком задержки). **NCP-12 (PROPOSED):** уточнить в Auth v1.1 §4, что ip/global — сигнал.',
+     'modules/iam/throttle.py, Settings, api/identity.py, infra/compose.yaml',
+     'Режим сигнала не защищает от распределённого перебора по одному аккаунту сильнее, чем account-порог; нормативный текст допускает и иное прочтение.',
+     'test_iam_throttle_and_client_ip (signal mode), test_iam_login (burst), check_compose')
+
+_s07('ADR-072', 'S07: повторное подтверждение пароля и код ответа',
+     'Review S07 (R03, SEC-05): неверный текущий пароль при смене отдавал 401 (клиент разлогинивает пользователя); подключение TOTP не требовало свежего доказательства.',
+     'AUTH-003, AUTH-007', 'Authentication v1.1 §3.2, §5; NIST SP 800-63B §6.1.2',
+     'Оставить 401 — отвергнуто (путает с истёкшей сессией); не требовать пароль при подключении TOTP — отвергнуто (кража cookie закрепляет чужой фактор).',
+     'Неверный текущий пароль — 422 VALIDATION_ERROR с `errors[{field: currentPassword, reason: invalid_current_password}]`, попытка учитывается throttle. `POST /auth/mfa/enrollment` требует `currentPassword` (`AuthService.reauthenticate`: throttle, аудит AUTH_REAUTHENTICATED, 422 при ошибке). Overlay WORKING обновлён. Решение владельца, делегировано 2026-11-12.',
+     'Клиент не теряет сессию на опечатке; привязка аутентификатора требует свежей аутентификации.',
+     'api/identity.py, modules/iam/auth.py, contracts overlay',
+     'Изменение WORKING overlay; потребителей вне репозитория нет.',
+     'test_identity_http (fresh password proof), test_iam_login')
+
+_s07('ADR-073', 'S07: иерархия организационных ролей при действиях над пользователями',
+     'Review S07 (SEC-06): ORGANIZATION_ADMIN мог отключить, отозвать членство или сбросить MFA владельца (кроме последнего). IAM v1.5 иерархию ролей не описывает.',
+     'AUTH-008', 'Identity & Access Control v1.5 (иерархия не определена); принцип наименьших привилегий',
+     'Оставить только защиту последнего владельца — отвергнуто; вынести правило в матрицу политик — отвергнуто (это инвариант домена, не конфигурация).',
+     '`ensure_may_act_on`: ранг OWNER=2, ADMIN=1, прочие/нет=0; действие допустимо, если ранг актора строго выше ранга субъекта, либо оба OWNER. Применяется в `AccountService` (disable, revoke membership) и `MfaService.reset`; отказ — 403 ACCESS_DENIED, reason `role_hierarchy`. Защита «последнего владельца» и самоблокировки сохраняется. **WORKING**: нормативный документ молчит. Решение владельца, делегировано 2026-11-12.',
+     'Скомпрометированный администратор не снимает защиту владельцев.',
+     'modules/iam/accounts.py, modules/iam/mfa.py',
+     'Ранги вшиты в код, при новых ролях нужно расширять. Отказ иерархии аудируется отдельной транзакцией (POLICY_DECISION, DENIED, reason `role_hierarchy`), как отказы Policy Engine; если запись не удалась — 503, действие не выполняется.',
+     'test_iam_accounts (role hierarchy, audit trace, 503 при сбое аудита), test_iam_mfa (reset)')

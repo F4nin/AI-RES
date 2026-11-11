@@ -11,6 +11,7 @@
 No default credentials: every value is random per machine. Values are never printed.
 """
 import argparse
+import base64
 import json
 import os
 import secrets
@@ -35,7 +36,10 @@ FILE_MODE, DIR_MODE = (0o644, 0o755) if WORLD_READABLE else (0o600, 0o700)
 DOMAIN_DB_PASSWORDS = [
     "migrator_db_password", "api_db_password", "outbox_db_password", "consumer_db_password", "auditor_db_password", "backup_db_password",
 ]
-PASSWORDS = ["postgres_superuser_password", "temporal_db_password", "checkpointer_db_password", "minio_root_password", "cursor_hmac_key", *DOMAIN_DB_PASSWORDS]
+# S07: mfa_encryption_key = base64 of 32 random bytes (AES-256-GCM key for TOTP seeds);
+# bootstrap_secret = one-time first-administrator secret (never mounted into the API)
+PASSWORDS = ["postgres_superuser_password", "temporal_db_password", "checkpointer_db_password", "minio_root_password", "cursor_hmac_key", *DOMAIN_DB_PASSWORDS,
+             "mfa_encryption_key", "bootstrap_secret"]
 TLS = ["postgres_tls_ca_cert", "postgres_tls_server_cert", "postgres_tls_server_key"]
 NAMES = [*PASSWORDS[:3], "minio_root_user", *PASSWORDS[3:], *TLS]
 TLS_DAYS = "825"  # local dev certificate lifetime (WORKING)
@@ -44,6 +48,8 @@ TLS_DAYS = "825"  # local dev certificate lifetime (WORKING)
 def _generate(name: str) -> str:
     if name == "minio_root_user":
         return "aires-" + secrets.token_hex(6)
+    if name == "mfa_encryption_key":
+        return base64.b64encode(secrets.token_bytes(32)).decode()
     return secrets.token_urlsafe(48)  # >= 64 chars, URL-safe: no quoting problems in psql/URLs; cursor key >= 32 bytes (platform.config)
 
 

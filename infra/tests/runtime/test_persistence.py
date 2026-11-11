@@ -142,11 +142,15 @@ def test_cleartext_cross_database_and_backup_identity_are_rejected_by_pg_hba(sec
     assert cross.returncode != 0 and "pg_hba.conf" in cross.stderr
 
 
-def test_api_and_other_runtime_containers_have_no_database_credentials():
-    """PERSIST-023 (credential part): the API does not get DB passwords until a stage needs them; Manager/Worker never do."""
-    env = inspect("api")["Config"]["Env"]
-    assert not [e for e in env if e.startswith("AI_RES_DB_")], "api must not be configured with database credentials in S04"
-    for svc in ("api", "reverse-proxy", "temporal-ui", "otel-collector", "minio"):
+def test_only_the_api_holds_a_database_identity_and_only_the_least_privileged_one():
+    """PERSIST-023 (credential part). S07: the API now connects as `ai_res_api` (no DDL, no BYPASSRLS) and mounts only that password;
+    every other long-running service has none. Manager/Worker Runtime never get DB credentials (they do not exist yet)."""
+    env = dict(e.split("=", 1) for e in inspect("api")["Config"]["Env"] if e.startswith("AI_RES_DB_"))
+    db_file_ref = env["AI_RES_DB_PASSWORD_FILE"]  # a secret FILE path, not a value
+    assert env["AI_RES_DB_USER"] == "ai_res_api" and db_file_ref == "/run/secrets/api_db_password" and env["AI_RES_DB_SSLMODE"] == "verify-full"
+    assert {m["Destination"].rsplit("/", 1)[-1] for m in inspect("api")["Mounts"] if "_db_password" in m["Destination"]} == {"api_db_password"}
+    for svc in ("reverse-proxy", "temporal-ui", "otel-collector", "minio"):
+        assert not [e for e in inspect(svc)["Config"]["Env"] if e.startswith("AI_RES_DB_")], svc
         mounted = {m["Destination"] for m in inspect(svc)["Mounts"] if "_db_password" in m["Destination"]}
         assert not mounted, (svc, mounted)
 

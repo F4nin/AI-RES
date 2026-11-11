@@ -14,6 +14,9 @@ dependencies = [
   "sqlalchemy[asyncio]>=2.0.36,<2.1",
   "alembic>=1.14",
   "psycopg[binary]>=3.2",
+  "argon2-cffi>=23.1",
+  "pyotp>=2.9",
+  "cryptography>=43",
 ]
 
 [dependency-groups]
@@ -97,3 +100,21 @@ name = "Persistence layer does not depend on API or domain modules"
 type = "forbidden"
 source_modules = ["ai_res.db"]
 forbidden_modules = ["ai_res.api", "ai_res.modules", "ai_res.llm"]
+
+[[tool.importlinter.contracts]]
+name = "Policy engine does not depend on the API layer or the CLI"
+type = "forbidden"
+source_modules = ["ai_res.policy"]
+forbidden_modules = ["ai_res.api", "ai_res.cli", "ai_res.llm"]
+
+[[tool.importlinter.contracts]]
+name = "No application layer depends on the CLI package"
+type = "forbidden"
+source_modules = ["ai_res.api", "ai_res.platform", "ai_res.modules", "ai_res.db", "ai_res.policy"]
+forbidden_modules = ["ai_res.cli"]
+
+[[tool.importlinter.contracts]]
+name = "Platform and persistence layers do not depend on the policy engine"
+type = "forbidden"
+source_modules = ["ai_res.platform", "ai_res.db"]
+forbidden_modules = ["ai_res.policy"]

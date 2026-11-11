@@ -6,6 +6,7 @@ that contains no services (a check that read nothing must not pass). Never print
 Usage: check_compose.py [-f compose.yaml ...]   (default: compose.yaml)
 """
 import argparse
+import ipaddress
 import json
 import os
 import re
@@ -18,15 +19,16 @@ PUBLISH_HOST_IP = "127.0.0.1"  # local profile; a different bind needs an owner 
 OPEN_NETWORKS = {"ingress", "egress"}  # the only networks with a gateway; membership is allowlisted per service below
 INGRESS_ALLOWED = {"reverse-proxy", "frontend"}
 EGRESS_ALLOWED = {"llm-gateway", "connector-platform"}  # DOC-015 §9.1: only controlled egress services (they do not exist yet)
-DATA_ALLOWED = {"api", "postgres", "postgres-provision", "migrate", "temporal", "temporal-schema", "minio", "minio-init"}
+DATA_ALLOWED = {"api", "postgres", "postgres-provision", "migrate", "bootstrap", "temporal", "temporal-schema", "minio", "minio-init"}
 MANAGER_WORKER_PREFIXES = ("manager-runtime", "worker-runtime")  # PERSIST-023: no network path to PostgreSQL
 MANAGER_WORKER_NETWORKS = {"app", "workflow"}  # never data, admin, ingress or egress
-ONE_SHOT = {"postgres-provision", "migrate", "temporal-schema", "temporal-namespace", "minio-init"}  # may omit healthcheck (restart: "no")
+ONE_SHOT = {"postgres-provision", "migrate", "bootstrap", "temporal-schema", "temporal-namespace", "minio-init"}  # may omit healthcheck (restart: "no")
 HEALTHCHECK_EXEMPT = {"otel-collector"}  # distroless image: no shell/HTTP client for an in-container probe; probed externally in S13
 ADMIN_ONLY = {"temporal-ui"}  # Temporal Web UI / MinIO console: admin network only, never ingress
 # Which Compose secrets each service may mount (Secrets §4: each service gets only what it needs). Unlisted service => no secrets.
 SECRET_ALLOWED: dict[str, set[str]] = {
-    "api": {"cursor_hmac_key"},
+    "api": {"cursor_hmac_key", "api_db_password", "postgres_tls_ca_cert", "mfa_encryption_key"},  # S07: runtime DB identity + MFA seed key
+    "bootstrap": {"api_db_password", "postgres_tls_ca_cert", "bootstrap_secret"},  # S07: profile-gated one-shot; the bootstrap secret never reaches the API
     "postgres": {"postgres_superuser_password", "postgres_tls_server_cert", "postgres_tls_server_key"},
     "postgres-provision": {"postgres_superuser_password", "temporal_db_password", "checkpointer_db_password", "postgres_tls_ca_cert",
                            "migrator_db_password", "api_db_password", "outbox_db_password", "consumer_db_password", "auditor_db_password",
@@ -207,10 +209,31 @@ def check_networks(model: dict) -> list[str]:
     return [msg.format(n) for n, d in nets.items() if n not in OPEN_NETWORKS and not (d or {}).get("internal")]
 
 
+def check_proxy_trust(model: dict) -> list[str]:
+    """ADR-071: the API trusts X-Forwarded-For only from the proxy's FIXED address on `app`; no other container may be handed that address dynamically."""
+    api_env = ((model.get("services") or {}).get("api") or {}).get("environment") or {}
+    raw = api_env.get("AI_RES_TRUSTED_PROXY_CIDRS")
+    if not raw:
+        return []
+    proxy_nets = (((model.get("services") or {}).get("reverse-proxy") or {}).get("networks") or {})
+    fixed = (proxy_nets.get("app") or {}).get("ipv4_address") if isinstance(proxy_nets, dict) else None
+    if not fixed:
+        return ["AI_RES_TRUSTED_PROXY_CIDRS is set but reverse-proxy has no fixed ipv4_address on the app network"]
+    cidrs = [x.strip() for x in str(raw).split(",")]
+    out = [f"trusted proxy CIDR '{c}' must be exactly the reverse-proxy address {fixed}/32" for c in cidrs if c != f"{fixed}/32"]
+    ipam = (((model.get("networks") or {}).get("app") or {}).get("ipam") or {}).get("config") or []
+    cfg = ipam[0] if ipam else {}
+    if not cfg.get("subnet") or ipaddress.ip_address(fixed) not in ipaddress.ip_network(cfg["subnet"]):
+        out.append("the app network needs a fixed subnet containing the reverse-proxy address")
+    elif not cfg.get("ip_range") or ipaddress.ip_address(fixed) in ipaddress.ip_network(cfg["ip_range"]):
+        out.append("the app network ip_range must exclude the reverse-proxy address, or another container can take it first")
+    return out
+
+
 def check_model(model: dict, dockerfiles: dict[str, list[str]], base_dir: Path | None = None) -> list[str]:
     if not model.get("services"):
         return ["model has no services: nothing was checked"]
-    out = check_ports(model) + check_networks(model)
+    out = check_ports(model) + check_networks(model) + check_proxy_trust(model)
     for name, svc in model["services"].items():
         out += check_service(name, svc, dockerfiles, base_dir)
     return out

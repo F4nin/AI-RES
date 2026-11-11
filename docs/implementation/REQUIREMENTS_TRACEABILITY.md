@@ -79,28 +79,28 @@
 | API-MVP-034 | DOC-009 | Contract compatibility | MVP | S01, S02, S08, S09, S12 | NOT_STARTED |
 | API-MVP-035 | DOC-009 | Contract test suite | MVP | S01, S02, S08, S09, S12 | NOT_STARTED |
 | API-MVP-036 | DOC-009 | Claude Code implementation discipline | MVP | S01, S02, S08, S09, S12 | NOT_STARTED |
-| AUTH-001 | DOC-020 | Local Authentication работает без внешнего IdP | MUST / MVP | S07; S37 | NOT_STARTED |
-| AUTH-002 | DOC-020 | Authentication Provider отделён интерфейсом | MUST / MVP | S07; S37 | NOT_STARTED |
-| AUTH-003 | DOC-020 | Пароли хранятся как Argon2id hashes | MUST / MVP | S07; S37 | NOT_STARTED |
-| AUTH-004 | DOC-020 | Bootstrap admin без default credentials, одноразовый bootstrap secret | MUST / MVP | S07; S37 | NOT_STARTED |
-| AUTH-005 | DOC-020 | Защита login от brute force и account enumeration | MUST / MVP | S07; S37 | NOT_STARTED |
-| AUTH-006 | DOC-020 | MFA обязательна для привилегированных ролей | MUST / MVP | S07; S37 | NOT_STARTED |
-| AUTH-007 | DOC-020 | Opaque server-side browser sessions и CSRF protection | MUST / MVP | S07; S37 | NOT_STARTED |
-| AUTH-008 | DOC-020 | Logout/reset/disable/revocation отзывают sessions | MUST / MVP | S07; S37 | NOT_STARTED |
+| AUTH-001 | DOC-020 | Local Authentication работает без внешнего IdP | MUST / MVP | S07; S37 | TESTED (S07: локальные аккаунты, PostgreSQL 16) |
+| AUTH-002 | DOC-020 | Authentication Provider отделён интерфейсом | MUST / MVP | S07; S37 | PARTIAL (S07: AuthService не вынесен за порт IdentityProvider; ServiceIdentityPort есть; OIDC-адаптер — post-MVP) |
+| AUTH-003 | DOC-020 | Пароли хранятся как Argon2id hashes | MUST / MVP | S07; S37 | TESTED (S07: Argon2id, соль, rehash; параметры WORKING — G-75) |
+| AUTH-004 | DOC-020 | Bootstrap admin без default credentials, одноразовый bootstrap secret | MUST / MVP | S07; S37 | TESTED (S07: одноразовый bootstrap, секрет из файла, атомарный claim) |
+| AUTH-005 | DOC-020 | Защита login от brute force и account enumeration | MUST / MVP | S07; S37 | TESTED (S07: единый 401, decoy-хеш, progressive delay; throttle process-local — G-76) |
+| AUTH-006 | DOC-020 | MFA обязательна для привилегированных ролей | MUST / MVP | S07; S37 | PARTIAL (S07: Policy требует MFA для привилегированных действий iam.*; TOTP+recovery протестированы; обязательность MFA для будущих действий — по мере их появления) |
+| AUTH-007 | DOC-020 | Opaque server-side browser sessions и CSRF protection | MUST / MVP | S07; S37 | TESTED (S07: opaque sessions, cookie-атрибуты, CSRF, Origin, CORS deny; HTTP + live stack) |
+| AUTH-008 | DOC-020 | Logout/reset/disable/revocation отзывают sessions | MUST / MVP | S07; S37 | TESTED (S07: logout, смена пароля, disable, revoke membership, MFA reset) |
 | AUTH-009 | DOC-020 | OIDC Authorization Code + PKCE S256 | SHOULD / Future | S07; S37 | NOT_STARTED |
 | AUTH-010 | DOC-020 | OIDC identity mapping `(issuer, subject)` | SHOULD / Future | S07; S37 | NOT_STARTED |
 | AUTH-011 | DOC-020 | OIDC claims не назначают AI RES permissions автоматически | MUST / Future | S07; S37 | NOT_STARTED |
-| AUTH-012 | DOC-020 | Human, service и Worker Run identities разделены | MUST / MVP | S07; S37 | NOT_STARTED |
-| AUTH-013 | DOC-020 | Authentication security events аудируются без секретов | MUST / MVP | S07; S37 | NOT_STARTED |
-| AUTH-MVP-001 | DOC-009 | Local user accounts; no mandatory external IdP | MUST | S07 | NOT_STARTED |
-| AUTH-MVP-002 | DOC-009 | Replaceable IdentityProvider abstraction | MUST | S07 | NOT_STARTED |
-| AUTH-MVP-003 | DOC-009 | Argon2id password hashing and secure bootstrap | MUST | S07 | NOT_STARTED |
-| AUTH-MVP-004 | DOC-009 | Login rate limiting, progressive delay, anti-enumeration | MUST | S07 | NOT_STARTED |
-| AUTH-MVP-005 | DOC-009 | TOTP MFA for privileged roles | MUST | S07 | NOT_STARTED |
-| AUTH-MVP-006 | DOC-009 | Opaque server-side sessions, secure cookies, CSRF | MUST | S07 | NOT_STARTED |
-| AUTH-MVP-007 | DOC-009 | Session revocation on logout/reset/disable/role change | MUST | S07 | NOT_STARTED |
-| AUTH-MVP-008 | DOC-009 | Human/service/Worker Run identity separation | MUST | S07 | NOT_STARTED |
-| AUTH-MVP-009 | DOC-009 | Authentication audit events without secrets | MUST | S07 | NOT_STARTED |
+| AUTH-012 | DOC-020 | Human, service и Worker Run identities разделены | MUST / MVP | S07; S37 | PARTIAL (S07: сервис-токены Ed25519 и разделение с сессиями протестированы; Worker Run grants — S23) |
+| AUTH-013 | DOC-020 | Authentication security events аудируются без секретов | MUST / MVP | S07; S37 | TESTED (S07: аудит login/logout/пароль/MFA/bootstrap/политика; golden-тест без секретов) |
+| AUTH-MVP-001 | DOC-009 | Local user accounts; no mandatory external IdP | MUST | S07 | TESTED (S07) |
+| AUTH-MVP-002 | DOC-009 | Replaceable IdentityProvider abstraction | MUST | S07 | PARTIAL (S07: см. AUTH-002) |
+| AUTH-MVP-003 | DOC-009 | Argon2id password hashing and secure bootstrap | MUST | S07 | TESTED (S07) |
+| AUTH-MVP-004 | DOC-009 | Login rate limiting, progressive delay, anti-enumeration | MUST | S07 | TESTED (S07) |
+| AUTH-MVP-005 | DOC-009 | TOTP MFA for privileged roles | MUST | S07 | PARTIAL (S07: см. AUTH-006) |
+| AUTH-MVP-006 | DOC-009 | Opaque server-side sessions, secure cookies, CSRF | MUST | S07 | TESTED (S07) |
+| AUTH-MVP-007 | DOC-009 | Session revocation on logout/reset/disable/role change | MUST | S07 | TESTED (S07) |
+| AUTH-MVP-008 | DOC-009 | Human/service/Worker Run identity separation | MUST | S07 | PARTIAL (S07: см. AUTH-012) |
+| AUTH-MVP-009 | DOC-009 | Authentication audit events without secrets | MUST | S07 | TESTED (S07) |
 | AUTH-MVP-010 | DOC-009 | OIDC Authorization Code + PKCE S256 adapter | FUTURE | S07 | DEFERRED (post-MVP) |
 | AUTH-MVP-011 | DOC-009 | OIDC mapping by issuer + subject; no automatic role grants | FUTURE | S07 | DEFERRED (post-MVP) |
 | CI-001 | DOC-039 | Evidence-backed proposal | — | S34 (MVP A0–A2); остальное post-MVP | NOT_STARTED |
@@ -474,7 +474,7 @@
 | RULE-MVP-12 | DOC-009 | Независимая авторизация | Обязательно | S18 | NOT_STARTED |
 | RULE-MVP-13 | DOC-009 | Simulation/dry run | Желательно для | S18 | NOT_STARTED |
 | RULE-MVP-14 | DOC-009 | Визуальный конструктор правил | Позже | S18 | NOT_STARTED |
-| SEC-001 | DOC-020 | Каждый API endpoint, работающий с объектом, MUST выполнять object-level authorization | P0 | S02–S37 (по области); S37 верификация | NOT_STARTED |
+| SEC-001 | DOC-020 | Каждый API endpoint, работающий с объектом, MUST выполнять object-level authorization | P0 | S02–S37 (по области); S37 верификация | PARTIAL (S07: Policy Engine + enforcer + conceal-404 протестированы; применение к доменным endpoint — S08+) |
 | SEC-002 | DOC-020 | ACL MUST применяться до retrieval, graph traversal, cache response, summarization и export | P0 | S02–S37 (по области); S37 верификация | NOT_STARTED |
 | SEC-003 | DOC-020 | Каждая Worker Run MUST иметь scoped grants с expiry; права не наследуются автоматически | P0 | S02–S37 (по области); S37 верификация | NOT_STARTED |
 | SEC-004 | DOC-020 | Каждый tool/connector side effect MUST проходить независимую policy authorization перед исполнением | P0 | S02–S37 (по области); S37 верификация | NOT_STARTED |
@@ -486,13 +486,13 @@
 | SEC-010 | DOC-020 | External writes MUST be deny-by-default in MVP unless separately approved and scoped | P0 | S02–S37 (по области); S37 верификация | NOT_STARTED |
 | SEC-011 | DOC-020 | Untrusted source/tool output MUST NOT modify system/org/project rules or grants | P0 | S02–S37 (по области); S37 верификация | NOT_STARTED |
 | SEC-012 | DOC-020 | MCP servers and tools MUST be registered, versioned, allowlisted and policy-checked | P1 | S02–S37 (по области); S37 верификация | NOT_STARTED |
-| SEC-013 | DOC-020 | Services MUST use separate service identities and least-privilege credentials | P0 | S02–S37 (по области); S37 верификация | NOT_STARTED |
+| SEC-013 | DOC-020 | Services MUST use separate service identities and least-privilege credentials | P0 | S02–S37 (по области); S37 верификация | PARTIAL (S07: отдельные ключи и токены сервисов, библиотека; сервисы-потребители — S11/S23) |
 | SEC-014 | DOC-020 | PostgreSQL, Temporal, MinIO and Redis MUST NOT be publicly exposed | P0 | S02–S37 (по области); S37 верификация | NOT_STARTED |
 | SEC-015 | DOC-020 | Only Reverse Proxy MUST expose user-facing ingress in MVP | P0 | S02–S37 (по области); S37 верификация | NOT_STARTED |
 | SEC-016 | DOC-020 | Runtime containers MUST be non-root, non-privileged and MUST NOT mount Docker Socket | P0 | S02–S37 (по области); S37 верификация | NOT_STARTED |
 | SEC-017 | DOC-020 | Runtime resources, file sizes, execution time, concurrency and retries MUST be bounded | P0 | S02–S37 (по области); S37 верификация | NOT_STARTED |
 | SEC-018 | DOC-020 | URL fetchers/connectors MUST prevent SSRF, private IP access and unsafe redirects | P0 | S02–S37 (по области); S37 верификация | NOT_STARTED |
-| SEC-019 | DOC-020 | Domain audit MUST record actor, action, resource, scope, policy decision and correlation IDs | P0 | S02–S37 (по области); S37 верификация | NOT_STARTED |
+| SEC-019 | DOC-020 | Domain audit MUST record actor, action, resource, scope, policy decision and correlation IDs | P0 | S02–S37 (по области); S37 верификация | PARTIAL (S07: audit writer в одной транзакции, policy_version, fail-closed; покрытие остальных доменных действий — по этапам) |
 | SEC-020 | DOC-020 | Audit data MUST be protected from ordinary application update/delete paths | P1 | S02–S37 (по области); S37 верификация | NOT_STARTED |
 | SEC-021 | DOC-020 | Telemetry MUST redact secrets and sensitive payloads by default | P0 | S02–S37 (по области); S37 верификация | NOT_STARTED |
 | SEC-022 | DOC-020 | Admin interfaces MUST be restricted to authorized administrators | P0 | S02–S37 (по области); S37 верификация | NOT_STARTED |
@@ -506,7 +506,7 @@
 | SEC-030 | DOC-020 | Security-relevant events MUST be monitored and alertable | P1 | S02–S37 (по области); S37 верификация | NOT_STARTED |
 | SEC-031 | DOC-020 | Security incidents MUST have containment, credential revocation, evidence preservation and recovery runbooks | P1 | S02–S37 (по области); S37 верификация | NOT_STARTED |
 | SEC-032 | DOC-020 | AI evaluation suite MUST include prompt injection, data exfiltration, cross-project leakage and tool misuse ca | P0 | S02–S37 (по области); S37 верификация | NOT_STARTED |
-| SEC-MVP-001 | DOC-009 | Object-level authorization на API и всех путях доступа к доменным объектам | MUST | S07; S37 | NOT_STARTED |
+| SEC-MVP-001 | DOC-009 | Object-level authorization на API и всех путях доступа к доменным объектам | MUST | S07; S37 | PARTIAL (S07: см. SEC-001) |
 | SEC-MVP-002 | DOC-009 | ACL до retrieval/search/graph/cache/export | MUST | S07; S37 | NOT_STARTED |
 | SEC-MVP-003 | DOC-009 | Scoped, expiring Worker Run grants | MUST | S07; S37 | NOT_STARTED |
 | SEC-MVP-004 | DOC-009 | Per-operation authorization для tool/connector calls | MUST | S07; S37 | NOT_STARTED |
@@ -518,7 +518,7 @@
 | SEC-MVP-010 | DOC-009 | SSRF protection for URL/document/connectors | MUST | S07; S37 | NOT_STARTED |
 | SEC-MVP-011 | DOC-009 | Non-root containers, no privileged, no Docker Socket | MUST | S07; S37 | TESTED (S03) |
 | SEC-MVP-012 | DOC-009 | Internal data services not publicly exposed | MUST | S07; S37 | TESTED (S03) |
-| SEC-MVP-013 | DOC-009 | Security audit events and correlation | MUST | S07; S37 | NOT_STARTED |
+| SEC-MVP-013 | DOC-009 | Security audit events and correlation | MUST | S07; S37 | PARTIAL (S07: см. SEC-019) |
 | SEC-MVP-014 | DOC-009 | Authorized Temporal Signals/Updates | MUST | S07; S37 | NOT_STARTED |
 | SEC-MVP-015 | DOC-009 | Encrypted, access-controlled backups | MUST | S07; S37 | NOT_STARTED |
 | THR-001 | DOC-017 | Indirect prompt injection в PDF/Markdown/репозитории заставляет агента раскрыть данные или вызвать инструмент | Утечка/несанкционированное д | S03, S05, S07, S16, S17, S23, S37 (по области угрозы) | NOT_STARTED |

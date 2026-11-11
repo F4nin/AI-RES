@@ -2,6 +2,7 @@
 import subprocess
 import sys
 import textwrap
+import tomllib
 from pathlib import Path
 
 BACKEND = Path(__file__).resolve().parents[2]
@@ -16,7 +17,8 @@ def lint(cwd: Path, config: Path | None = None) -> subprocess.CompletedProcess[s
 def test_project_contracts_are_kept():
     r = lint(BACKEND)
     assert r.returncode == 0, r.stdout[-800:]
-    assert "5 kept, 0 broken" in r.stdout
+    declared = len(tomllib.loads((BACKEND / "pyproject.toml").read_text())["tool"]["importlinter"]["contracts"])  # computed, not hard-coded
+    assert f"{declared} kept, 0 broken" in r.stdout
 
 
 def test_contracts_fail_on_deliberate_violations(tmp_path):

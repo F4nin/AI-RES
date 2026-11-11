@@ -1,6 +1,6 @@
 # CONTEXT_HANDOFF — состояние для продолжения работы (обновлять в конце каждого этапа и сессии)
 
-**Обновлено:** 2026-11-11 (конец S06) · Автоподстановка в сессию: `.claude/hooks/session-brief.mjs` (SessionStart: startup/resume/clear/compact). Первые 60 строк файла попадают в контекст — держи файл коротким.
+**Обновлено:** 2026-11-11 (S07 TESTED) · Автоподстановка в сессию: `.claude/hooks/session-brief.mjs` (SessionStart: startup/resume/clear/compact). Первые 60 строк файла попадают в контекст — держи файл коротким.
 
 ## Где мы
 - S00 IMPLEMENTED, **S01–S04 VERIFIED/DONE**. S03 — локальный Compose-стек (TLS Postgres, SOPS/age, CI). **S04 (2026-11-11)** — Alembic env + PDB-0001 (18 схем, роли, USAGE-гранты), provisioning ролей (`infra/config/postgres/provision_roles.sql`), одноразовая служба `migrate`, `db/` (engine, Unit of Work, tenant context), audit SQL + `audit.sh` gate, reviewed `backend/ops/postgres/schema_snapshot.sql`. Тесты: backend 159 (PostgreSQL 16.15 Testcontainers), runtime 95, infra static 77, contracts 19. Отчёт: `increments/S04_persistence_foundation_REPORT.md`; review: `reviews/S04_REVIEWS.md` (0 HIGH/CRITICAL); ADR-046…049.
@@ -9,6 +9,8 @@
 - Стек может быть поднят (`make up` теперь запускает и `migrate`); `make down` сохраняет тома, `make reset CONFIRM=yes` удаляет. Если правите `entrypoint.sh` (pg_hba) — `docker compose … restart postgres`. Секреты: `~/.config/ai-res/age/keys.txt` (резервная копия вне репозитория!), `infra/secrets/encrypted/local.enc.yaml` per-machine; `make secrets-dev` добавляет только недостающие секреты.
 - Git commit не выполнялся (OD-06): весь S03-репозиторий закоммичен и смержен ранее; S04 лежит в рабочем дереве (ветку/коммит делать только по просьбе пользователя).
 - Правила S05: каждая новая таблица — RLS ENABLE+FORCE + политика + запись в `rls_coverage.sql` `exempt` только с причиной; `make db-snapshot` и разбор diff; sabotage-тест на каждое новое нарушение; PERSIST-002 (previous revision) и PERSIST-005..014 на доменных таблицах.
+
+- **S07 TESTED (не VERIFIED), всё в рабочем дереве ветки `feat/s07-identity-auth-policy-audit-idempotency`, не закоммичено:** identity/auth/MFA/bootstrap/Policy Engine/audit/idempotency/service tokens, миграции 0012–0013, ADR-061…070, `make pre-pr` ok (backend 670, runtime 99, infra 181, contracts 22). Review 4 агентов проведено и исправлено (`reviews/S07_REVIEWS.md` §5). **Решения владельца R01/R03/SEC-05/SEC-06/OD-15 приняты (делегировано 2026-11-12) и внедрены — ADR-071…073, OD-16; открыт только NCP-12 (PROPOSED).** Открыты G-75…G-83. Для VERIFIED: коммит/PR по просьбе, зелёный Linux CI, решение владельца о дельте review. Следующий этап после S07: см. IMPLEMENTATION_ROADMAP.
 
 ## Порядок действий в новой сессии
 1. `CLAUDE.md` → `IMPLEMENTATION_CHARTER.md` → этот файл → `IMPLEMENTATION_STATUS.md`.

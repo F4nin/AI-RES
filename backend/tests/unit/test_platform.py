@@ -407,14 +407,27 @@ def test_config_hardening():
         load_settings({"AI_RES_CURSOR_HMAC_KEY_ID": "bad id!"})
 
 
+def startup_env(tmp_path, **extra):
+    """Minimal complete production-style environment: cursor key, DB credentials (the engine connects lazily) and the MFA key."""
+    import base64
+    files = {"cursor": b"z" * 40, "dbpw": b"not-a-real-password", "mfa": base64.b64encode(bytes(range(32))), "ca": b"placeholder-ca-never-read-before-connect"}
+    for name, data in files.items():
+        (tmp_path / name).write_bytes(data)
+    return {"AI_RES_CURSOR_HMAC_KEY_FILE": str(tmp_path / "cursor"), "AI_RES_DB_HOST": "db.invalid", "AI_RES_DB_USER": "ai_res_api",
+            "AI_RES_DB_PASSWORD_FILE": str(tmp_path / "dbpw"), "AI_RES_MFA_ENCRYPTION_KEY_FILE": str(tmp_path / "mfa"),
+            "AI_RES_DB_SSLROOTCERT_FILE": str(tmp_path / "ca"), **extra}
+
+
 def test_startup_from_env_requires_cursor_key(tmp_path):
     from ai_res.api.app import create_app_from_env
     with pytest.raises(ConfigError):
         create_app_from_env({})
-    f = tmp_path / "k"
-    f.write_bytes(b"z" * 40)
-    app = create_app_from_env({"AI_RES_CURSOR_HMAC_KEY_FILE": str(f)})
-    assert app.state.cursor_key_ring.active_id == "k1"
+    env = startup_env(tmp_path)
+    app = create_app_from_env(env)
+    assert app.state.cursor_key_ring.active_id == "k1" and app.state.identity is not None
+    for missing in ("AI_RES_MFA_ENCRYPTION_KEY_FILE", "AI_RES_DB_PASSWORD_FILE"):  # identity cannot run without them: refuse to start
+        with pytest.raises(ConfigError):
+            create_app_from_env({k: v for k, v in env.items() if k != missing})
 
 
 async def test_policy_timeout_fails_closed_and_malformed_decision():
@@ -463,9 +476,7 @@ def test_principal_and_service_identity_require_aware_expiry():
 
 def test_startup_installs_redacting_logging(tmp_path):
     from ai_res.api.app import create_app_from_env
-    f = tmp_path / "k"
-    f.write_bytes(b"z" * 40)
-    create_app_from_env({"AI_RES_CURSOR_HMAC_KEY_FILE": str(f)})
+    create_app_from_env(startup_env(tmp_path))
     assert any(isinstance(h.formatter, __import__("ai_res.platform.redaction", fromlist=["x"]).RedactingJsonFormatter)
                for h in logging.getLogger("uvicorn.error").handlers)
 

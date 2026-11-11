@@ -54,7 +54,7 @@ infra-test:
 infra-verify-digests:
 	cd infra && uv run --locked python scripts/verify_digests.py
 
-.PHONY: secrets-dev secrets-clean up down reset backend-audit infra-test-runtime
+.PHONY: secrets-dev secrets-clean up down reset backend-audit infra-test-runtime bootstrap
 secrets-dev:
 	cd infra && uv run --locked python scripts/secrets_dev.py init
 
@@ -65,6 +65,12 @@ COMPOSE := docker compose -f infra/compose.yaml -f infra/compose.dev.yaml
 up: secrets-dev infra-check
 	$(COMPOSE) up -d --build --remove-orphans
 	cd infra && uv run --locked python scripts/wait_stack.py
+
+# One-time first administrator (Auth v1.1 §3.3). Prompts for the bootstrap secret (infra/secrets/runtime/bootstrap_secret) and the password; nothing is passed via argv or env.
+# Usage: make bootstrap ORG="Acme" EMAIL=admin@example.com NAME="Ada Admin"
+bootstrap:
+	@test -n "$(ORG)" -a -n "$(EMAIL)" -a -n "$(NAME)" || { echo 'usage: make bootstrap ORG="…" EMAIL=… NAME="…"'; exit 1; }
+	$(COMPOSE) run --rm --build bootstrap --organization-name "$(ORG)" --admin-email "$(EMAIL)" --admin-name "$(NAME)"
 
 # Stops the stack and removes containers and networks; named data volumes (Postgres, MinIO) are KEPT.
 down:

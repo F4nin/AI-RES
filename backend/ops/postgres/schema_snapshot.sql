@@ -524,6 +524,21 @@ END $$;
 
 ALTER FUNCTION platform.keep_columns_immutable() OWNER TO ai_res_owner;
 
+CREATE FUNCTION platform.keep_non_decreasing() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE c text; n jsonb := to_jsonb(NEW); o jsonb := to_jsonb(OLD);
+BEGIN  -- TG_ARGV = bigint columns that may only grow once set (NULL -> value is allowed, value -> smaller/NULL is not)
+  FOREACH c IN ARRAY TG_ARGV LOOP
+    IF o ->> c IS NOT NULL AND (n ->> c IS NULL OR (n ->> c)::bigint < (o ->> c)::bigint) THEN
+      RAISE EXCEPTION 'column %.% can only increase', TG_TABLE_NAME, c USING ERRCODE = 'integrity_constraint_violation';
+    END IF;
+  END LOOP;
+  RETURN NEW;
+END $$;
+
+ALTER FUNCTION platform.keep_non_decreasing() OWNER TO ai_res_owner;
+
 CREATE FUNCTION platform.keep_terminal_status() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -1565,7 +1580,9 @@ CREATE TABLE iam.mfa_factors (
     row_version bigint DEFAULT 1 NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    last_used_step bigint,
     CONSTRAINT ck_mfa_factors_factor_type CHECK ((factor_type = 'TOTP'::text)),
+    CONSTRAINT ck_mfa_factors_last_used_step CHECK (((last_used_step IS NULL) OR (last_used_step >= 0))),
     CONSTRAINT ck_mfa_factors_row_version CHECK ((row_version > 0)),
     CONSTRAINT ck_mfa_factors_secret CHECK ((octet_length(secret_ciphertext) > 0)),
     CONSTRAINT ck_mfa_factors_status CHECK ((status = ANY (ARRAY['PENDING'::text, 'ACTIVE'::text, 'REVOKED'::text])))
@@ -1821,6 +1838,19 @@ CREATE TABLE platform.alembic_version (
 );
 
 ALTER TABLE platform.alembic_version OWNER TO ai_res_owner;
+
+CREATE TABLE platform.bootstrap_state (
+    singleton boolean DEFAULT true NOT NULL,
+    organization_id uuid NOT NULL,
+    secret_digest bytea NOT NULL,
+    consumed_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ck_bootstrap_state_secret_digest CHECK ((octet_length(secret_digest) = 32)),
+    CONSTRAINT ck_bootstrap_state_singleton CHECK (singleton)
+);
+
+ALTER TABLE ONLY platform.bootstrap_state FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE platform.bootstrap_state OWNER TO ai_res_owner;
 
 CREATE TABLE platform.display_number_counters (
     organization_id uuid NOT NULL,
@@ -2581,6 +2611,9 @@ ALTER TABLE ONLY organization.memberships
 ALTER TABLE ONLY platform.alembic_version
     ADD CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num);
 
+ALTER TABLE ONLY platform.bootstrap_state
+    ADD CONSTRAINT pk_bootstrap_state PRIMARY KEY (singleton);
+
 ALTER TABLE ONLY platform.display_number_counters
     ADD CONSTRAINT pk_display_number_counters PRIMARY KEY (organization_id, project_id, counter_kind);
 
@@ -2857,6 +2890,8 @@ CREATE INDEX ix_operations_parent_operation_id ON operations.operations USING bt
 
 CREATE INDEX ix_operations_project_id_created_at ON operations.operations USING btree (project_id, created_at DESC);
 
+CREATE INDEX ix_bootstrap_state_organization_id ON platform.bootstrap_state USING btree (organization_id);
+
 CREATE INDEX ix_idempotency_records_expires_at ON platform.idempotency_records USING btree (expires_at);
 
 CREATE INDEX ix_requirement_epics_epic_id ON requirements.requirement_epics USING btree (epic_id);
@@ -3097,6 +3132,8 @@ CREATE TRIGGER trg_mfa_factors_immutable_columns BEFORE UPDATE ON iam.mfa_factor
 
 CREATE TRIGGER trg_mfa_factors_revoked_terminal BEFORE UPDATE ON iam.mfa_factors FOR EACH ROW EXECUTE FUNCTION platform.keep_terminal_status('REVOKED');
 
+CREATE TRIGGER trg_mfa_factors_step_monotonic BEFORE UPDATE ON iam.mfa_factors FOR EACH ROW EXECUTE FUNCTION platform.keep_non_decreasing('last_used_step');
+
 CREATE TRIGGER trg_mfa_factors_touch BEFORE UPDATE ON iam.mfa_factors FOR EACH ROW EXECUTE FUNCTION platform.touch_row();
 
 CREATE TRIGGER trg_mfa_recovery_codes_immutable_columns BEFORE UPDATE ON iam.mfa_recovery_codes FOR EACH ROW EXECUTE FUNCTION platform.keep_columns_immutable('id', 'organization_id', 'user_id', 'code_digest');
@@ -3150,6 +3187,10 @@ CREATE TRIGGER trg_memberships_touch BEFORE UPDATE ON organization.memberships F
 CREATE TRIGGER trg_organizations_immutable_columns BEFORE UPDATE ON organization.organizations FOR EACH ROW EXECUTE FUNCTION platform.keep_columns_immutable('id');
 
 CREATE TRIGGER trg_organizations_touch BEFORE UPDATE ON organization.organizations FOR EACH ROW EXECUTE FUNCTION platform.touch_row();
+
+CREATE TRIGGER trg_bootstrap_state_append_only BEFORE DELETE OR UPDATE ON platform.bootstrap_state FOR EACH ROW EXECUTE FUNCTION platform.reject_modification();
+
+CREATE TRIGGER trg_bootstrap_state_no_truncate BEFORE TRUNCATE ON platform.bootstrap_state FOR EACH STATEMENT EXECUTE FUNCTION platform.reject_modification();
 
 CREATE TRIGGER trg_display_number_counters_advance BEFORE UPDATE ON platform.display_number_counters FOR EACH ROW EXECUTE FUNCTION platform.advance_by_one('last_number');
 
@@ -3557,6 +3598,9 @@ ALTER TABLE ONLY organization.memberships
 
 ALTER TABLE ONLY organization.memberships
     ADD CONSTRAINT fk_memberships_role_code_org_level_roles FOREIGN KEY (role_code, org_level) REFERENCES iam.roles(code, org_level) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY platform.bootstrap_state
+    ADD CONSTRAINT fk_bootstrap_state_organization_id_organizations FOREIGN KEY (organization_id) REFERENCES organization.organizations(id) ON DELETE RESTRICT;
 
 ALTER TABLE ONLY platform.display_number_counters
     ADD CONSTRAINT fk_display_number_counters_organization_id_project_id_projects FOREIGN KEY (organization_id, project_id) REFERENCES project.projects(organization_id, id) ON DELETE RESTRICT;
@@ -3975,9 +4019,15 @@ CREATE POLICY p_organizations_owner_migration ON organization.organizations TO a
 
 CREATE POLICY p_organizations_tenant_scope ON organization.organizations TO ai_res_api_group USING ((id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
 
+ALTER TABLE platform.bootstrap_state ENABLE ROW LEVEL SECURITY;
+
 ALTER TABLE platform.display_number_counters ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE platform.idempotency_records ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY p_bootstrap_state_owner_migration ON platform.bootstrap_state TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
+
+CREATE POLICY p_bootstrap_state_tenant_scope ON platform.bootstrap_state TO ai_res_api_group USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
 
 CREATE POLICY p_display_number_counters_owner_migration ON platform.display_number_counters TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
 
@@ -4177,6 +4227,8 @@ REVOKE ALL ON FUNCTION platform.guard_status_transition() FROM PUBLIC;
 
 REVOKE ALL ON FUNCTION platform.keep_columns_immutable() FROM PUBLIC;
 
+REVOKE ALL ON FUNCTION platform.keep_non_decreasing() FROM PUBLIC;
+
 REVOKE ALL ON FUNCTION platform.keep_terminal_status() FROM PUBLIC;
 
 REVOKE ALL ON FUNCTION platform.reject_modification() FROM PUBLIC;
@@ -4306,6 +4358,8 @@ GRANT SELECT,INSERT,UPDATE ON TABLE operations.operations TO ai_res_api_group;
 GRANT SELECT,INSERT,UPDATE ON TABLE organization.memberships TO ai_res_api_group;
 
 GRANT SELECT,INSERT,UPDATE ON TABLE organization.organizations TO ai_res_api_group;
+
+GRANT SELECT,INSERT ON TABLE platform.bootstrap_state TO ai_res_api_group;
 
 GRANT SELECT,INSERT,UPDATE ON TABLE platform.display_number_counters TO ai_res_api_group;
 
