@@ -1,0 +1,30 @@
+[project]
+name = "ai-res-infra-checks"
+version = "0.0.0"
+description = "AI RES S03: infrastructure policy checks and tests (no runtime dependencies)"
+requires-python = ">=3.13,<3.14"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "jsonschema>=4.26.0",
+    "pytest>=8",
+    "ruff>=0.7",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["scripts", "."]
+markers = ["runtime: needs a running Docker Compose stack (make up); skipped when the stack is not up"]
+
+[tool.ruff]
+line-length = 160
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S", "SIM"]
+ignore = ["S101"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S603", "S404", "S607", "E501"]
+"scripts/**" = ["S603", "S404", "S607"]

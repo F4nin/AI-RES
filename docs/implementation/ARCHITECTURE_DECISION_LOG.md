@@ -47,6 +47,10 @@
 | ADR-039 | Breaking-change detection: собственный diff вместо oasdiff на S01 | ACCEPTED |
 | ADR-040 | Инструменты сохранения контекста: session-brief hook, CONTEXT_HANDOFF, Context7, Serena | ACCEPTED |
 | ADR-041 | Platform primitives S02: курсоры, ошибки, корреляция, error boundary, порты | ACCEPTED |
+| ADR-042 | MinIO и mc собираются из закреплённых исходников (официальный образ недоступен) | ACCEPTED |
+| ADR-043 | Supply chain S03: SBOM, скан образов, политика исключений | ACCEPTED |
+| ADR-044 | Состав и жёсткость локального стека S03 (образы, сети, healthchecks, секреты в процессах) | ACCEPTED |
+| ADR-045 | Схема dev-секретов: SOPS+age, случайные значения, идемпотентная материализация | ACCEPTED |
 
 ---
 
@@ -746,3 +750,71 @@
 | Влияние на компоненты/контракты | S07, S08–S12, S13 |
 | Риски и компромиссы | Формат курсора и TTL — WORKING; идемпотентность port принимает plaintext-ключ (HMAC внутри реализации S07) |
 | Затронутые тесты | backend/tests/unit/test_platform.py (56 тестов), tests/architecture/test_import_rules.py |
+
+## ADR-042 — MinIO и mc собираются из закреплённых исходников (официальный образ недоступен)
+
+| Поле | Значение |
+|---|---|
+| Статус | ACCEPTED |
+| Дата | 2026-11-11 |
+| Ответственный | Implementation Lead (делегированные полномочия, Master Implementation Initialization) |
+| Проблема и контекст | DOC-015 §5.3/§12.2 требуют MinIO и образ по digest; `minio/minio` и `quay.io/minio/minio` публично недоступны (pull denied), сообщество публикует архивные или сторонние образы. |
+| Связанные требования | INF-MVP (MinIO), THR-017 |
+| Документы и разделы | DOC-015 §5.3, §12.2, §14 |
+| Альтернативы | `bitnamilegacy/minio` (архив без патчей); `ghcr.io/coollabsio/minio` (неизвестная модель доверия); отложить MinIO (запрет пустых сервисов). Выбор владельца в сессии S03: сборка из исходников. |
+| Решение | `infra/images/minio/Dockerfile`: multi-stage, `golang:1.27.4-bookworm@digest`; `git clone --branch <tag>` + проверка commit SHA (minio `RELEASE.2025-10-15T17-29-55Z` 9e49d5e…, mc `RELEASE.2025-08-13T08-35-41Z` 7394ce0…); `go get` минимальных исправленных версий уязвимых транзитивных зависимостей (x/net, x/crypto, compress, grpc, amqp091-go, thrift, jsonparser, go-jose, otel sdk — списки по деревьям); рантайм `debian:bookworm-slim@digest`, non-root uid 10002, `/data` принадлежит рантайм-пользователю. Не исправленные prometheus CVE — в `vulnerability-exceptions.yaml`. |
+| Обоснование | Воспроизводимый источник под контролем проекта; находки сканера сокращены с 44/27 до 2/2 HIGH/CRITICAL; сборка и runtime-набор проходят. |
+| Влияние на компоненты/контракты | S03, S27, S28, S32 |
+| Риски и компромиссы | Мы отвечаем за патчинг MinIO (поддержка community-ветки неясна); AGPL-3.0 — license review перед релизом; изменённый граф зависимостей не проверялся апстримом (смягчение: runtime-набор bucket/versioning). |
+| Затронутые тесты | runtime: MinIO healthy, бакеты и versioning через новый mc; скан собственных образов 0 HIGH/CRITICAL с исключениями |
+
+## ADR-043 — Supply chain S03: SBOM, скан образов, политика исключений
+
+| Поле | Значение |
+|---|---|
+| Статус | ACCEPTED |
+| Дата | 2026-11-11 |
+| Ответственный | Implementation Lead (делегированные полномочия, Master Implementation Initialization) |
+| Проблема и контекст | DOC-015 §14 требует SBOM, vulnerability scan, управление исключениями; первый скан дал десятки HIGH/CRITICAL во всех собственных образах и сотни в сторонних. |
+| Связанные требования | THR-017, THR-013, DOC-015 §14 |
+| Документы и разделы | DOC-015 §12.2, §14.1–14.7 |
+| Альтернативы | Блокировать все образы (стек не собрать до апстрим-патчей); не блокировать ничего; cosign на всё (нет подписей у большинства вендоров). |
+| Решение | Syft (SPDX JSON) и Trivy запускаются из образов, закреплённых по digest, над архивами `docker save` (docker.sock не монтируется). Собственные образы `ai-res/*` — блокирующий gate (exit 1 при HIGH/CRITICAL с доступным исправлением); сторонние закреплённые образы — report-only в `infra/releases/scan/` и в KNOWN_GAPS. Исключения: `infra/security/vulnerability-exceptions.yaml` (cve, component, rationale, compensating_controls, owner, expires); просроченная или неполная запись падает. Даты expires — предложения Implementation Lead. Backend: pip-audit по locked runtime-зависимостям. Образ api без pip/setuptools (вендоренные библиотеки давали HIGH). |
+| Обоснование | Gate достижим и честен: блокирует то, что мы можем исправить, и не скрывает остальное. |
+| Влияние на компоненты/контракты | S03, S37 |
+| Риски и компромиссы | Сторонние образы остаются с известными HIGH/CRITICAL (Temporal server 146, UI 117, admin-tools 291, otel 61, Postgres 26 на момент S03); подписи cosign не проверяются; Trivy 0.58.1 — устаревший сканер, обновляется Renovate. |
+| Затронутые тесты | tests/test_vuln_exceptions.py; supply_chain.sh на живых образах (exit 0) |
+
+## ADR-044 — Состав и жёсткость локального стека S03 (образы, сети, healthchecks, секреты в процессах)
+
+| Поле | Значение |
+|---|---|
+| Статус | ACCEPTED |
+| Дата | 2026-11-11 |
+| Ответственный | Implementation Lead (делегированные полномочия, Master Implementation Initialization) |
+| Проблема и контекст | Нужен воспроизводимый локальный стек, удовлетворяющий DOC-015 §9 и промпту S03, при конкретных ограничениях образов и отсутствии health-эндпоинта в контракте. |
+| Связанные требования | INF-MVP-001..041, THR-005, THR-013, PERSIST-023 (сетевая часть), ADR-020, ADR-028, ADR-036 |
+| Документы и разделы | DOC-015 §4.4, §5, §6, §9; DOC-019 §3–4 |
+| Альтернативы | Один сетевой сегмент; publish admin-портов на loopback; `temporalio/auto-setup`; стандартный entrypoint Postgres с POSTGRES_PASSWORD_FILE. |
+| Решение | (1) Образы по tag+digest: Caddy 2.11.9, Postgres 16.15, Temporal server 1.29.7 / admin-tools 1.29.7 / UI 2.49.1, otel-collector 0.116.1, python 3.13.18; (2) сети ingress (единственная не-internal, только Caddy), app/data/admin — `internal: true` (egress deny-by-default, нет шлюза), egress — без участников до S15/S16/S28; наружу `127.0.0.1:8443`; Temporal UI и MinIO console — только admin, недоступны с хоста; Manager/Worker никогда не в data; (3) Caddy пересобран без file capability (`setcap -r`), иначе exec падает при cap_drop ALL; (4) Postgres: собственный entrypoint (`initdb --pwfile`, SCRAM-only, TLS с локальным CA, `pg_hba.conf` по ролям/БД с финальным `reject`, перезаписывается при старте), потому что штатный экспортирует POSTGRES_PASSWORD в окружение процесса; Temporal/provisioning подключаются по TLS с проверкой хоста; (5) Temporal: пароль читается из secret-файла в окружение только процесса `temporal-server`/`temporal-sql-tool` (шаблон конфига принимает пароль лишь из env) — вне `docker inspect`, исключение явно описано; отдельная `temporal_visibility_db` под ролью `temporal` (visibility-схема Temporal конфликтует по `schema_version` с основной) — деталь реализации Temporal, не доменная БД; namespace `ai-res`, retention 72h — WORKING dev default (OD-02); (6) api healthcheck — liveness (любой HTTP-ответ), т.к. health-эндпоинт без контракта запрещён; otel-collector без healthcheck (distroless) — исключение в check_compose; (7) лимиты памяти/pids — WORKING dev значения; (8) schema `langgraph` и роль `ai_res_checkpointer` создаются provisioning-job (ADR-036), доменные роли — S05. |
+| Обоснование | Соответствие baseline при проверяемых отклонениях, каждое зафиксировано. |
+| Влияние на компоненты/контракты | S03, S04, S05, S11, S13, S23 |
+| Риски и компромиссы | Третья БД Temporal; пароль Temporal виден в /proc процесса; liveness ≠ readiness; Manager/Worker → Temporal сеть не решена (G-38). |
+| Затронутые тесты | runtime: 77 тестов (сегментация, egress, hardening, секреты, роли); tests/test_check_compose.py: 27 |
+
+## ADR-045 — Схема dev-секретов: SOPS+age, случайные значения, идемпотентная материализация
+
+| Поле | Значение |
+|---|---|
+| Статус | ACCEPTED |
+| Дата | 2026-11-11 |
+| Ответственный | Implementation Lead (делегированные полномочия, Master Implementation Initialization) |
+| Проблема и контекст | DOC-019 §3 / DOC-015 §11.4: секреты в Git только зашифрованными; default credentials запрещены; локальный запуск из чистого клона. |
+| Связанные требования | SEC-MVP (secrets), DOC-019 §3, §8 |
+| Документы и разделы | DOC-019 §3–4, §8; DOC-015 §9.3, §11.4 |
+| Альтернативы | Секреты в `.env`; фиксированные dev-пароли; генерация при каждом запуске. |
+| Решение | `make secrets-dev` (`infra/scripts/secrets_dev.py`): age-ключ создаётся вне репозитория (`~/.config/ai-res/age/keys.txt`, 0600, отказ при широких правах), секреты — `secrets.token_urlsafe(48)`, шифруются SOPS в `infra/secrets/encrypted/local.enc.yaml`, расшифровка в `infra/secrets/runtime/` (git-ignored, 0600/0700). Существующие секреты не перегенерируются; материализация идемпотентна и пишет файлы на месте (замена файлов ломает bind mount запущенных контейнеров — найдено тестом). В CI (`AI_RES_SECRETS_WORLD_READABLE=1`) файлы 0644/0755 из-за Linux bind mount с разными uid контейнеров. Сканер репозитория (`scan_secrets.py`) ищет ключи, литеральные присвоения, URL с учётными данными, текущие значения секретов и незашифрованные файлы в `encrypted/`. Зашифрованный файл per-machine (age-ключ разработчика), не коммитится; DOC-015 §17.17 («секреты в Git зашифрованы SOPS») относится к общим секретам поставки, которых в S03 нет. Локальный TLS CA/сертификат Postgres генерируются вместе с секретами. |
+| Обоснование | Нет default credentials и plaintext в Git; воспроизводимо; ключ вне репозитория. |
+| Влияние на компоненты/контракты | S03, S07 |
+| Риски и компромиссы | Файл `local.enc.yaml` per-machine и не коммитится (git-ignored): шифрован под ключ конкретной машины, на чужой машине и в CI секреты генерируются заново, при отсутствии ключа и наличии файла — явная ошибка; ротация и аудит доступа не реализованы (runbook DOC-019 §5 — позже); sops/age ставятся brew (локально) и из закреплённых релизов (CI), хэш age закреплён по первому проверенному скачиванию (апстрим не публикует checksums). |
+| Затронутые тесты | runtime: секреты отсутствуют в inspect/env/логах/слоях образов; tests/test_scan_secrets.py: 8 |

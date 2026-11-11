@@ -40,3 +40,5 @@ ECC 2.2.3 (manual project-local install) — dev-time инструментари
 ## 3. Дополнительные инструменты (ADR-040)
 SessionStart hook `session-brief`, `CONTEXT_HANDOFF.md`, Context7 MCP (через ECC `docs-lookup`), Serena MCP (совместно с `code-explorer`, `code-reviewer`). Промпты и ограничения — `tooling/`. ECC `ck` и `strategic-compact` hook не включались (глобальные записи / скрипт не установлен).
 | S02 | `fastapi-reviewer`, `security-reviewer`, `type-design-analyzer` | Независимое review platform primitives | HIGH исправлены, `reviews/S02_REVIEW.md`; повторное review не проводилось |
+| S03 | `security-reviewer`, `architect`, `silent-failure-hunter`, `code-reviewer` | Независимое blind-first review инфраструктуры (ADR-037 слой 2); DevOps-агента в ECC нет — компенсация: `security-reviewer` + `architect` | результаты и устранение — `reviews/S03_*.md` |
+| S03 | `planner`, `verification-loop`, `production-audit` | `planner`/`/plan` заменены планом по срезам, согласованным с владельцем; `verification-loop`, `production-audit` не запускались | отмечено в S03 report |
