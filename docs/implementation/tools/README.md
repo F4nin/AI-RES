@@ -8,4 +8,4 @@
 | `python3 docs/implementation/tools/reqs.py .` | Перегенерировать индекс `REQUIREMENTS_TRACEABILITY.md` из canonical документов |
 | `python3 docs/implementation/tools/check_prompts.py` | Проверить промпты: canonical документы Registry, ADR, имена ECC, обязательные разделы, индексацию |
 
-Внимание: `gen.py` перезаписывает `IMPLEMENTATION_STATUS.md` статусами из `stages.py` — при смене статуса этапа обновляйте поле `gate` в `stages.py`.
+Внимание: `gen.py` не трогает `IMPLEMENTATION_STATUS.md` (ведётся вручную), но берёт гейты этапов в ROADMAP и `prompts/` из `stages.py` — при смене статуса этапа обновляйте поле `gate` в `stages.py` и перегенерируйте. ADR-042 и далее добавляются в `tools/adrs.py` (поле `date` переопределяет общую дату), журнал руками не правится.

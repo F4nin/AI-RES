@@ -11,6 +11,9 @@ dependencies = [
   "uuid-utils>=0.10",
   "opentelemetry-api>=1.27",
   "opentelemetry-sdk>=1.27",
+  "sqlalchemy[asyncio]>=2.0.36,<2.1",
+  "alembic>=1.14",
+  "psycopg[binary]>=3.2",
 ]
 
 [dependency-groups]
@@ -22,6 +25,7 @@ dev = [
   "ruff>=0.7",
   "mypy>=1.13",
   "import-linter>=2.1",
+  "testcontainers[postgres]>=4.9",
 ]
 
 [build-system]
@@ -33,6 +37,7 @@ packages = ["src/ai_res"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = ["postgres: needs Docker (Testcontainers, real PostgreSQL 16); never replaced by SQLite (ADR-003)"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 
@@ -46,7 +51,7 @@ select = ["E", "F", "I", "B", "UP", "S", "SIM"]
 ignore = ["S101"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S603", "S404"]
+"tests/**" = ["S603", "S404", "S105", "S106", "S108"]  # fake credentials/paths in throw-away test fixtures
 
 [tool.mypy]
 strict = true
@@ -83,3 +88,9 @@ name = "Domain modules do not import the API layer"
 type = "forbidden"
 source_modules = ["ai_res.modules"]
 forbidden_modules = ["ai_res.api"]
+
+[[tool.importlinter.contracts]]
+name = "Persistence layer does not depend on API or domain modules"
+type = "forbidden"
+source_modules = ["ai_res.db"]
+forbidden_modules = ["ai_res.api", "ai_res.modules", "ai_res.llm"]

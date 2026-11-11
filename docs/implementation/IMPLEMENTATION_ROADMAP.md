@@ -129,7 +129,9 @@ flowchart LR
   style S00 fill:#d4edda
   style S01 fill:#d4edda
   style S02 fill:#d4edda
-  style S03 fill:#fff3cd
+  style S03 fill:#d4edda
+  style S04 fill:#d4edda
+  style S05 fill:#fff3cd
   style S16 fill:#f8d7da
   style S33 fill:#f8d7da
   style S38 fill:#f8d7da
@@ -142,9 +144,9 @@ flowchart LR
 | S00 | A. Foundation | Repository reconnaissance и baseline manifest | Spec Inc. 0 | — | — | DONE | [S00_repository_reconnaissance.md](increments/prompts/S00_repository_reconnaissance.md) |
 | S01 | A. Foundation | Contract toolchain и CI-валидация контрактов | Spec Inc. 1 | S00 | API-MVP-001; API-MVP-0xx (contract compatibility) | DONE | [S01_contract_toolchain.md](increments/prompts/S01_contract_toolchain.md) |
 | S02 | A. Foundation | Backend skeleton и platform primitives (без БД) | Spec Inc. 2 (п.1–5, 7–9); Process Design §22 п.1 (частично) | S01 | API-MVP (общие HTTP правила); SEC-MVP (error leakage); OBS (correlation) | DONE | [S02_backend_skeleton_platform_primitives.md](increments/prompts/S02_backend_skeleton_platform_primitives.md) |
-| S03 | A. Foundation | Local infrastructure (Docker Compose), secrets и CI baseline | — (DOC-015; добавлено ADR-010) | S02 | INF-MVP-001..041; SEC-MVP (secrets) | READY | [S03_local_infrastructure_secrets_ci.md](increments/prompts/S03_local_infrastructure_secrets_ci.md) |
-| S04 | B. Persistence & Identity | Persistence foundation: Alembic, schemas, роли | Spec Add. v1.18–v1.19; Blueprint §14 шаги 1–3, 5 (частично) | S03 | PERSIST-001, -002 и ролевые PERSIST-*; DBM-* | PENDING_DEPS | [S04_persistence_foundation.md](increments/prompts/S04_persistence_foundation.md) |
-| S05 | B. Persistence & Identity | Core tenant и execution schema + RLS | Blueprint §5 PDB-0002…0007, 0009, 0010 (greenfield ADR-011); Spec Add. v1.17 | S04 | DATA-MVP; PERSIST-001..024; TX-01..TX-09 (persistence части) | PENDING_DEPS | [S05_core_tenant_execution_schema_rls.md](increments/prompts/S05_core_tenant_execution_schema_rls.md) |
+| S03 | A. Foundation | Local infrastructure (Docker Compose), secrets и CI baseline | — (DOC-015; добавлено ADR-010) | S02 | INF-MVP-001..041; SEC-MVP (secrets) | DONE | [S03_local_infrastructure_secrets_ci.md](increments/prompts/S03_local_infrastructure_secrets_ci.md) |
+| S04 | B. Persistence & Identity | Persistence foundation: Alembic, schemas, роли | Spec Add. v1.18–v1.19; Blueprint §14 шаги 1–3, 5 (частично) | S03 | PERSIST-001, -002 и ролевые PERSIST-*; DBM-* | DONE | [S04_persistence_foundation.md](increments/prompts/S04_persistence_foundation.md) |
+| S05 | B. Persistence & Identity | Core tenant и execution schema + RLS | Blueprint §5 PDB-0002…0007, 0009, 0010 (greenfield ADR-011); Spec Add. v1.17 | S04 | DATA-MVP; PERSIST-001..024; TX-01..TX-09 (persistence части) | READY | [S05_core_tenant_execution_schema_rls.md](increments/prompts/S05_core_tenant_execution_schema_rls.md) |
 | S06 | B. Persistence & Identity | Domain content schema: requirements, sources, artifacts, context, decisions, traceability, rules | — (DOC-005; ADR-016) | S05 | DATA-MVP; UX-REQ/UX-SRC/UX-ART (данные); RULE-MVP-02 | PENDING_DEPS | [S06_domain_content_schema.md](increments/prompts/S06_domain_content_schema.md) |
 | S07 | B. Persistence & Identity | Identity, Local Auth, Policy Engine, Audit, Idempotency | Spec Inc. 2 п.6–9 (реализация); Add. v1.3 §3.1 | S05 | AUTH-001..013; AUTH-MVP-*; SEC-001..035 (P0 части); SEC-MVP-* | PENDING_DEPS | [S07_identity_auth_policy_audit_idempotency.md](increments/prompts/S07_identity_auth_policy_audit_idempotency.md) |
 | S08 | C. Public API & Events | Read-only API vertical slices | Spec Inc. 3 | S06, S07 | API-MVP-0xx (read); SEC-001/002; WS-MVP (данные) | PENDING_DEPS | [S08_read_only_api_slices.md](increments/prompts/S08_read_only_api_slices.md) |

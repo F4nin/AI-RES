@@ -2,7 +2,7 @@
 
 **Фаза:** B. Persistence & Identity · **Соответствие Spec:** Spec Add. v1.18–v1.19; Blueprint §14 шаги 1–3, 5 (частично) · **Roadmap:** `docs/implementation/IMPLEMENTATION_ROADMAP.md`
 
-> **СТАТУС ПРОМПТА: PENDING_DEPS.** Исполнять только после перевода всех зависимостей в DONE.
+> **СТАТУС: DONE.** Промпт сохранён для истории; повторно не исполнять.
 
 ## 1. Роль и полномочия
 

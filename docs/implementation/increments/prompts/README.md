@@ -9,9 +9,9 @@
 | S00 | Repository reconnaissance и baseline manifest | [`S00_repository_reconnaissance.md`](S00_repository_reconnaissance.md) | — | DONE | — |
 | S01 | Contract toolchain и CI-валидация контрактов | [`S01_contract_toolchain.md`](S01_contract_toolchain.md) | S00 | DONE | — |
 | S02 | Backend skeleton и platform primitives (без БД) | [`S02_backend_skeleton_platform_primitives.md`](S02_backend_skeleton_platform_primitives.md) | S01 | DONE | — |
-| S03 | Local infrastructure (Docker Compose), secrets и CI baseline | [`S03_local_infrastructure_secrets_ci.md`](S03_local_infrastructure_secrets_ci.md) | S02 | READY | **Да** |
-| S04 | Persistence foundation: Alembic, schemas, роли | [`S04_persistence_foundation.md`](S04_persistence_foundation.md) | S03 | PENDING_DEPS | Нет (после DONE зависимостей) |
-| S05 | Core tenant и execution schema + RLS | [`S05_core_tenant_execution_schema_rls.md`](S05_core_tenant_execution_schema_rls.md) | S04 | PENDING_DEPS | Нет (после DONE зависимостей) |
+| S03 | Local infrastructure (Docker Compose), secrets и CI baseline | [`S03_local_infrastructure_secrets_ci.md`](S03_local_infrastructure_secrets_ci.md) | S02 | DONE | — |
+| S04 | Persistence foundation: Alembic, schemas, роли | [`S04_persistence_foundation.md`](S04_persistence_foundation.md) | S03 | DONE | — |
+| S05 | Core tenant и execution schema + RLS | [`S05_core_tenant_execution_schema_rls.md`](S05_core_tenant_execution_schema_rls.md) | S04 | READY | **Да** |
 | S06 | Domain content schema: requirements, sources, artifacts, context, decisions, traceability, rules | [`S06_domain_content_schema.md`](S06_domain_content_schema.md) | S05 | PENDING_DEPS | Нет (после DONE зависимостей) |
 | S07 | Identity, Local Auth, Policy Engine, Audit, Idempotency | [`S07_identity_auth_policy_audit_idempotency.md`](S07_identity_auth_policy_audit_idempotency.md) | S05 | PENDING_DEPS | Нет (после DONE зависимостей) |
 | S08 | Read-only API vertical slices | [`S08_read_only_api_slices.md`](S08_read_only_api_slices.md) | S06, S07 | PENDING_DEPS | Нет (после DONE зависимостей) |

@@ -172,23 +172,23 @@
 | DATA-MVP-022 | DOC-009 | Проверка циклов TaskDependency | MVP | S05, S06 | NOT_STARTED |
 | DATA-MVP-023 | DOC-009 | Контролируемое применение JSONB | MVP | S05, S06 | NOT_STARTED |
 | DATA-MVP-024 | DOC-009 | Контроль внешних идентификаторов | MVP | S05, S06 | NOT_STARTED |
-| DBM-001 | DOC-068 | Все domain migrations управляются Alembic | Fresh DB upgrade и upgrade f | S04, S05, S32 | NOT_STARTED |
-| DBM-002 | DOC-068 | Temporal/LangGraph schemas не управляются Alembic AI RES | Migration allowlist test | S04, S05, S32 | NOT_STARTED |
-| DBM-003 | DOC-068 | Migration scripts immutable, reviewed, named constraints | CI lint + code review | S04, S05, S32 | NOT_STARTED |
+| DBM-001 | DOC-068 | Все domain migrations управляются Alembic | Fresh DB upgrade и upgrade f | S04, S05, S32 | PARTIAL (S04: upgrade from empty; previous — S05) |
+| DBM-002 | DOC-068 | Temporal/LangGraph schemas не управляются Alembic AI RES | Migration allowlist test | S04, S05, S32 | TESTED (S04: allowlist, autogenerate не видит langgraph/temporal) |
+| DBM-003 | DOC-068 | Migration scripts immutable, reviewed, named constraints | CI lint + code review | S04, S05, S32 | PARTIAL (S04: naming convention, single head, review; CI lint ревизий — S05) |
 | DBM-004 | DOC-068 | Несовместимые изменения проходят expand/backfill/validate/contract | Migration plan и compatibili | S04, S05, S32 | NOT_STARTED |
 | DBM-005 | DOC-068 | Backfill resumable и bounded | Повторный запуск, interrupti | S04, S05, S32 | NOT_STARTED |
-| DBM-006 | DOC-068 | Runtime identities не имеют DDL/owner/BYPASSRLS | `pg_roles`, `has_table_privi | S04, S05, S32 | NOT_STARTED |
-| DBM-007 | DOC-068 | Manager/Worker Runtime не имеют DB credentials | Deployment secret inventory  | S04, S05, S32 | NOT_STARTED |
-| DBM-008 | DOC-068 | RLS FORCE + default-deny на tenant tables | Tests под runtime login role | S04, S05, S32 | NOT_STARTED |
-| DBM-009 | DOC-068 | Tenant context transaction-local | Pool reuse test: tenant A th | S04, S05, S32 | NOT_STARTED |
-| DBM-010 | DOC-068 | Отсутствующий context возвращает 0 rows/denies writes | Negative tests | S04, S05, S32 | NOT_STARTED |
+| DBM-006 | DOC-068 | Runtime identities не имеют DDL/owner/BYPASSRLS | `pg_roles`, `has_table_privi | S04, S05, S32 | TESTED (S04) |
+| DBM-007 | DOC-068 | Manager/Worker Runtime не имеют DB credentials | Deployment secret inventory  | S04, S05, S32 | PARTIAL (S04: нет DB credentials/секретов у api и прочих; Manager/Worker не существуют) |
+| DBM-008 | DOC-068 | RLS FORCE + default-deny на tenant tables | Tests под runtime login role | S04, S05, S32 | PARTIAL (S04: probe-таблица ENABLE+FORCE, под ролью ai_res_api; доменные — S05) |
+| DBM-009 | DOC-068 | Tenant context transaction-local | Pool reuse test: tenant A th | S04, S05, S32 | TESTED (S04: pool reuse; доменные — S05) |
+| DBM-010 | DOC-068 | Отсутствующий context возвращает 0 rows/denies writes | Negative tests | S04, S05, S32 | PARTIAL (S04: probe-таблица; доменные — S05) |
 | DBM-011 | DOC-068 | Policy Engine остаётся authoritative для ACL | BOLA/IDOR/search/RAG/export  | S04, S05, S32 | NOT_STARTED |
-| DBM-012 | DOC-068 | `public` CREATE отозван; search_path безопасен | Privilege/search_path audit | S04, S05, S32 | NOT_STARTED |
+| DBM-012 | DOC-068 | `public` CREATE отозван; search_path безопасен | Privilege/search_path audit | S04, S05, S32 | TESTED (S04: PUBLIC CREATE отозван, search_path pg_catalog, audit gate) |
 | DBM-013 | DOC-068 | DB credentials externalized and rotatable | Rotation drill | S04, S05, S32 | NOT_STARTED |
-| DBM-014 | DOC-068 | TLS/SCRAM/network restrictions enforced | pg_hba inspection + connecti | S04, S05, S32 | NOT_STARTED |
+| DBM-014 | DOC-068 | TLS/SCRAM/network restrictions enforced | pg_hba inspection + connecti | S04, S05, S32 | PARTIAL (S04: TLS/SCRAM/hba на живом стеке; Testcontainers без TLS) |
 | DBM-015 | DOC-068 | Production migration имеет backup/PITR/restore evidence | Release gate | S04, S05, S32 | NOT_STARTED |
-| DBM-016 | DOC-068 | Schema owner and migrator are separate from runtime | Role membership audit | S04, S05, S32 | NOT_STARTED |
-| DBM-017 | DOC-068 | New tenant-scoped tables cannot omit RLS silently | CI RLS coverage check | S04, S05, S32 | NOT_STARTED |
+| DBM-016 | DOC-068 | Schema owner and migrator are separate from runtime | Role membership audit | S04, S05, S32 | TESTED (S04: owner/migrator/runtime разделены) |
+| DBM-017 | DOC-068 | New tenant-scoped tables cannot omit RLS silently | CI RLS coverage check | S04, S05, S32 | TESTED (S04: RLS coverage default-fail + positive controls; таблиц пока нет) |
 | DEP-MVP-01 | DOC-009 | Неизменяемость результатов | Обязательно | S23, S30 | NOT_STARTED |
 | DEP-MVP-02 | DOC-009 | Provenance | Обязательно | S23, S30 | NOT_STARTED |
 | DEP-MVP-03 | DOC-009 | Граф зависимостей | Обязательно | S23, S30 | NOT_STARTED |
@@ -373,16 +373,16 @@
 | PERF-024 | DOC-031 | Resource saturation behavior | — | S38 | NOT_STARTED |
 | PERF-025 | DOC-031 | Load test coverage | — | S38 | NOT_STARTED |
 | PERF-026 | DOC-031 | No invented SLO | — | S38 | NOT_STARTED |
-| PERSIST-001 | DOC-072 | Alembic upgrade empty DB | Reaches expected head | S04, S05 | NOT_STARTED |
-| PERSIST-002 | DOC-072 | Upgrade previous supported revision | Data preserved, no drift | S04, S05 | NOT_STARTED |
-| PERSIST-003 | DOC-072 | One head / revision graph | No accidental branches | S04, S05 | NOT_STARTED |
-| PERSIST-004 | DOC-072 | Offline SQL review | SQL matches reviewed revisio | S04, S05 | NOT_STARTED |
-| PERSIST-005 | DOC-072 | Runtime role DDL attempt | Permission denied | S04, S05 | NOT_STARTED |
-| PERSIST-006 | DOC-072 | Runtime role TRUNCATE/DELETE protected rows | Permission denied | S04, S05 | NOT_STARTED |
-| PERSIST-007 | DOC-072 | Owner/BYPASSRLS flags | Runtime has neither | S04, S05 | NOT_STARTED |
-| PERSIST-008 | DOC-072 | Tenant A reads Tenant B | Zero rows / denied | S04, S05 | NOT_STARTED |
-| PERSIST-009 | DOC-072 | Missing tenant context | Default deny | S04, S05 | NOT_STARTED |
-| PERSIST-010 | DOC-072 | Connection pool context reuse | No tenant leakage | S04, S05 | NOT_STARTED |
+| PERSIST-001 | DOC-072 | Alembic upgrade empty DB | Reaches expected head | S04, S05 | TESTED (S04: Testcontainers PG16.15; live stack) |
+| PERSIST-002 | DOC-072 | Upgrade previous supported revision | Data preserved, no drift | S04, S05 | PARTIAL (S04: одна ревизия; полноценно — S05) |
+| PERSIST-003 | DOC-072 | One head / revision graph | No accidental branches | S04, S05 | TESTED (S04) |
+| PERSIST-004 | DOC-072 | Offline SQL review | SQL matches reviewed revisio | S04, S05 | TESTED (S04: offline --sql + autocommit_block/CONCURRENTLY, test-only ревизия) |
+| PERSIST-005 | DOC-072 | Runtime role DDL attempt | Permission denied | S04, S05 | PARTIAL (S04: DDL denied под login-ролями; на доменных таблицах — S05) |
+| PERSIST-006 | DOC-072 | Runtime role TRUNCATE/DELETE protected rows | Permission denied | S04, S05 | PARTIAL (S04: TRUNCATE/DELETE/SELECT на объекте owner denied; доменные таблицы — S05) |
+| PERSIST-007 | DOC-072 | Owner/BYPASSRLS flags | Runtime has neither | S04, S05 | TESTED (S04: catalog + audit gate) |
+| PERSIST-008 | DOC-072 | Tenant A reads Tenant B | Zero rows / denied | S04, S05 | PARTIAL (S04: probe-таблица; доменные — S05) |
+| PERSIST-009 | DOC-072 | Missing tenant context | Default deny | S04, S05 | PARTIAL (S04: probe-таблица; доменные — S05) |
+| PERSIST-010 | DOC-072 | Connection pool context reuse | No tenant leakage | S04, S05 | PARTIAL (S04: pool reuse на одном соединении; доменные — S05) |
 | PERSIST-011 | DOC-072 | Cross-project forged IDs | Denied by Policy + RLS | S04, S05 | NOT_STARTED |
 | PERSIST-012 | DOC-072 | Event sequence concurrent updates | Unique contiguous sequence p | S04, S05 | NOT_STARTED |
 | PERSIST-013 | DOC-072 | Idempotency same key/fingerprint concurrency | One resource, same response | S04, S05 | NOT_STARTED |
@@ -395,8 +395,8 @@
 | PERSIST-020 | DOC-072 | Alembic lock timeout | Deployment fails safely, no  | S04, S05 | NOT_STARTED |
 | PERSIST-021 | DOC-072 | Backup restore rehearsal | Recovery manifest reconciled | S04, S05 | NOT_STARTED |
 | PERSIST-022 | DOC-072 | Secret rotation | New credentials work; old re | S04, S05 | NOT_STARTED |
-| PERSIST-023 | DOC-072 | Manager/Worker Runtime DB access | No secret and no network pat | S04, S05 | NOT_STARTED |
-| PERSIST-024 | DOC-072 | Schema drift | CI fails | S04, S05 | NOT_STARTED |
+| PERSIST-023 | DOC-072 | Manager/Worker Runtime DB access | No secret and no network pat | S04, S05 | PARTIAL (S04: у api/прочих нет DB credentials; сетевой путь Manager/Worker — S11/S23) |
+| PERSIST-024 | DOC-072 | Schema drift | CI fails | S04, S05 | TESTED (S04: reviewed snapshot + drift test) |
 | PROC-MVP-001 | DOC-009 | Project initiation | MVP | S12, S20–S32 | NOT_STARTED |
 | PROC-MVP-002 | DOC-009 | Evidence-aware elicitation | MVP | S12, S20–S32 | NOT_STARTED |
 | PROC-MVP-003 | DOC-009 | Candidate requirement lifecycle | MVP | S12, S20–S32 | NOT_STARTED |

@@ -2,7 +2,7 @@
 
 Единый журнал архитектурных и технических решений реализации AI RES (ненормативный). Статусы: PROPOSED, ACCEPTED, REJECTED, SUPERSEDED. Решения в пределах полномочий Implementation Lead регистрируются как ACCEPTED. Решения, меняющие нормативные документы, оформляются как NCP в `decisions/NORMATIVE_CHANGE_PROPOSALS.md` и не считаются утверждёнными до решения владельца. Подробные материалы крупных решений — `decisions/`. `docs/adr/` не используется (`.claude/rules/ecc-precedence.md`).
 
-Сводка: 41 записей; все ACCEPTED.
+Сводка: 49 записей; все ACCEPTED.
 
 | ID | Решение | Статус |
 |---|---|---|
@@ -51,6 +51,10 @@
 | ADR-043 | Supply chain S03: SBOM, скан образов, политика исключений | ACCEPTED |
 | ADR-044 | Состав и жёсткость локального стека S03 (образы, сети, healthchecks, секреты в процессах) | ACCEPTED |
 | ADR-045 | Схема dev-секретов: SOPS+age, случайные значения, идемпотентная материализация | ACCEPTED |
+| ADR-046 | Роли PostgreSQL S04: provisioning под суперпользователем, ревизия PDB-0001 только проверяет, drift-коррекция | ACCEPTED |
+| ADR-047 | Миграционная среда S04: Alembic env, SET ROLE owner, advisory lock, одноразовая служба `migrate`, WORKING-таймауты | ACCEPTED |
+| ADR-048 | Контроль дрейфа и аудит: reviewed snapshot (pg_dump + каталог), audit SQL как release gate, positive controls | ACCEPTED |
+| ADR-049 | Runtime-слой persistence: engine, Unit of Work, tenant context (один раз на транзакцию), конфигурация db_* | ACCEPTED |
 
 ---
 
@@ -818,3 +822,71 @@
 | Влияние на компоненты/контракты | S03, S07 |
 | Риски и компромиссы | Файл `local.enc.yaml` per-machine и не коммитится (git-ignored): шифрован под ключ конкретной машины, на чужой машине и в CI секреты генерируются заново, при отсутствии ключа и наличии файла — явная ошибка; ротация и аудит доступа не реализованы (runbook DOC-019 §5 — позже); sops/age ставятся brew (локально) и из закреплённых релизов (CI), хэш age закреплён по первому проверенному скачиванию (апстрим не публикует checksums). |
 | Затронутые тесты | runtime: секреты отсутствуют в inspect/env/логах/слоях образов; tests/test_scan_secrets.py: 8 |
+
+## ADR-046 — Роли PostgreSQL S04: provisioning под суперпользователем, ревизия PDB-0001 только проверяет, drift-коррекция
+
+| Поле | Значение |
+|---|---|
+| Статус | ACCEPTED |
+| Дата | 2026-11-11 |
+| Ответственный | Implementation Lead (делегированные полномочия, Master Implementation Initialization) |
+| Проблема и контекст | Промпт S04 требует «PDB-0001: создание schemas, ролей». Но `ai_res_migrator` по Strategy §1.5/§2 не имеет CREATEROLE, а пароли не задаются SQL-миграцией (Strategy §2, DOC-069 §3): роли и пароли миграция создать не может. DOC-069 (WORKING) — шаблон, не исполнимая история. |
+| Связанные требования | PERSIST-005..007, DBM-006, DBM-012, DBM-016; SEC P0 |
+| Документы и разделы | DOC-068 §1.5–§1.9, §2; DOC-072 §9; DOC-069 (WORKING); ADR-015, ADR-034, ADR-036 |
+| Альтернативы | (а) Выдать migrator CREATEROLE (нарушает DOC-068 §1.8); (б) создавать роли в ревизии под суперпользователем (migrator не суперпользователь); (в) provisioning вне Alembic + проверка в ревизии |
+| Решение | (в). `infra/config/postgres/provision_roles.sql` (psql, суперпользователь, часть one-shot `postgres-provision`; тот же файл использует тестовый harness) создаёт группы `*_group` (NOLOGIN) и LOGIN-роли `ai_res_migrator/api/outbox_dispatcher/event_consumer/auditor/backup` (+ `ai_res_checkpointer_group`, членство `ai_res_checkpointer`), задаёт SCRAM-пароли из Compose secrets, атрибуты (NOSUPERUSER/NOCREATEDB/NOCREATEROLE/NOREPLICATION/NOBYPASSRLS), владельца БД, `GRANT CONNECT`, role-level `search_path=pg_catalog`, `statement_timeout 15s`, `lock_timeout 2s`, `idle_in_transaction_session_timeout 30s` (значения шаблона DOC-069 §8, WORKING). Скрипт **идемпотентен и возвращает к эталону**: снимает любые членства вне ожидаемого набора (`REVOKE … GRANTED BY`), сбрасывает ADMIN OPTION и явно задаёт опции (`WITH ADMIN FALSE, INHERIT, SET`), `RESET ALL` для role-wide и role-in-database настроек, отзывает лишние `CONNECT`, возвращает владельца БД. Группы — `INHERIT TRUE, SET FALSE`; migrator→owner — `INHERIT FALSE, SET TRUE`. Ревизия PDB-0001 выполняет fail-fast preflight (роли существуют, атрибуты, NOLOGIN у групп, нет членства в owner, search_path зафиксирован, `platform` принадлежит owner) и **ничего не чинит**; затем создаёт 17 схем (`CREATE SCHEMA … AUTHORIZATION ai_res_owner`, строго, без IF NOT EXISTS), `REVOKE ALL … FROM PUBLIC`, `GRANT USAGE` группам (api: все 18 схем; outbox: operations, agents, audit; consumer: operations, agents, execution, audit; auditor: audit — по ADR-034), `ALTER DEFAULT PRIVILEGES FOR ROLE ai_res_owner REVOKE … FROM PUBLIC` (содержательно — для функций и типов). `public`: у PUBLIC отозваны все права (в т.ч. USAGE); расширениям в `public` (pgvector, S27) потребуется отдельное явное решение. `ai_res_backup`: роль без прав на данные и без строки в `pg_hba`; профиль привилегий — S32. `postgres` в `pg_hba` не ограничен по адресу (наследие S03, G-44). |
+| Обоснование | Соблюдает DOC-068 (migrator без CREATEROLE, пароли вне миграций) и даёт проверяемую базовую линию: слабая настройка ролей останавливает миграцию целиком (транзакционный DDL откатывает схемы). Drift-коррекция закрывает класс «ручная выдача прав переживает повторный provisioning» — найден тестами. |
+| Влияние на компоненты/контракты | S03 (provision.sh, hba, secrets), S05+ (грантовые ревизии наследуют роли) |
+| Риски и компромиссы | Отклонение от формулировки промпта («ревизия создаёт роли») обосновано DOC-068; миграция не может быть «самодостаточной» на пустом кластере — нужен provisioning (так же, как для БД и `langgraph` в S03). Редактирование уже применённой ревизии: PDB-0001 правилась до первого общего применения, только локальный dev и тестовые контейнеры. |
+| Затронутые тесты | test_migrations (sabotage ×5, drift-коррекция), test_roles_and_grants (атрибуты, SCRAM, DDL-отказы, матрица USAGE), SABOTAGE ×37, runtime test_persistence |
+
+## ADR-047 — Миграционная среда S04: Alembic env, SET ROLE owner, advisory lock, одноразовая служба `migrate`, WORKING-таймауты
+
+| Поле | Значение |
+|---|---|
+| Статус | ACCEPTED |
+| Дата | 2026-11-11 |
+| Ответственный | Implementation Lead (делегированные полномочия, Master Implementation Initialization) |
+| Проблема и контекст | Blueprint §4.2/§10 задают требования к env.py и отдельному migration job, но не конкретику: как создать schema `platform` для `alembic_version`, как сериализовать запуски, как запускать job в образе, какие таймауты. |
+| Связанные требования | PERSIST-001, -003, -004, -020; DBM-001..003 |
+| Документы и разделы | DOC-072 §4, §8, §10; DOC-068 §4; DOC-064 §11; ADR-003, ADR-011, ADR-035 |
+| Альтернативы | Запуск миграции при старте API (запрещён); отдельный образ migrate; `Base.metadata.create_all` (запрещён) |
+| Решение | (1) `alembic.ini` без DSN, `script_location = ai_res.db:migrations` (работает и из установленного пакета в образе). (2) `env.py`: настройки только из `AI_RES_DB_*` (пароль — файл), отказ под SUPERUSER/BYPASSRLS, `pg_advisory_lock(hashtextextended('ai_res.alembic.migrations',0))` (ожидание ограничено `lock_timeout`), `SET ROLE ai_res_owner`, bootstrap-исключение `CREATE SCHEMA IF NOT EXISTS platform` (Alembic создаёт version table до первой ревизии), `version_table_schema=platform`, allowlist 18 схем через `include_name` (нет `public`, `temporal`, `langgraph`), `compare_type=True`, `compare_server_default=False` до первого drift review; вложенный cleanup в `finally` (rollback → RESET ROLE → unlock с проверкой результата). (3) Одноразовая Compose-служба `migrate`: тот же образ `ai-res/api:dev`, команда `alembic upgrade head`, TLS verify-full, секреты — только `migrator_db_password` и CA; `api` ждёт её завершения (порядок, не запуск). (4) Таймауты миграционного профиля — WORKING: statement 60 с, lock 5 с, idle-in-transaction 60 с (технические значения, не SLO; OD-02). (5) Формат revision: filename `NNNN_intent.py`, id — hex; downgrade PDB-0001 — `NotImplementedError` (forward-fix). (6) Alembic присутствует в образе API (один образ с `migrate`); API-процесс его не импортирует (AST-тест). (7) PERSIST-002 (previous revision): до второй реальной ревизии тривиален; тест — в S05. PERSIST-004 доказан синтетической test-only ревизией с `autocommit_block` + `CREATE INDEX CONCURRENTLY` (ADR-011). |
+| Обоснование | Единственный путь DDL, сериализован, не требует суперпользователя, воспроизводим из образа. |
+| Влияние на компоненты/контракты | S05+ (ревизии), infra (Compose), CI |
+| Риски и компромиссы | Alembic в runtime-образе API — лишняя поверхность (решение: допустимо, отдельный stage — позже, G-45); значения таймаутов WORKING; `long_transaction` в preflight best-effort без `pg_read_all_stats` (G-41). |
+| Затронутые тесты | test_migration_graph, test_no_startup_migration, test_migrations (lock, superuser refusal, autocommit), runtime (migrate exit 0, idempotent rerun) |
+
+## ADR-048 — Контроль дрейфа и аудит: reviewed snapshot (pg_dump + каталог), audit SQL как release gate, positive controls
+
+| Поле | Значение |
+|---|---|
+| Статус | ACCEPTED |
+| Дата | 2026-11-11 |
+| Ответственный | Implementation Lead (делегированные полномочия, Master Implementation Initialization) |
+| Проблема и контекст | Промпт требует «Design snapshot schema_snapshot.sql + drift check» и «Grants audit автоматизирован в CI»; формат не задан. Независимое review показало, что проверки без positive control проходят вакуозно. |
+| Связанные требования | PERSIST-024, DBM-006, DBM-012, DBM-017; Blueprint §9–§10, §12 |
+| Документы и разделы | DOC-072 §9, §10, §12; DOC-068 §8 |
+| Альтернативы | Сравнение с design DDL DOC-065 (WORKING, не соответствует принятым решениям ADR-011/034); `alembic check` (не видит роли/гранты/RLS) |
+| Решение | (1) Snapshot `backend/ops/postgres/schema_snapshot.sql` = нормализованный `pg_dump --schema-only` (тот же major внутри контейнера; схемы, владельцы, ACL, default privileges, политики; без комментариев/`\\restrict`) + каталожная секция (атрибуты ролей, членства с опциями, role settings, ACL БД; без паролей). Drift = неравенство после `upgrade head`; обновление — `make db-snapshot` и ручной разбор diff; в CI установка `UPDATE_SCHEMA_SNAPSHOT` запрещена. (2) Audit SQL в `backend/ops/postgres/` (`preflight`, `postflight`, `grants_audit`, `rls_coverage`) возвращают строки-нарушения; пусто = пройдено; `audit.sh` — release gate (exit 1 при нарушении, exit 2 при ошибке/пустом файле). RLS-gate default-fail: любая таблица доменных схем без ENABLE+FORCE RLS и политики должна быть в явном `exempt` (сейчас только `platform.alembic_version`). (3) Каждая проверка имеет positive control: параметризованный тест портит состояние и ожидает конкретное имя нарушения (37 случаев), проверки отсутствующих ролей не проходят вакуозно, gate на живом стеке падает на реально испорченном состоянии. (4) Ложное срабатывание (автоматические array-типы строк таблиц) исключено явно. |
+| Обоснование | Дрейф и ослабление прав обнаруживаются автоматически и воспроизводимо; пустой результат имеет смысл только вместе с контролем. |
+| Влияние на компоненты/контракты | S05+ (каждая таблица: RLS, exempt, snapshot), CI |
+| Риски и компромиссы | Snapshot привязан к PG 16.15 (minor — осознанная перегенерация); `rls_coverage` не доказывает корректность выражения политики (это тесты S05); матрица USAGE — только snapshot и тест. |
+| Затронутые тесты | test_schema_drift (3), SABOTAGE (37), test_audits_report_missing_roles, runtime audit gate ×3 |
+
+## ADR-049 — Runtime-слой persistence: engine, Unit of Work, tenant context (один раз на транзакцию), конфигурация db_*
+
+| Поле | Значение |
+|---|---|
+| Статус | ACCEPTED |
+| Дата | 2026-11-11 |
+| Ответственный | Implementation Lead (делегированные полномочия, Master Implementation Initialization) |
+| Проблема и контекст | Blueprint §7–§8 требуют явные транзакции, transaction-local контекст и pool-политику; выбор конкретных механизмов (async, сброс контекста, ошибки begin) оставлен реализации. |
+| Связанные требования | PERSIST-008..010, DBM-008..010, DBM-014; INF-MVP |
+| Документы и разделы | DOC-072 §7, §8; DOC-068 §3, §7; ADR-008 |
+| Альтернативы | Session-level `SET`; middleware, ставящий контекст на соединение; `autobegin` сессии |
+| Решение | (1) `db/engine.py`: async engine psycopg 3, `pool_pre_ping`, `pool_recycle` из настроек, `pool_reset_on_return=rollback`; libpq `options` задают `search_path=pg_catalog`, `statement_timeout`, `lock_timeout`, `idle_in_transaction_session_timeout`; `application_name`; TLS `verify-full` (отключение допустимо только в environment local/test); пароль только из файла, URL не логируется. (2) `db/tenant_context.py`: `set_config(:name,:value,true)` с bind-параметрами, принимает только `UUID`, пустой project → `''`; политики используют `NULLIF(current_setting(…, true), '')::uuid`. (3) `db/session.py`: `UnitOfWork` — BEGIN при входе, COMMIT только при чистом выходе, ROLLBACK при любом исключении, `autobegin=False`, закрытие сессии при сбое BEGIN; `with_tenant` допускается **один раз** за транзакцию (смена tenant внутри транзакции — `RuntimeError`). (4) Поля `db_*` добавлены в строгий `Settings` (секреты — только `*_file`). (5) Import-linter: `ai_res.db` не зависит от `api`, `modules`, `llm`. |
+| Обоснование | Контекст не может пережить транзакцию или смениться внутри неё; ошибка конфигурации — отказ запуска. |
+| Влияние на компоненты/контракты | S05–S10 (репозитории, Application Services), S07 (Policy Engine ставит контекст после авторизации) |
+| Риски и компромиссы | S04 не содержит доменных таблиц: поведение RLS проверено на test-only probe-таблице с политикой формы DOC-069; реальные политики и негативные тесты — S05. GUC-контекст не защищает от произвольного SQL под API-идентичностью (Strategy §1.12) — документированное ограничение. |
+| Затронутые тесты | test_tenant_context (11), test_db_layer (unit), мутация session-level SET обнаружена |

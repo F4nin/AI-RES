@@ -15,7 +15,7 @@ contracts-baseline:
 	rm -rf baseline.new && mkdir -p baseline.new && cp -R openapi asyncapi json-schema baseline.new/ && \
 	rm -rf baseline && mv baseline.new baseline
 
-.PHONY: backend-install backend-check backend-test
+.PHONY: backend-install backend-check backend-test backend-test-unit db-snapshot
 
 backend-install:
 	cd backend && uv sync --locked
@@ -23,8 +23,17 @@ backend-install:
 backend-check:
 	cd backend && uv run --locked ruff check . && uv run --locked mypy && uv run --locked lint-imports
 
+# Includes PostgreSQL integration tests (needs Docker; Testcontainers). Skipping them is NOT evidence.
 backend-test:
 	cd backend && uv run --locked pytest -q
+
+# Fast subset without Docker (graph, config, tenant-context argument safety, import rules).
+backend-test-unit:
+	cd backend && uv run --locked pytest -q tests/unit tests/architecture
+
+# Regenerate the reviewed design snapshot (PERSIST-024). Review `git diff backend/ops/postgres/schema_snapshot.sql` before committing.
+db-snapshot:
+	cd backend && UPDATE_SCHEMA_SNAPSHOT=1 uv run --locked pytest -q tests/integration/postgres/test_schema_drift.py::test_migrated_schema_matches_committed_snapshot -rs
 
 .PHONY: infra-install infra-check infra-test infra-verify-digests
 
@@ -65,6 +74,15 @@ down:
 reset:
 	@test "$(CONFIRM)" = "yes" || { echo "reset deletes the local Postgres/MinIO volumes; run: make reset CONFIRM=yes"; exit 1; }
 	$(COMPOSE) down --volumes --remove-orphans
+
+# The migration job (Blueprint §10): the only place `alembic upgrade head` runs. Needs a running Postgres (`make up`); never called from API startup.
+.PHONY: migrate test-integration
+migrate:
+	$(COMPOSE) run --rm --no-deps migrate
+
+# PostgreSQL 16 integration suites (Testcontainers; needs Docker).
+test-integration:
+	cd backend && uv run --locked pytest -q tests/integration
 
 # Dependency audit of the locked runtime set (ADR-037 layer 1). Network-dependent (vulnerability database).
 backend-audit:

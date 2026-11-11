@@ -213,3 +213,141 @@ ADRS.append(dict(id="ADR-041", title="Platform primitives S02: курсоры, �
   context="S02 реализует примитивы без БД; DOC-006 §16 задаёт таксономию ошибок, но не форму курсора, не источник request id и не форму портов S07. Review S02 (fastapi/security/type-design) выявил 500-ответ без корреляции, утечки в spans/логах, слабые порты.", reqs="API-MVP (общие HTTP правила); SEC-MVP; OBS", docs="DOC-006 §5, §16; ADR-008, ADR-024, ADR-025, ADR-027; security.md",
   alts="Starlette exception handler для 500; ck-подобные библиотеки пагинации; структурное логирование через structlog", decision="(1) Курсор: `base64url(payload).base64url(HMAC-SHA256)`, MAC с префиксом домена `ai-res.cursor.v1`, payload = версия, key id, subject, audience (endpoint+сортировка), digest фильтров (организация/проект передаются в фильтрах), `exp`, keyset; TTL обязателен (значение задаёт контракт endpoint — WORKING); невалидный курсор → 400 `VALIDATION_ERROR` (остальные ошибки валидации — 422). (2) Error boundary — innermost middleware: 500 формируется внутри стека, поэтому request id, traceparent и span применяются; в spans нет exception message/stacktrace (только статус ERROR), в логах только тип исключения. (3) Request id: валидный клиентский принимается (fullmatch), иначе генерируется; traceparent — дочерний span от валидного входящего контекста, в ответе traceparent собственного span. (4) Логи: extras под `ctx`, redaction по ключам и значениям, uvicorn.error/access через тот же formatter, query string отбрасывается. (5) Порты S07: `Principal`, `ServiceIdentity`, `PolicyDecision` (валидируется), `AuditRecord` (enum outcome), `IdempotencyStorePort` с `begin/complete` и состояниями NEW/REPLAY/IN_PROGRESS/CONFLICT; `decide_fail_closed` требует timeout, возвращает только ALLOW. (6) Конфиг: unknown/регистр/секрет в env — отказ запуска; `create_app_from_env` требует cursor key file. (7) 412 `VERSION_CONFLICT` для устаревшего ETag; 409 `AGGREGATE_VERSION_CONFLICT` — на уровне хранилища.",
   why="Закрывает fail-open пути и утечки, найденные тремя независимыми ревью; формы портов фиксируются до S07.", impact="S07, S08–S12, S13", risks="Формат курсора и TTL — WORKING; идемпотентность port принимает plaintext-ключ (HMAC внутри реализации S07)", tests="backend/tests/unit/test_platform.py (56 тестов), tests/architecture/test_import_rules.py"))
+
+# ADR-042…049 were first written directly into the log (S03/S04); `date` overrides D per entry.
+ADRS.append(dict(
+  id='ADR-042',
+  title='MinIO и mc собираются из закреплённых исходников (официальный образ недоступен)',
+  status='ACCEPTED',
+  date='2026-11-11',
+  owner='Implementation Lead (делегированные полномочия, Master Implementation Initialization)',
+  context='DOC-015 §5.3/§12.2 требуют MinIO и образ по digest; `minio/minio` и `quay.io/minio/minio` публично недоступны (pull denied), сообщество публикует архивные или сторонние образы.',
+  reqs='INF-MVP (MinIO), THR-017',
+  docs='DOC-015 §5.3, §12.2, §14',
+  alts='`bitnamilegacy/minio` (архив без патчей); `ghcr.io/coollabsio/minio` (неизвестная модель доверия); отложить MinIO (запрет пустых сервисов). Выбор владельца в сессии S03: сборка из исходников.',
+  decision='`infra/images/minio/Dockerfile`: multi-stage, `golang:1.27.4-bookworm@digest`; `git clone --branch <tag>` + проверка commit SHA (minio `RELEASE.2025-10-15T17-29-55Z` 9e49d5e…, mc `RELEASE.2025-08-13T08-35-41Z` 7394ce0…); `go get` минимальных исправленных версий уязвимых транзитивных зависимостей (x/net, x/crypto, compress, grpc, amqp091-go, thrift, jsonparser, go-jose, otel sdk — списки по деревьям); рантайм `debian:bookworm-slim@digest`, non-root uid 10002, `/data` принадлежит рантайм-пользователю. Не исправленные prometheus CVE — в `vulnerability-exceptions.yaml`.',
+  why='Воспроизводимый источник под контролем проекта; находки сканера сокращены с 44/27 до 2/2 HIGH/CRITICAL; сборка и runtime-набор проходят.',
+  impact='S03, S27, S28, S32',
+  risks='Мы отвечаем за патчинг MinIO (поддержка community-ветки неясна); AGPL-3.0 — license review перед релизом; изменённый граф зависимостей не проверялся апстримом (смягчение: runtime-набор bucket/versioning).',
+  tests='runtime: MinIO healthy, бакеты и versioning через новый mc; скан собственных образов 0 HIGH/CRITICAL с исключениями',
+))
+
+ADRS.append(dict(
+  id='ADR-043',
+  title='Supply chain S03: SBOM, скан образов, политика исключений',
+  status='ACCEPTED',
+  date='2026-11-11',
+  owner='Implementation Lead (делегированные полномочия, Master Implementation Initialization)',
+  context='DOC-015 §14 требует SBOM, vulnerability scan, управление исключениями; первый скан дал десятки HIGH/CRITICAL во всех собственных образах и сотни в сторонних.',
+  reqs='THR-017, THR-013, DOC-015 §14',
+  docs='DOC-015 §12.2, §14.1–14.7',
+  alts='Блокировать все образы (стек не собрать до апстрим-патчей); не блокировать ничего; cosign на всё (нет подписей у большинства вендоров).',
+  decision='Syft (SPDX JSON) и Trivy запускаются из образов, закреплённых по digest, над архивами `docker save` (docker.sock не монтируется). Собственные образы `ai-res/*` — блокирующий gate (exit 1 при HIGH/CRITICAL с доступным исправлением); сторонние закреплённые образы — report-only в `infra/releases/scan/` и в KNOWN_GAPS. Исключения: `infra/security/vulnerability-exceptions.yaml` (cve, component, rationale, compensating_controls, owner, expires); просроченная или неполная запись падает. Даты expires — предложения Implementation Lead. Backend: pip-audit по locked runtime-зависимостям. Образ api без pip/setuptools (вендоренные библиотеки давали HIGH).',
+  why='Gate достижим и честен: блокирует то, что мы можем исправить, и не скрывает остальное.',
+  impact='S03, S37',
+  risks='Сторонние образы остаются с известными HIGH/CRITICAL (Temporal server 146, UI 117, admin-tools 291, otel 61, Postgres 26 на момент S03); подписи cosign не проверяются; Trivy 0.58.1 — устаревший сканер, обновляется Renovate.',
+  tests='tests/test_vuln_exceptions.py; supply_chain.sh на живых образах (exit 0)',
+))
+
+ADRS.append(dict(
+  id='ADR-044',
+  title='Состав и жёсткость локального стека S03 (образы, сети, healthchecks, секреты в процессах)',
+  status='ACCEPTED',
+  date='2026-11-11',
+  owner='Implementation Lead (делегированные полномочия, Master Implementation Initialization)',
+  context='Нужен воспроизводимый локальный стек, удовлетворяющий DOC-015 §9 и промпту S03, при конкретных ограничениях образов и отсутствии health-эндпоинта в контракте.',
+  reqs='INF-MVP-001..041, THR-005, THR-013, PERSIST-023 (сетевая часть), ADR-020, ADR-028, ADR-036',
+  docs='DOC-015 §4.4, §5, §6, §9; DOC-019 §3–4',
+  alts='Один сетевой сегмент; publish admin-портов на loopback; `temporalio/auto-setup`; стандартный entrypoint Postgres с POSTGRES_PASSWORD_FILE.',
+  decision='(1) Образы по tag+digest: Caddy 2.11.9, Postgres 16.15, Temporal server 1.29.7 / admin-tools 1.29.7 / UI 2.49.1, otel-collector 0.116.1, python 3.13.18; (2) сети ingress (единственная не-internal, только Caddy), app/data/admin — `internal: true` (egress deny-by-default, нет шлюза), egress — без участников до S15/S16/S28; наружу `127.0.0.1:8443`; Temporal UI и MinIO console — только admin, недоступны с хоста; Manager/Worker никогда не в data; (3) Caddy пересобран без file capability (`setcap -r`), иначе exec падает при cap_drop ALL; (4) Postgres: собственный entrypoint (`initdb --pwfile`, SCRAM-only, TLS с локальным CA, `pg_hba.conf` по ролям/БД с финальным `reject`, перезаписывается при старте), потому что штатный экспортирует POSTGRES_PASSWORD в окружение процесса; Temporal/provisioning подключаются по TLS с проверкой хоста; (5) Temporal: пароль читается из secret-файла в окружение только процесса `temporal-server`/`temporal-sql-tool` (шаблон конфига принимает пароль лишь из env) — вне `docker inspect`, исключение явно описано; отдельная `temporal_visibility_db` под ролью `temporal` (visibility-схема Temporal конфликтует по `schema_version` с основной) — деталь реализации Temporal, не доменная БД; namespace `ai-res`, retention 72h — WORKING dev default (OD-02); (6) api healthcheck — liveness (любой HTTP-ответ), т.к. health-эндпоинт без контракта запрещён; otel-collector без healthcheck (distroless) — исключение в check_compose; (7) лимиты памяти/pids — WORKING dev значения; (8) schema `langgraph` и роль `ai_res_checkpointer` создаются provisioning-job (ADR-036), доменные роли — S05.',
+  why='Соответствие baseline при проверяемых отклонениях, каждое зафиксировано.',
+  impact='S03, S04, S05, S11, S13, S23',
+  risks='Третья БД Temporal; пароль Temporal виден в /proc процесса; liveness ≠ readiness; Manager/Worker → Temporal сеть не решена (G-38).',
+  tests='runtime: 77 тестов (сегментация, egress, hardening, секреты, роли); tests/test_check_compose.py: 27',
+))
+
+ADRS.append(dict(
+  id='ADR-045',
+  title='Схема dev-секретов: SOPS+age, случайные значения, идемпотентная материализация',
+  status='ACCEPTED',
+  date='2026-11-11',
+  owner='Implementation Lead (делегированные полномочия, Master Implementation Initialization)',
+  context='DOC-019 §3 / DOC-015 §11.4: секреты в Git только зашифрованными; default credentials запрещены; локальный запуск из чистого клона.',
+  reqs='SEC-MVP (secrets), DOC-019 §3, §8',
+  docs='DOC-019 §3–4, §8; DOC-015 §9.3, §11.4',
+  alts='Секреты в `.env`; фиксированные dev-пароли; генерация при каждом запуске.',
+  decision='`make secrets-dev` (`infra/scripts/secrets_dev.py`): age-ключ создаётся вне репозитория (`~/.config/ai-res/age/keys.txt`, 0600, отказ при широких правах), секреты — `secrets.token_urlsafe(48)`, шифруются SOPS в `infra/secrets/encrypted/local.enc.yaml`, расшифровка в `infra/secrets/runtime/` (git-ignored, 0600/0700). Существующие секреты не перегенерируются; материализация идемпотентна и пишет файлы на месте (замена файлов ломает bind mount запущенных контейнеров — найдено тестом). В CI (`AI_RES_SECRETS_WORLD_READABLE=1`) файлы 0644/0755 из-за Linux bind mount с разными uid контейнеров. Сканер репозитория (`scan_secrets.py`) ищет ключи, литеральные присвоения, URL с учётными данными, текущие значения секретов и незашифрованные файлы в `encrypted/`. Зашифрованный файл per-machine (age-ключ разработчика), не коммитится; DOC-015 §17.17 («секреты в Git зашифрованы SOPS») относится к общим секретам поставки, которых в S03 нет. Локальный TLS CA/сертификат Postgres генерируются вместе с секретами.',
+  why='Нет default credentials и plaintext в Git; воспроизводимо; ключ вне репозитория.',
+  impact='S03, S07',
+  risks='Файл `local.enc.yaml` per-machine и не коммитится (git-ignored): шифрован под ключ конкретной машины, на чужой машине и в CI секреты генерируются заново, при отсутствии ключа и наличии файла — явная ошибка; ротация и аудит доступа не реализованы (runbook DOC-019 §5 — позже); sops/age ставятся brew (локально) и из закреплённых релизов (CI), хэш age закреплён по первому проверенному скачиванию (апстрим не публикует checksums).',
+  tests='runtime: секреты отсутствуют в inspect/env/логах/слоях образов; tests/test_scan_secrets.py: 8',
+))
+
+ADRS.append(dict(
+  id='ADR-046',
+  title='Роли PostgreSQL S04: provisioning под суперпользователем, ревизия PDB-0001 только проверяет, drift-коррекция',
+  status='ACCEPTED',
+  date='2026-11-11',
+  owner='Implementation Lead (делегированные полномочия, Master Implementation Initialization)',
+  context='Промпт S04 требует «PDB-0001: создание schemas, ролей». Но `ai_res_migrator` по Strategy §1.5/§2 не имеет CREATEROLE, а пароли не задаются SQL-миграцией (Strategy §2, DOC-069 §3): роли и пароли миграция создать не может. DOC-069 (WORKING) — шаблон, не исполнимая история.',
+  reqs='PERSIST-005..007, DBM-006, DBM-012, DBM-016; SEC P0',
+  docs='DOC-068 §1.5–§1.9, §2; DOC-072 §9; DOC-069 (WORKING); ADR-015, ADR-034, ADR-036',
+  alts='(а) Выдать migrator CREATEROLE (нарушает DOC-068 §1.8); (б) создавать роли в ревизии под суперпользователем (migrator не суперпользователь); (в) provisioning вне Alembic + проверка в ревизии',
+  decision='(в). `infra/config/postgres/provision_roles.sql` (psql, суперпользователь, часть one-shot `postgres-provision`; тот же файл использует тестовый harness) создаёт группы `*_group` (NOLOGIN) и LOGIN-роли `ai_res_migrator/api/outbox_dispatcher/event_consumer/auditor/backup` (+ `ai_res_checkpointer_group`, членство `ai_res_checkpointer`), задаёт SCRAM-пароли из Compose secrets, атрибуты (NOSUPERUSER/NOCREATEDB/NOCREATEROLE/NOREPLICATION/NOBYPASSRLS), владельца БД, `GRANT CONNECT`, role-level `search_path=pg_catalog`, `statement_timeout 15s`, `lock_timeout 2s`, `idle_in_transaction_session_timeout 30s` (значения шаблона DOC-069 §8, WORKING). Скрипт **идемпотентен и возвращает к эталону**: снимает любые членства вне ожидаемого набора (`REVOKE … GRANTED BY`), сбрасывает ADMIN OPTION и явно задаёт опции (`WITH ADMIN FALSE, INHERIT, SET`), `RESET ALL` для role-wide и role-in-database настроек, отзывает лишние `CONNECT`, возвращает владельца БД. Группы — `INHERIT TRUE, SET FALSE`; migrator→owner — `INHERIT FALSE, SET TRUE`. Ревизия PDB-0001 выполняет fail-fast preflight (роли существуют, атрибуты, NOLOGIN у групп, нет членства в owner, search_path зафиксирован, `platform` принадлежит owner) и **ничего не чинит**; затем создаёт 17 схем (`CREATE SCHEMA … AUTHORIZATION ai_res_owner`, строго, без IF NOT EXISTS), `REVOKE ALL … FROM PUBLIC`, `GRANT USAGE` группам (api: все 18 схем; outbox: operations, agents, audit; consumer: operations, agents, execution, audit; auditor: audit — по ADR-034), `ALTER DEFAULT PRIVILEGES FOR ROLE ai_res_owner REVOKE … FROM PUBLIC` (содержательно — для функций и типов). `public`: у PUBLIC отозваны все права (в т.ч. USAGE); расширениям в `public` (pgvector, S27) потребуется отдельное явное решение. `ai_res_backup`: роль без прав на данные и без строки в `pg_hba`; профиль привилегий — S32. `postgres` в `pg_hba` не ограничен по адресу (наследие S03, G-44).',
+  why='Соблюдает DOC-068 (migrator без CREATEROLE, пароли вне миграций) и даёт проверяемую базовую линию: слабая настройка ролей останавливает миграцию целиком (транзакционный DDL откатывает схемы). Drift-коррекция закрывает класс «ручная выдача прав переживает повторный provisioning» — найден тестами.',
+  impact='S03 (provision.sh, hba, secrets), S05+ (грантовые ревизии наследуют роли)',
+  risks='Отклонение от формулировки промпта («ревизия создаёт роли») обосновано DOC-068; миграция не может быть «самодостаточной» на пустом кластере — нужен provisioning (так же, как для БД и `langgraph` в S03). Редактирование уже применённой ревизии: PDB-0001 правилась до первого общего применения, только локальный dev и тестовые контейнеры.',
+  tests='test_migrations (sabotage ×5, drift-коррекция), test_roles_and_grants (атрибуты, SCRAM, DDL-отказы, матрица USAGE), SABOTAGE ×37, runtime test_persistence',
+))
+
+ADRS.append(dict(
+  id='ADR-047',
+  title='Миграционная среда S04: Alembic env, SET ROLE owner, advisory lock, одноразовая служба `migrate`, WORKING-таймауты',
+  status='ACCEPTED',
+  date='2026-11-11',
+  owner='Implementation Lead (делегированные полномочия, Master Implementation Initialization)',
+  context='Blueprint §4.2/§10 задают требования к env.py и отдельному migration job, но не конкретику: как создать schema `platform` для `alembic_version`, как сериализовать запуски, как запускать job в образе, какие таймауты.',
+  reqs='PERSIST-001, -003, -004, -020; DBM-001..003',
+  docs='DOC-072 §4, §8, §10; DOC-068 §4; DOC-064 §11; ADR-003, ADR-011, ADR-035',
+  alts='Запуск миграции при старте API (запрещён); отдельный образ migrate; `Base.metadata.create_all` (запрещён)',
+  decision="(1) `alembic.ini` без DSN, `script_location = ai_res.db:migrations` (работает и из установленного пакета в образе). (2) `env.py`: настройки только из `AI_RES_DB_*` (пароль — файл), отказ под SUPERUSER/BYPASSRLS, `pg_advisory_lock(hashtextextended('ai_res.alembic.migrations',0))` (ожидание ограничено `lock_timeout`), `SET ROLE ai_res_owner`, bootstrap-исключение `CREATE SCHEMA IF NOT EXISTS platform` (Alembic создаёт version table до первой ревизии), `version_table_schema=platform`, allowlist 18 схем через `include_name` (нет `public`, `temporal`, `langgraph`), `compare_type=True`, `compare_server_default=False` до первого drift review; вложенный cleanup в `finally` (rollback → RESET ROLE → unlock с проверкой результата). (3) Одноразовая Compose-служба `migrate`: тот же образ `ai-res/api:dev`, команда `alembic upgrade head`, TLS verify-full, секреты — только `migrator_db_password` и CA; `api` ждёт её завершения (порядок, не запуск). (4) Таймауты миграционного профиля — WORKING: statement 60 с, lock 5 с, idle-in-transaction 60 с (технические значения, не SLO; OD-02). (5) Формат revision: filename `NNNN_intent.py`, id — hex; downgrade PDB-0001 — `NotImplementedError` (forward-fix). (6) Alembic присутствует в образе API (один образ с `migrate`); API-процесс его не импортирует (AST-тест). (7) PERSIST-002 (previous revision): до второй реальной ревизии тривиален; тест — в S05. PERSIST-004 доказан синтетической test-only ревизией с `autocommit_block` + `CREATE INDEX CONCURRENTLY` (ADR-011).",
+  why='Единственный путь DDL, сериализован, не требует суперпользователя, воспроизводим из образа.',
+  impact='S05+ (ревизии), infra (Compose), CI',
+  risks='Alembic в runtime-образе API — лишняя поверхность (решение: допустимо, отдельный stage — позже, G-45); значения таймаутов WORKING; `long_transaction` в preflight best-effort без `pg_read_all_stats` (G-41).',
+  tests='test_migration_graph, test_no_startup_migration, test_migrations (lock, superuser refusal, autocommit), runtime (migrate exit 0, idempotent rerun)',
+))
+
+ADRS.append(dict(
+  id='ADR-048',
+  title='Контроль дрейфа и аудит: reviewed snapshot (pg_dump + каталог), audit SQL как release gate, positive controls',
+  status='ACCEPTED',
+  date='2026-11-11',
+  owner='Implementation Lead (делегированные полномочия, Master Implementation Initialization)',
+  context='Промпт требует «Design snapshot schema_snapshot.sql + drift check» и «Grants audit автоматизирован в CI»; формат не задан. Независимое review показало, что проверки без positive control проходят вакуозно.',
+  reqs='PERSIST-024, DBM-006, DBM-012, DBM-017; Blueprint §9–§10, §12',
+  docs='DOC-072 §9, §10, §12; DOC-068 §8',
+  alts='Сравнение с design DDL DOC-065 (WORKING, не соответствует принятым решениям ADR-011/034); `alembic check` (не видит роли/гранты/RLS)',
+  decision='(1) Snapshot `backend/ops/postgres/schema_snapshot.sql` = нормализованный `pg_dump --schema-only` (тот же major внутри контейнера; схемы, владельцы, ACL, default privileges, политики; без комментариев/`\\\\restrict`) + каталожная секция (атрибуты ролей, членства с опциями, role settings, ACL БД; без паролей). Drift = неравенство после `upgrade head`; обновление — `make db-snapshot` и ручной разбор diff; в CI установка `UPDATE_SCHEMA_SNAPSHOT` запрещена. (2) Audit SQL в `backend/ops/postgres/` (`preflight`, `postflight`, `grants_audit`, `rls_coverage`) возвращают строки-нарушения; пусто = пройдено; `audit.sh` — release gate (exit 1 при нарушении, exit 2 при ошибке/пустом файле). RLS-gate default-fail: любая таблица доменных схем без ENABLE+FORCE RLS и политики должна быть в явном `exempt` (сейчас только `platform.alembic_version`). (3) Каждая проверка имеет positive control: параметризованный тест портит состояние и ожидает конкретное имя нарушения (37 случаев), проверки отсутствующих ролей не проходят вакуозно, gate на живом стеке падает на реально испорченном состоянии. (4) Ложное срабатывание (автоматические array-типы строк таблиц) исключено явно.',
+  why='Дрейф и ослабление прав обнаруживаются автоматически и воспроизводимо; пустой результат имеет смысл только вместе с контролем.',
+  impact='S05+ (каждая таблица: RLS, exempt, snapshot), CI',
+  risks='Snapshot привязан к PG 16.15 (minor — осознанная перегенерация); `rls_coverage` не доказывает корректность выражения политики (это тесты S05); матрица USAGE — только snapshot и тест.',
+  tests='test_schema_drift (3), SABOTAGE (37), test_audits_report_missing_roles, runtime audit gate ×3',
+))
+
+ADRS.append(dict(
+  id='ADR-049',
+  title='Runtime-слой persistence: engine, Unit of Work, tenant context (один раз на транзакцию), конфигурация db_*',
+  status='ACCEPTED',
+  date='2026-11-11',
+  owner='Implementation Lead (делегированные полномочия, Master Implementation Initialization)',
+  context='Blueprint §7–§8 требуют явные транзакции, transaction-local контекст и pool-политику; выбор конкретных механизмов (async, сброс контекста, ошибки begin) оставлен реализации.',
+  reqs='PERSIST-008..010, DBM-008..010, DBM-014; INF-MVP',
+  docs='DOC-072 §7, §8; DOC-068 §3, §7; ADR-008',
+  alts='Session-level `SET`; middleware, ставящий контекст на соединение; `autobegin` сессии',
+  decision="(1) `db/engine.py`: async engine psycopg 3, `pool_pre_ping`, `pool_recycle` из настроек, `pool_reset_on_return=rollback`; libpq `options` задают `search_path=pg_catalog`, `statement_timeout`, `lock_timeout`, `idle_in_transaction_session_timeout`; `application_name`; TLS `verify-full` (отключение допустимо только в environment local/test); пароль только из файла, URL не логируется. (2) `db/tenant_context.py`: `set_config(:name,:value,true)` с bind-параметрами, принимает только `UUID`, пустой project → `''`; политики используют `NULLIF(current_setting(…, true), '')::uuid`. (3) `db/session.py`: `UnitOfWork` — BEGIN при входе, COMMIT только при чистом выходе, ROLLBACK при любом исключении, `autobegin=False`, закрытие сессии при сбое BEGIN; `with_tenant` допускается **один раз** за транзакцию (смена tenant внутри транзакции — `RuntimeError`). (4) Поля `db_*` добавлены в строгий `Settings` (секреты — только `*_file`). (5) Import-linter: `ai_res.db` не зависит от `api`, `modules`, `llm`.",
+  why='Контекст не может пережить транзакцию или смениться внутри неё; ошибка конфигурации — отказ запуска.',
+  impact='S05–S10 (репозитории, Application Services), S07 (Policy Engine ставит контекст после авторизации)',
+  risks='S04 не содержит доменных таблиц: поведение RLS проверено на test-only probe-таблице с политикой формы DOC-069; реальные политики и негативные тесты — S05. GUC-контекст не защищает от произвольного SQL под API-идентичностью (Strategy §1.12) — документированное ограничение.',
+  tests='test_tenant_context (11), test_db_layer (unit), мутация session-level SET обнаружена',
+))
+
