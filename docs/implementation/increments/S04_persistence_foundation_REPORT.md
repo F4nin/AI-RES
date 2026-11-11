@@ -74,7 +74,7 @@ Registry v4.1: все нормативные источники промпта �
 `reviews/S04_REVIEWS.md`: CRITICAL 0, HIGH 0; все MEDIUM исправлены или записаны (G-41…G-45). Повторный проход агентов после исправлений не выполнялся.
 
 ## 12. Не выполненные проверки, ограничения, риски
-G-41 (preflight long_transaction best-effort), G-42 (пароль литералом в `ALTER ROLE`), G-43 (Linux-CI закрыт; Testcontainers без TLS остаётся), G-44 (`postgres` в hba без CIDR), G-45 (Alembic в образе API), G-46 (ADR вне `adrs.py`), G-47 (PERSIST-002/005–014 полно — S05; backup — S32). PERSIST-015/016 — S10, -021 — S32, -022 — S37 (ADR-035). Значения таймаутов — WORKING.
+G-41 (preflight long_transaction best-effort), G-42 (пароль литералом в `ALTER ROLE`), G-43 (Linux-CI закрыт; Testcontainers без TLS остаётся), G-44 (`postgres` в hba без CIDR), G-45 (Alembic в образе API), G-46 (ADR вне `adrs.py` — закрыт 2026-11-11), G-47 (PERSIST-002/005–014 полно — S05; backup — S32). PERSIST-015/016 — S10, -021 — S32, -022 — S37 (ADR-035). Значения таймаутов — WORKING.
 
 ## 13. Обновлённые документы и статусы
 STATUS (S04 VERIFIED), ADL (ADR-046…049), KNOWN_GAPS (G-41…G-47), REQUIREMENTS_TRACEABILITY (24 строки), ECC_USAGE, LOCAL_DEVELOPMENT, CONTEXT_HANDOFF, `docs/runbooks/migrations.md`, reviews. Не обновлялись: `prompts/README.md` (генерируется, G-46), DECISIONS_PENDING (новых вопросов к владельцу нет), CONTRACT_TRACEABILITY_MAP (контракты не менялись).
@@ -94,4 +94,4 @@ STATUS (S04 VERIFIED), ADL (ADR-046…049), KNOWN_GAPS (G-41…G-47), REQUIREMEN
 - ✅ Критических открытых дефектов нет
 
 ## 15. Можно ли начинать следующий этап
-Да, S05 (Core tenant и execution schema + RLS): зависимость S04 выполнена (ADR-032). Перед S05 рекомендуется решить G-46.
+Да, S05 (Core tenant и execution schema + RLS): зависимость S04 выполнена (ADR-032). G-46 закрыт; блокеров перед S05 нет.

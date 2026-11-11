@@ -177,7 +177,7 @@ STAGES = [
   dod=["`make backend-check` (ruff, mypy --strict, pytest) зелёный.", "Все перечисленные negative tests присутствуют и проходят.", "Redaction доказана тестом.", "Нет доменной логики-заглушки, выдаваемой за реализацию."]),
 
  dict(id="S03", slug="local_infrastructure_secrets_ci", title="Local infrastructure (Docker Compose), secrets и CI baseline", spec="— (DOC-015; добавлено ADR-010)", phase="A. Foundation",
-  deps=["S02"], gate="READY", blockers=[], reqs=["INF-MVP-001..041", "SEC-MVP (secrets)"],
+  deps=["S02"], gate="DONE", blockers=[], reqs=["INF-MVP-001..041", "SEC-MVP (secrets)"],
   goal="Воспроизводимый локальный стек с pinned digests, сетевой сегментацией и Compose secrets; CI, исполняющий backend и contract checks.",
   refs=[R(INF, "§2, §3, §4, §5, §6 Состав Docker Compose, §9 Сетевая архитектура, §11, §12, §14, §17"), R(SK, "§2–§4, §7, §8"), R(SEC, "§2 (сегментация)"), R(OBS, "§4 Стек MVP"), "`.claude/rules/security.md` — «Секреты»"],
   scope=["`infra/compose.yaml` (+ `compose.dev.yaml`, `compose.test.yaml`): reverse proxy Caddy (ADR-020), api, postgres 16 (ai_res_db + temporal_db), temporal server + schema setup job (ADR-028), temporal-ui (admin network), minio (+ init job), otel-collector. Manager/Worker runtime services — заготовки только когда появится код (S11/S23), не пустые контейнеры.",
@@ -200,7 +200,7 @@ STAGES = [
   dod=["`make up` поднимает стек из чистого клона; `make down` чистит.", "Негативные проверки сегментации и секретов проходят.", "CI исполняет все проверки S01–S03."]),
 
  dict(id="S04", slug="persistence_foundation", title="Persistence foundation: Alembic, schemas, роли", spec="Spec Add. v1.18–v1.19; Blueprint §14 шаги 1–3, 5 (частично)", phase="B. Persistence & Identity",
-  deps=["S03"], gate="PENDING_DEPS", blockers=[], reqs=["PERSIST-001, -002 и ролевые PERSIST-*", "DBM-*"],
+  deps=["S03"], gate="DONE", blockers=[], reqs=["PERSIST-001, -002 и ролевые PERSIST-*", "DBM-*"],
   goal="Alembic environment со schema allowlist, отдельный migration job, PDB-0001 (schemas, owner/migrator/runtime роли, grants), engine/session/tenant context.",
   refs=[R(BP, "§2, §3, §4 Alembic configuration contract, §5 (PDB-0001), §7, §8, §9, §10, §14"), R(MIG, "§1, §2 Ролевая модель, §3, §4, §6"), R(RLS, "весь файл (адаптировать)"), R(PM, "§3, §10"), R(IAM, "Дополнение 1.2, v1.3"), R(SK, "§4"), "`.claude/rules/database-and-migrations.md`"],
   scope=["Pinned SQLAlchemy 2.x, Alembic, psycopg 3 (async), Testcontainers.",
@@ -220,7 +220,7 @@ STAGES = [
   dod=["PERSIST-тесты этапа проходят на PostgreSQL 16 (Testcontainers).", "Grants audit автоматизирован в CI.", "`.claude/rules/database-and-migrations.md` согласован с ADR-015."]),
 
  dict(id="S05", slug="core_tenant_execution_schema_rls", title="Core tenant и execution schema + RLS", spec="Blueprint §5 PDB-0002…0007, 0009, 0010 (greenfield ADR-011); Spec Add. v1.17", phase="B. Persistence & Identity",
-  deps=["S04"], gate="PENDING_DEPS", blockers=[], reqs=["DATA-MVP", "PERSIST-001..024", "TX-01..TX-09 (persistence части)"],
+  deps=["S04"], gate="READY", blockers=[], reqs=["DATA-MVP", "PERSIST-001..024", "TX-01..TX-09 (persistence части)"],
   goal="Таблицы iam/organization/project/work/operations/agents/execution/audit/platform с ограничениями целостности, sequences, outbox/inbox/idempotency, RLS ENABLE+FORCE и полным PERSIST acceptance suite.",
   refs=[R(DM, "§5, §11, §13, §14, §15, §16, §17; Дополнения v1.3–v1.9"), R(PM, "§3–§9, §11, §12"), R(DDL, "весь файл (design snapshot, WORKING)"), R(BP, "§5, §7, §9, §12, §14"), R(ORG, "§2, §3, §5; Дополнения v1.2–v1.6"), R(EM, "§8, §9, §10"), R(RLS, "весь файл"), R(SM, "статусы Operation/WorkerRun/Gate")],
   scope=["iam: users, credentials (Argon2id hash поля), sessions, mfa, service_identities; organization: organizations, memberships; project: projects, project_memberships.",
