@@ -9,7 +9,7 @@
 | S00 | Repository reconnaissance и baseline manifest | IMPLEMENTED (static evidence) | Воспроизводимость проверок — в S01 | [report](increments/S00_repository_reconnaissance_REPORT.md) |
 | S01 | Contract toolchain и CI-валидация контрактов | VERIFIED (G-20, G-21 открыты) | DONE | [report](increments/S01_contract_toolchain_REPORT.md) |
 | S02 | Backend skeleton и platform primitives (без БД) | VERIFIED (56 тестов; 2 прохода review; G-22 открыт) | DONE | [report](increments/S02_backend_skeleton_platform_primitives_REPORT.md) |
-| S03 | Local infrastructure (Docker Compose), secrets и CI baseline | VERIFIED (локально, 2026-11-11): runtime 81 + статика 76, backend 58, contracts 19; повторное независимое review (security, silent-failure) — 0 открытых HIGH/CRITICAL; CI на удалённом Linux не запускался (G-27, остаточный риск) | DONE (ADR-032); слой 4 ADR-037 (security owner) — на S37 | [report](increments/S03_local_infrastructure_secrets_ci_REPORT.md) |
+| S03 | Local infrastructure (Docker Compose), secrets и CI baseline | VERIFIED (локально и на GitHub Actions Linux, 2026-11-11): runtime 81 + статика 76, backend 58, contracts 19; повторное независимое review (security, silent-failure) — 0 открытых HIGH/CRITICAL; CI на Linux зелёный (G-27 закрыт, runs 42980598813, 42980597940) | DONE (ADR-032); слой 4 ADR-037 (security owner) — на S37 | [report](increments/S03_local_infrastructure_secrets_ci_REPORT.md) |
 | S04 | Persistence foundation: Alembic, schemas, роли | NOT_STARTED | PENDING_DEPS | — |
 | S05 | Core tenant и execution schema + RLS | NOT_STARTED | PENDING_DEPS | — |
 | S06 | Domain content schema: requirements, sources, artifacts, context, decisions, traceability, rules | NOT_STARTED | PENDING_DEPS | — |
@@ -54,7 +54,7 @@
 | Contract toolchain | VERIFIED | S01 |
 | Backend API | NOT_STARTED | S02, S07–S12 |
 | PostgreSQL `ai_res_db` (миграции, роли, RLS) | NOT_STARTED | S04–S06 |
-| Docker Compose / secrets / CI | VERIFIED (локально; CI удалённо не запускался, G-27) | S03 |
+| Docker Compose / secrets / CI | VERIFIED (локально и на GitHub Actions) | S03 |
 | Outbox / Inbox | NOT_STARTED | S10 |
 | Temporal, Manager Runtime, Worker Runtime | NOT_STARTED | S11, S20, S23 |
 | LangGraph | NOT_STARTED | S23 |
