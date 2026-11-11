@@ -119,3 +119,45 @@ def migrated(empty_db: Pg, upgrade: Callable[..., None]) -> Pg:
 
 def run_audit(conn: psycopg.Connection[Any], name: str) -> list[tuple[str, str]]:
     return [(r[0], r[1]) for r in conn.execute((BACKEND / "ops" / "postgres" / name).read_text().encode()).fetchall()]
+
+
+# ---------- S07 shared fixtures: organizations/users seeded by the superuser, runtime engines under the real API role ----------
+class IamWorld:
+    """Two organizations, each with one ACTIVE user, plus a factory for runtime engines (password via file, like production)."""
+
+    def __init__(self, pg: Pg, tmp_path: Path) -> None:
+        import uuid
+        self.pg, self.tmp_path = pg, tmp_path
+        self.org_a, self.org_b = uuid.uuid4(), uuid.uuid4()
+        self.user_a, self.user_b = uuid.uuid4(), uuid.uuid4()
+        self._engines: list[Any] = []
+        with pg.connect() as c:
+            for org, user, mail in ((self.org_a, self.user_a, "a@example.com"), (self.org_b, self.user_b, "b@example.com")):
+                c.execute("INSERT INTO organization.organizations (id, name) VALUES (%s, 'o')", [org])
+                c.execute("INSERT INTO iam.users (id, organization_id, email, email_normalized, display_name) VALUES (%s,%s,%s,%s,'u')",
+                          [user, org, mail, mail])
+                c.execute("INSERT INTO organization.memberships (id, organization_id, user_id, role_code) "
+                          "VALUES (gen_random_uuid(), %s, %s, 'AUDITOR')", [org, user])  # an active member (login and sessions require it)
+
+    def engine(self, role: str = "ai_res_api") -> Any:
+        from ai_res.db.engine import create_runtime_engine
+        from ai_res.platform.config import load_settings
+        pw = self.tmp_path / f"{role}_pw"
+        pw.write_text(self.pg.passwords[role])
+        settings = load_settings({
+            "AI_RES_ENVIRONMENT": "test", "AI_RES_DB_HOST": self.pg.host, "AI_RES_DB_PORT": str(self.pg.port), "AI_RES_DB_USER": role,
+            "AI_RES_DB_PASSWORD_FILE": str(pw), "AI_RES_DB_SSLMODE": "disable", "AI_RES_DB_APPLICATION_NAME": f"test-{role}", "AI_RES_DB_POOL_SIZE": "8"})
+        eng = create_runtime_engine(settings)
+        self._engines.append(eng)
+        return eng
+
+    async def dispose(self) -> None:
+        for eng in self._engines:
+            await eng.dispose()
+
+
+@pytest.fixture
+async def iam_world(migrated: Pg, tmp_path: Path) -> Any:
+    world = IamWorld(migrated, tmp_path)
+    yield world
+    await world.dispose()

@@ -35,7 +35,7 @@ backend-test-unit:
 db-snapshot:
 	cd backend && UPDATE_SCHEMA_SNAPSHOT=1 uv run --locked pytest -q tests/integration/postgres/test_schema_drift.py::test_migrated_schema_matches_committed_snapshot -rs
 
-.PHONY: infra-install infra-check infra-test infra-verify-digests
+.PHONY: infra-scan-secrets infra-install infra-check infra-test infra-verify-digests
 
 infra-install:
 	cd infra && uv sync --locked
@@ -54,7 +54,7 @@ infra-test:
 infra-verify-digests:
 	cd infra && uv run --locked python scripts/verify_digests.py
 
-.PHONY: secrets-dev secrets-clean up down reset backend-audit infra-test-runtime
+.PHONY: secrets-dev secrets-clean up down reset backend-audit infra-test-runtime bootstrap
 secrets-dev:
 	cd infra && uv run --locked python scripts/secrets_dev.py init
 
@@ -65,6 +65,12 @@ COMPOSE := docker compose -f infra/compose.yaml -f infra/compose.dev.yaml
 up: secrets-dev infra-check
 	$(COMPOSE) up -d --build --remove-orphans
 	cd infra && uv run --locked python scripts/wait_stack.py
+
+# One-time first administrator (Auth v1.1 §3.3). Prompts for the bootstrap secret (infra/secrets/runtime/bootstrap_secret) and the password; nothing is passed via argv or env.
+# Usage: make bootstrap ORG="Acme" EMAIL=admin@example.com NAME="Ada Admin"
+bootstrap:
+	@test -n "$(ORG)" -a -n "$(EMAIL)" -a -n "$(NAME)" || { echo 'usage: make bootstrap ORG="…" EMAIL=… NAME="…"'; exit 1; }
+	$(COMPOSE) run --rm --build bootstrap --organization-name "$(ORG)" --admin-email "$(EMAIL)" --admin-name "$(NAME)"
 
 # Stops the stack and removes containers and networks; named data volumes (Postgres, MinIO) are KEPT.
 down:
@@ -95,5 +101,8 @@ infra-test-runtime:
 # Everything CI runs, in one command, before opening or updating a PR. A change to migrations/schema/contracts affects checks outside backend/ too
 # (S05: a runtime test pinned the S04 migration head and failed in CI only). Starts the local stack (`make up` applies migrations to the LOCAL dev DB).
 .PHONY: pre-pr
-pre-pr: contracts-check contracts-test backend-check backend-test infra-check up infra-test infra-test-runtime
+infra-scan-secrets:
+	cd infra && uv run --locked python scripts/scan_secrets.py
+
+pre-pr: contracts-check contracts-test backend-check backend-test infra-check infra-scan-secrets up infra-test infra-test-runtime
 	@echo "pre-pr: all CI-equivalent checks passed. Linux CI on GitHub Actions is still the final evidence."

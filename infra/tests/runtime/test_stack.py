@@ -1,5 +1,6 @@
 """S03 mandatory runtime tests (prompt §9) against the live stack. Every negative check has a positive control so a broken probe
 cannot pass silently."""
+import base64
 import http.client
 import json
 import socket
@@ -113,6 +114,45 @@ def test_reverse_proxy_egress_is_open_by_design_documented_gap():
     assert out in ("OPEN", "CLOSED")
 
 
+# --- S07 identity surface through the proxy ---------------------------------------------------------------------------------
+def _request(method, path, *, headers=None, body=None):
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    c = http.client.HTTPSConnection("localhost", 8443, context=ctx, timeout=10)
+    c.request(method, path, body=body, headers=headers or {})
+    r = c.getresponse()
+    return r.status, {k.lower(): v for k, v in r.getheaders()}, r.read()
+
+
+LOGIN = json.dumps({"email": "nobody@example.invalid", "password": "not the password at all"})
+JSON = {"Content-Type": "application/json"}
+
+
+def test_me_without_a_session_is_a_problem_json_401_through_the_proxy():
+    status, h, body = _request("GET", "/api/v1/me")
+    assert status == 401 and h["content-type"].startswith("application/problem+json") and h["cache-control"] == "no-store"
+    assert json.loads(body)["code"] == "AUTHENTICATION_REQUIRED" and "set-cookie" not in h
+
+
+def test_login_origin_policy_with_positive_control():
+    status, h, body = _request("POST", "/api/v1/auth/login", headers={**JSON, "Origin": "https://localhost:8443"}, body=LOGIN)
+    assert status in (401, 422) and "set-cookie" not in h  # positive control: the allowed origin reaches the handler (an unknown organization is a 422/401, never a session)
+    for origin in ("https://evil.example", "null"):
+        status, h, _ = _request("POST", "/api/v1/auth/login", headers={**JSON, "Origin": origin}, body=LOGIN)
+        assert status == 403 and "set-cookie" not in h
+    assert _request("POST", "/api/v1/auth/login", headers=JSON, body=LOGIN)[0] == 403  # no Origin/Referer at all
+
+
+def test_cors_is_deny_by_default_through_the_proxy():
+    status, h, _ = _request("OPTIONS", "/api/v1/auth/login", headers={"Origin": "https://localhost:8443", "Access-Control-Request-Method": "POST"})
+    assert status in (404, 405) and not any(k.startswith("access-control-") for k in h)
+
+
+def test_bootstrap_job_is_not_started_by_the_stack():
+    assert sh(["docker", "ps", "-a", "--filter", "label=com.docker.compose.service=bootstrap", "--format", "{{.Names}}"]).stdout.strip() == ""
+
+
 # --- Caddy headers -----------------------------------------------------------------------------------------------------------
 def _get(path="/"):
     ctx = ssl.create_default_context()
@@ -214,7 +254,7 @@ def test_secret_values_are_not_in_image_layers(image, tmp_path, secret_values):
 
 def test_secrets_mounted_only_into_services_that_need_them():
     expect = {
-        "api": {"cursor_hmac_key"},
+        "api": {"cursor_hmac_key", "api_db_password", "postgres_tls_ca_cert", "mfa_encryption_key"},  # never bootstrap_secret (S07)
         "postgres": {"postgres_superuser_password", "postgres_tls_server_cert", "postgres_tls_server_key"},
         "migrate": {"migrator_db_password", "postgres_tls_ca_cert"},
         "temporal": {"temporal_db_password", "postgres_tls_ca_cert"},
@@ -230,7 +270,10 @@ def test_secrets_mounted_only_into_services_that_need_them():
 
 def test_no_default_credentials_secrets_are_random_and_distinct(secret_values):
     vals = [v for k, v in secret_values.items() if k != "minio_root_user" and not k.startswith("postgres_tls_")]
-    assert len(set(vals)) == len(vals) and all(len(v) >= 48 for v in vals)
+    assert len(set(vals)) == len(vals)
+    # mfa_encryption_key is base64 of exactly 32 random bytes (44 chars): its strength is the key size, not the text length
+    assert all(len(v) >= 48 for k, v in secret_values.items() if k not in ("minio_root_user", "mfa_encryption_key") and not k.startswith("postgres_tls_"))
+    assert len(base64.b64decode(secret_values["mfa_encryption_key"], validate=True)) == 32
     assert all(w not in v.lower() for v in vals for w in ("password", "changeme", "minioadmin", "admin"))
 
 

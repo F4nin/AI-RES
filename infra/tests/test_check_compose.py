@@ -275,3 +275,58 @@ def test_load_model_renders_all_profiles():
     import inspect
 
     assert '"--profile", "*"' in inspect.getsource(cc.load_model)
+
+
+# --- S07: identity secrets -----------------------------------------------------------------------------------------
+def bootstrap_model(**over):
+    svc = good_service(networks={"data": None}, restart="no", secrets=[{"source": "api_db_password"}, {"source": "bootstrap_secret"}], profiles=["bootstrap"])
+    svc.pop("healthcheck")
+    svc.update(over)
+    return mutate(lambda m: m["services"].update({"bootstrap": svc}))
+
+
+def test_bootstrap_job_may_hold_the_bootstrap_secret_but_the_api_may_not():
+    assert run(bootstrap_model()) == []
+    assert has(run(mutate(lambda m: m["services"]["api"].update(secrets=[{"source": "bootstrap_secret"}]))), "not allowed to have")  # the one-time secret never reaches the API
+    assert has(run(bootstrap_model(secrets=[{"source": "mfa_encryption_key"}])), "not allowed to have")  # and the job gets no MFA key
+
+
+def test_api_gets_runtime_db_identity_and_mfa_key_but_no_other_identity():
+    ok = [{"source": s} for s in ("cursor_hmac_key", "api_db_password", "postgres_tls_ca_cert", "mfa_encryption_key")]
+    assert run(mutate(lambda m: m["services"]["api"].update(secrets=ok))) == []
+    for other in ("migrator_db_password", "outbox_db_password", "postgres_superuser_password"):
+        assert has(run(mutate(lambda m, o=other: m["services"]["api"].update(secrets=[{"source": o}]))), "not allowed to have")
+
+
+def test_bootstrap_job_is_hardened_like_every_other_service():
+    assert has(run(bootstrap_model(read_only=False)), "read_only")
+    assert has(run(bootstrap_model(networks={"ingress": None})), "not allowed on the ingress network")
+
+
+# --- ADR-071: trusted proxy address ------------------------------------------------------------------------------
+def trusted_model(cidr="172.28.20.2/32", fixed="172.28.20.2", ip_range="172.28.20.128/25"):
+    m = copy.deepcopy(good_model())
+    m["services"]["api"]["environment"] = {"AI_RES_TRUSTED_PROXY_CIDRS": cidr}
+    m["services"]["reverse-proxy"]["networks"] = {"ingress": None, "app": {"ipv4_address": fixed} if fixed else None}
+    cfg = {"subnet": "172.28.20.0/24"}
+    if ip_range:
+        cfg["ip_range"] = ip_range
+    m["networks"]["app"] = {"internal": True, "ipam": {"config": [cfg]}}
+    return m
+
+
+def test_trusted_proxy_setup_passes_when_pinned_and_outside_the_dynamic_range():
+    assert run(trusted_model()) == []
+
+
+def test_trusted_proxy_cidr_must_be_exactly_the_proxy_address():
+    assert has(run(trusted_model(cidr="172.28.20.0/24")), "must be exactly the reverse-proxy address")
+
+
+def test_trusted_proxy_needs_a_fixed_address():
+    assert has(run(trusted_model(fixed=None)), "no fixed ipv4_address")
+
+
+def test_dynamic_range_must_exclude_the_proxy_address():
+    assert has(run(trusted_model(ip_range=None)), "ip_range must exclude")
+    assert has(run(trusted_model(ip_range="172.28.20.0/24")), "ip_range must exclude")

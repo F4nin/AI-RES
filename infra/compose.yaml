@@ -16,7 +16,9 @@ x-oneshot: &oneshot
 
 networks:
   ingress: {}                # only the reverse proxy; the single non-internal network that publishes a host port
-  app: { internal: true }    # API and (later) Manager/Worker runtimes
+  app:                       # API and (later) Manager/Worker runtimes; fixed subnet so the API can trust X-Forwarded-For from the proxy address only (ADR-071, WORKING)
+    internal: true
+    ipam: { config: [ { subnet: 172.28.20.0/24, ip_range: 172.28.20.128/25 } ] }  # dynamic addresses come from .128-.255; .2 (Caddy) is never handed out to another container
   data: { internal: true }   # PostgreSQL, Temporal, MinIO
   egress: {}                 # controlled egress (LLM Gateway, Connector Platform): no members until S15/S16/S28
   admin: { internal: true }  # Temporal UI, MinIO console: never reachable from ingress
@@ -34,6 +36,8 @@ secrets:
   minio_root_user: { file: ./secrets/runtime/minio_root_user }
   minio_root_password: { file: ./secrets/runtime/minio_root_password }
   cursor_hmac_key: { file: ./secrets/runtime/cursor_hmac_key }
+  mfa_encryption_key: { file: ./secrets/runtime/mfa_encryption_key }
+  bootstrap_secret: { file: ./secrets/runtime/bootstrap_secret }
   postgres_tls_ca_cert: { file: ./secrets/runtime/postgres_tls_ca_cert }
   postgres_tls_server_cert: { file: ./secrets/runtime/postgres_tls_server_cert }
   postgres_tls_server_key: { file: ./secrets/runtime/postgres_tls_server_key }
@@ -49,7 +53,9 @@ services:
     image: ai-res/caddy:2.11.9
     user: "65532:65532"
     mem_limit: 128m
-    networks: [ingress, app]
+    networks:
+      ingress: {}
+      app: { ipv4_address: 172.28.20.2 }  # the only peer the API trusts for X-Forwarded-For
     ports:
       - { host_ip: 127.0.0.1, target: 8443, published: "8443", protocol: tcp }
     volumes:
@@ -75,7 +81,16 @@ services:
     environment:
       AI_RES_ENVIRONMENT: prod
       AI_RES_CURSOR_HMAC_KEY_FILE: /run/secrets/cursor_hmac_key
-    secrets: [cursor_hmac_key]
+      AI_RES_DB_HOST: postgres
+      AI_RES_DB_USER: ai_res_api  # least-privilege runtime identity; no DDL, no BYPASSRLS (DBM roles)
+      AI_RES_DB_PASSWORD_FILE: /run/secrets/api_db_password
+      AI_RES_DB_SSLMODE: verify-full
+      AI_RES_DB_SSLROOTCERT_FILE: /run/secrets/postgres_tls_ca_cert
+      AI_RES_DB_APPLICATION_NAME: ai-res-api
+      AI_RES_MFA_ENCRYPTION_KEY_FILE: /run/secrets/mfa_encryption_key
+      AI_RES_ALLOWED_ORIGINS: https://localhost:8443  # the Caddy endpoint; exact origins only, CORS stays deny-by-default
+      AI_RES_TRUSTED_PROXY_CIDRS: 172.28.20.2/32  # Caddy only; with this unset every client would look like one address
+    secrets: [cursor_hmac_key, api_db_password, postgres_tls_ca_cert, mfa_encryption_key]
     tmpfs:
       - /tmp:uid=10001,gid=10001,mode=0700
     depends_on:
@@ -87,6 +102,33 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+
+  # One-time first-administrator bootstrap (Auth v1.1 §3.3): `make bootstrap ORG=… EMAIL=… NAME=…`. Profile-gated: never started by `make up`.
+  bootstrap:
+    <<: *oneshot
+    profiles: ["bootstrap"]
+    build: { context: ../backend, dockerfile: Dockerfile }
+    image: ai-res/api:dev
+    user: "10001:10001"
+    mem_limit: 256m
+    networks: [data]
+    stdin_open: true
+    tty: true
+    entrypoint: ["python", "-m", "ai_res.cli.bootstrap"]
+    environment:
+      AI_RES_ENVIRONMENT: prod
+      AI_RES_DB_HOST: postgres
+      AI_RES_DB_USER: ai_res_api
+      AI_RES_DB_PASSWORD_FILE: /run/secrets/api_db_password
+      AI_RES_DB_SSLMODE: verify-full
+      AI_RES_DB_SSLROOTCERT_FILE: /run/secrets/postgres_tls_ca_cert
+      AI_RES_DB_APPLICATION_NAME: ai-res-bootstrap
+      AI_RES_BOOTSTRAP_SECRET_FILE: /run/secrets/bootstrap_secret
+    secrets: [api_db_password, postgres_tls_ca_cert, bootstrap_secret]
+    tmpfs:
+      - /tmp:uid=10001,gid=10001,mode=0700
+    depends_on:
+      migrate: { condition: service_completed_successfully }
 
   postgres:
     <<: *hardened

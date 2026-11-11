@@ -203,3 +203,31 @@ def test_overlay_directory_rules(tmp_path, monkeypatch):
     (ext / "a.yaml").write_text("x-status: WORKING\nx-source: [DOC-023]\nsecurity: []\n")
     _, errs = L.merged_document("openapi", OAS)
     assert any("may only extend" in e for e in errs)     # cannot add top-level security
+
+
+# ---- S07 identity overlay ----
+IDENTITY_OVERLAY = C / "openapi/extensions/identity_auth.yaml"
+
+
+def test_identity_overlay_is_working_and_every_post_is_idempotent_or_explicitly_exempt():
+    ov = L.load(IDENTITY_OVERLAY)
+    assert ov["x-status"] == "WORKING" and ov["x-source"]
+    for path, item in ov["paths"].items():
+        for method, op in item.items():
+            if method == "post":
+                assert len(op.get("x-idempotency-exempt", "")) >= 20, f"{path}: POST without Idempotency-Key needs a written reason"
+
+
+def test_identity_overlay_cannot_override_canonical_paths(tmp_path):
+    doc, errs = L.merged_document("openapi", OAS)
+    assert errs == [] and "/auth/login" in doc["paths"] and "/me" in doc["paths"]
+    ov = L.load(IDENTITY_OVERLAY)
+    _, redefine = L.merge_overlay(L.load(OAS), {"paths": {"/me": {"get": {"operationId": "other"}}}})
+    assert redefine and ov  # redefining a canonical operation is an error
+
+
+def test_identity_login_never_documents_a_session_in_the_body_schema():
+    ov = L.load(IDENTITY_OVERLAY)
+    props = ov["components"]["schemas"]["SessionInfo"]["properties"]
+    assert not {"token", "sessionToken", "session"} & set(props)  # the session secret travels only in the HttpOnly cookie
+    assert ov["components"]["schemas"]["LoginRequest"]["properties"]["password"]["writeOnly"] is True

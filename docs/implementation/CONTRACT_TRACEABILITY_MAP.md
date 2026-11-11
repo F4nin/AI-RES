@@ -7,7 +7,7 @@
 
 | operationId | Метод / путь | Агрегат | Таблица | Заголовки контракта | События | Этап |
 |---|---|---|---|---|---|---|
-| getCurrentUser | GET /me | User/Session | `iam.*` (ADR-016) | cookie session | — | S07 |
+| getCurrentUser | GET /me | User/Session | `iam.*` (ADR-016) | cookie session | — | S07 — IMPLEMENTED/TESTED (`test_identity_http`, live stack) |
 | listProjects | GET /projects | Project | `project.projects` (ADR-016) | Limit, Cursor | — | S08 |
 | createProject | POST /projects | Project | `project.projects` | Idempotency-Key; ETag в 201 | ProjectCreated | S09 |
 | getProject | GET /projects/{projectId} | Project | `project.projects` | ETag | — | S08 |
@@ -52,3 +52,15 @@
 
 Есть в DDL: `operations.operations`, `operations.operation_events`, `agents.worker_runs`, `agents.worker_run_events`, `execution.readiness_evaluations`, `execution.readiness_check_results`, `platform.idempotency_records`, `audit.outbox_events`, `audit.inbox_messages`.
 Требуются DOC-064 v1.2, но отсутствуют в DDL (DR-09): `agents.worker_results`, `audit.audit_events`, `work.task_dependencies`; `work.tasks` — только ALTER.
+
+## Overlay S07 — `contracts/openapi/extensions/identity_auth.yaml` (WORKING, ADR-038/063; формализация — NCP-06)
+
+| operationId | Метод / путь | Агрегат | Таблица | Заголовки контракта | События | Этап / тесты |
+|---|---|---|---|---|---|---|
+| login | POST /auth/login | Session | `iam.sessions`, `iam.credentials` | Origin; `x-idempotency-exempt` | — (аудит `AUTH_LOGIN_*`) | S07 — `test_identity_http`, `test_iam_login` |
+| logout | POST /auth/logout | Session | `iam.sessions` | Origin, X-CSRF-Token | — | S07 — `test_identity_http` |
+| getCsrfToken | GET /auth/csrf | Session | `iam.sessions` | cookie | — | S07 |
+| changePassword | POST /auth/password | Credential | `iam.credentials` | Origin, X-CSRF-Token | — | S07 — `test_identity_http`, `test_iam_login` |
+| beginMfaEnrollment | POST /auth/mfa/enrollment | MFA factor | `iam.mfa_factors` | Origin, X-CSRF-Token | — | S07 — `test_iam_mfa` |
+| confirmMfaEnrollment | POST /auth/mfa/enrollment/confirm | MFA factor | `iam.mfa_factors`, `iam.mfa_recovery_codes` | Origin, X-CSRF-Token | — | S07 |
+| verifyMfa | POST /auth/mfa/verify | Session | `iam.sessions`, `iam.mfa_factors` | Origin, X-CSRF-Token | — | S07 |
