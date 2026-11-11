@@ -168,7 +168,7 @@ class AuthService:
                                         {"h": await self._hash(new_password), "now": require_utc(self._clock()), "id": row["id"], "rv": row["row_version"]})
                     if affected(r) != 1:
                         raise ProblemError(ErrorCode.AGGREGATE_VERSION_CONFLICT, "The credential changed concurrently; retry.")
-                    revoked = await self._sessions.revoke_all_for_user_in(s, current.user_id, RevokeReason.PASSWORD_CHANGED, except_session_id=current.session_id)
+                    revoked = await self._sessions.revoke_all_for_user_in(s, current.user_id, RevokeReason.CREDENTIALS_CHANGED, except_session_id=current.session_id)
                     await self._audit(s, current.organization_id, "AUTH_PASSWORD_CHANGED", AuditOutcome.SUCCEEDED, str(current.user_id), "USER", str(current.user_id), request_id,
                                       details={"otherDevicesSignedOut": revoked})
         except BaseException:

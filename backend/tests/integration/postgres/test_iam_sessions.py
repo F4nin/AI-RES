@@ -138,7 +138,7 @@ async def test_revoke_all_for_user_spares_the_excepted_session_and_other_users(s
     keep = await svc.create(iam_world.org_a, iam_world.user_a)
     other = await svc.create(iam_world.org_a, iam_world.user_a)
     foreign = await svc.create(iam_world.org_b, iam_world.user_b)
-    assert await svc.revoke_all_for_user(iam_world.org_a, iam_world.user_a, RevokeReason.PASSWORD_CHANGED, except_session_id=keep.session_id) == 1
+    assert await svc.revoke_all_for_user(iam_world.org_a, iam_world.user_a, RevokeReason.CREDENTIALS_CHANGED, except_session_id=keep.session_id) == 1
     assert (await svc.authenticate(keep.token)).session is not None
     assert (await svc.authenticate(other.token)).failure is AuthFailure.REVOKED
     assert (await svc.authenticate(foreign.token)).session is not None

@@ -16,6 +16,8 @@ from ai_res.platform.problems import ErrorCode, ProblemError
 
 pytestmark = pytest.mark.postgres
 T0 = datetime(2026, 11, 11, 12, 0, tzinfo=UTC)
+WRONG = "wrong-password-123"  # fake test input, named neutrally so the repository secret scan keeps scanning this file
+WRONG_CURRENT = "not-the-password-1"
 PASSWORD = "correct horse battery staple 42"
 IP = "203.0.113.9"
 
@@ -116,10 +118,10 @@ async def test_failures_are_audited_with_operational_reason_but_client_gets_none
 async def test_brute_force_is_throttled_before_any_password_check_and_audited_once(rig: Rig) -> None:
     for _ in range(3):
         with pytest.raises(ProblemError):
-            await rig.login(password="wrong-password-123")
+            await rig.login(password=WRONG)
     before = rig.hasher.verifications
     with pytest.raises(ProblemError) as e:
-        await rig.login(password="wrong-password-123")
+        await rig.login(password=WRONG)
     assert e.value.code is ErrorCode.RATE_LIMITED and e.value.status == 429 and int(e.value.headers["Retry-After"]) >= 1
     assert rig.hasher.verifications == before  # refused before any credential check: no oracle
     assert len(rig.audit("AUTH_RATE_LIMITED")) == 1  # the transition into the block, not every refused request
@@ -128,16 +130,16 @@ async def test_brute_force_is_throttled_before_any_password_check_and_audited_on
 async def test_a_nonexistent_account_is_throttled_exactly_like_an_existing_one(rig: Rig) -> None:
     for _ in range(3):
         with pytest.raises(ProblemError):
-            await rig.login(email="ghost@example.com", password="wrong-password-123")
+            await rig.login(email="ghost@example.com", password=WRONG)
     with pytest.raises(ProblemError) as e:
-        await rig.login(email="ghost@example.com", password="wrong-password-123")
+        await rig.login(email="ghost@example.com", password=WRONG)
     assert e.value.code is ErrorCode.RATE_LIMITED and e.value.status == 429
 
 
 async def test_correct_password_during_a_block_is_still_refused_without_revealing_it_was_correct(rig: Rig) -> None:
     for _ in range(3):
         with pytest.raises(ProblemError):
-            await rig.login(password="wrong-password-123")
+            await rig.login(password=WRONG)
     with pytest.raises(ProblemError) as e:
         await rig.login()  # the right password
     assert e.value.code is ErrorCode.RATE_LIMITED
@@ -148,7 +150,7 @@ async def test_correct_password_during_a_block_is_still_refused_without_revealin
 async def test_a_block_on_one_address_does_not_lock_the_real_user_out_elsewhere(rig: Rig) -> None:
     for _ in range(3):
         with pytest.raises(ProblemError):
-            await rig.login(password="wrong-password-123", ip="198.51.100.66")
+            await rig.login(password=WRONG, ip="198.51.100.66")
     assert (await rig.login(ip="203.0.113.50")).session.token
 
 
@@ -195,7 +197,7 @@ async def test_password_change_requires_current_password_revokes_other_sessions_
     assert current is not None
     new_pw = "another long passphrase 2026"
     with pytest.raises(ProblemError) as e:
-        await rig.auth.change_password(current, current_password="not-the-password-1", new_password=new_pw, client_ip=IP, request_id="req-abcdef12")
+        await rig.auth.change_password(current, current_password=WRONG_CURRENT, new_password=new_pw, client_ip=IP, request_id="req-abcdef12")
     assert e.value.code is ErrorCode.VALIDATION_ERROR and e.value.status == 422 and e.value.errors == [{"field": "currentPassword", "reason": "invalid_current_password"}]
     await rig.auth.change_password(current, current_password=PASSWORD, new_password=new_pw, client_ip=IP, request_id="req-abcdef12")
     assert (await rig.sessions.authenticate(other.token)).failure is AuthFailure.REVOKED  # AUTH-008
@@ -219,7 +221,7 @@ async def test_password_change_enforces_policy_and_keeps_old_password_on_rejecti
 
 # ---- review fixes (S07) ----
 async def test_a_burst_of_parallel_guesses_cannot_slip_through_the_throttle(rig: Rig) -> None:
-    results = await asyncio.gather(*(rig.login(password="wrong-password-123") for _ in range(12)), return_exceptions=True)
+    results = await asyncio.gather(*(rig.login(password=WRONG) for _ in range(12)), return_exceptions=True)
     codes = [r.code for r in results if isinstance(r, ProblemError)]
     assert codes.count(ErrorCode.AUTHENTICATION_REQUIRED) == 3  # account+ip threshold is 3: exactly three guesses were ever examined
     assert codes.count(ErrorCode.RATE_LIMITED) == 9

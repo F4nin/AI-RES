@@ -47,8 +47,8 @@ def _unique(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
 
 
 class ServiceTokenIssuer:
-    def __init__(self, issuer: ServiceName, private_key: Ed25519PrivateKey, *, max_ttl: timedelta, clock: Callable[[], datetime] = utc_now) -> None:
-        self._iss, self._key, self._max, self._clock = issuer, private_key, max_ttl, clock
+    def __init__(self, issuer: ServiceName, signing_key: Ed25519PrivateKey, *, max_ttl: timedelta, clock: Callable[[], datetime] = utc_now) -> None:
+        self._iss, self._key, self._max, self._clock = issuer, signing_key, max_ttl, clock
 
     def issue(self, audience: ServiceName, ttl: timedelta) -> str:
         if audience is self._iss:

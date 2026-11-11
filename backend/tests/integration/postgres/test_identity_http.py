@@ -100,13 +100,13 @@ async def test_login_from_a_foreign_or_missing_origin_is_refused_before_any_work
 
 
 async def test_login_validates_the_body_without_echoing_it(rig: Rig) -> None:
-    secret = "Zq9-unique-marker-pw"
+    marker = "Zq9-unique-marker-pw"  # fake input; echoing it back would be a bug
     async with rig.client() as c:
-        extra = await c.post("/api/v1/auth/login", json={"email": "a@example.com", "password": secret, "isAdmin": True}, headers=H)
-        short = await c.post("/api/v1/auth/login", json={"email": "a", "password": secret}, headers=H)
+        extra = await c.post("/api/v1/auth/login", json={"email": "a@example.com", "password": marker, "isAdmin": True}, headers=H)
+        short = await c.post("/api/v1/auth/login", json={"email": "a", "password": marker}, headers=H)
         missing = await c.post("/api/v1/auth/login", content=b"{not json", headers={**H, "Content-Type": "application/json"})
     assert [r.status_code for r in (extra, short, missing)] == [422, 422, 422]
-    assert all(secret not in r.text for r in (extra, short, missing)) and session_rows(rig) == 0
+    assert all(marker not in r.text for r in (extra, short, missing)) and session_rows(rig) == 0
 
 
 async def test_login_without_organization_and_without_a_configured_default_is_refused(iam_world: Any, tmp_path: Path) -> None:

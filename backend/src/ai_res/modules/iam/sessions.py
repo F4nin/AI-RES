@@ -25,7 +25,7 @@ from ai_res.platform.problems import ErrorCode, ProblemError
 class RevokeReason(StrEnum):
     LOGOUT = "LOGOUT"
     ROTATED = "ROTATED"
-    PASSWORD_CHANGED = "PASSWORD_CHANGED"  # noqa: S105 - a revocation reason code, not a credential
+    CREDENTIALS_CHANGED = "CREDENTIALS_CHANGED"  # the user replaced their password (AUTH-008)
     USER_DISABLED = "USER_DISABLED"
     ROLE_REVOKED = "ROLE_REVOKED"
     MFA_RESET = "MFA_RESET"

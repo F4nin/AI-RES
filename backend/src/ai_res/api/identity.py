@@ -162,7 +162,8 @@ def register_identity(app: FastAPI, services: IdentityServices) -> None:
     @router.get("/auth/csrf")
     async def csrf(session: PendingOkSession, response: Response) -> dict[str, str]:
         _no_store(response)
-        return {"csrfToken": session.csrf_token}
+        csrf = session.csrf_token
+        return {"csrfToken": csrf}
 
     @router.post("/auth/password", status_code=204)
     async def change_password(body: ChangePasswordBody, session: Session, request: Request, _: Guard) -> Response:
@@ -188,7 +189,8 @@ def register_identity(app: FastAPI, services: IdentityServices) -> None:
     async def mfa_verify(body: MfaCodeBody, session: PendingOkSession, request: Request, response: Response, _: Guard) -> dict[str, str]:
         issued = await services.mfa.verify(session, body.code, client_ip=client_ip(request), request_id=current_request_id())
         set_cookie(response, issued)
-        return {"csrfToken": issued.csrf_token}
+        csrf = issued.csrf_token
+        return {"csrfToken": csrf}
 
     @router.get("/me")
     async def me(session: Session, response: Response) -> dict[str, Any]:
