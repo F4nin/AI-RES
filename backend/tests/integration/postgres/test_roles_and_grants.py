@@ -151,7 +151,7 @@ SABOTAGE = [
     ("ALTER DATABASE ai_res_db OWNER TO postgres", "postflight.sql", "database_not_owned_by_owner"),
     ("DROP TABLE platform.alembic_version", "postflight.sql", "missing_version_table"),
     ("INSERT INTO platform.alembic_version VALUES ('x')", "postflight.sql", "version_table_rows"),
-    ("DROP SCHEMA requirements", "postflight.sql", "missing_schema"),
+    ("DROP SCHEMA requirements CASCADE", "postflight.sql", "missing_schema"),
     ("GRANT TRUNCATE ON platform.alembic_version TO ai_res_api_group", "grants_audit.sql", "forbidden_table_privilege"),
     ("GRANT DELETE ON platform.alembic_version TO ai_res_api", "grants_audit.sql", "api_delete_privilege"),
     ("GRANT INSERT (version_num) ON platform.alembic_version TO ai_res_auditor", "grants_audit.sql", "read_only_role_can_write"),

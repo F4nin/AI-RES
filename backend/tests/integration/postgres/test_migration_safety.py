@@ -58,10 +58,11 @@ def test_persist_002_upgrade_from_previous_revision_keeps_data_and_matches_snaps
     org, prj, epic = uuid4(), uuid4(), uuid4()
     upgrade(PREVIOUS_REVISION)
     with empty_db.connect() as c:
+        assert c.execute("SELECT version_num FROM platform.alembic_version").fetchone() == (PREVIOUS_REVISION,)  # really the previous state
+    with empty_db.connect() as c:
         c.execute("INSERT INTO organization.organizations (id, name) VALUES (%s, 'o')", [org])
         c.execute("INSERT INTO project.projects (id, organization_id, name, project_type) VALUES (%s,%s,'p','GREENFIELD')", [prj, org])
         c.execute("INSERT INTO work.epics (id, organization_id, project_id, title, status) VALUES (%s,%s,%s,'e','ACTIVE')", [epic, org, prj])
-        assert c.execute("SELECT count(*) FROM pg_policy WHERE polname LIKE 'p\\_%\\_owner\\_migration'").fetchone() == (0,)  # really the previous state: no owner policies yet
     upgrade()
     with empty_db.connect() as c:
         assert c.execute("SELECT version_num FROM platform.alembic_version").fetchone() == (HEAD,)

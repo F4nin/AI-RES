@@ -81,7 +81,7 @@ def test_audits_are_clean_and_tables_exist(seeded: Pg):
     with seeded.connect() as c:
         assert run_audit(c, "rls_coverage.sql") == [] and run_audit(c, "grants_audit.sql") == [] and run_audit(c, "postflight.sql") == []
         tables = {r[0] for r in c.execute("SELECT schemaname || '.' || tablename FROM pg_tables WHERE schemaname IN ('operations','work')")}
-        assert tables == {"operations.operation_types", "operations.operations", "operations.operation_events", "work.epics", "work.tasks", "work.task_dependencies"}
+        assert tables == {"operations.operation_types", "operations.operations", "operations.operation_events", "work.epics", "work.tasks", "work.task_dependencies", "work.task_requirements"}
         assert c.execute("SELECT count(*) FROM pg_constraint WHERE conrelid='work.tasks'::regclass AND contype='u' "
                          "AND pg_get_constraintdef(oid) = 'UNIQUE (operation_id, id)'").fetchone() == (1,)  # ADR-011/012: target of the worker_runs composite FK
 
