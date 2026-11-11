@@ -1,6 +1,6 @@
 # S04 — Persistence foundation: Alembic, schemas, роли: Increment Report
 
-**Дата:** 2026-11-11 · **Промпт:** `increments/prompts/S04_persistence_foundation.md` · **Итоговый статус:** VERIFIED (локально: Testcontainers PostgreSQL 16.15 и живой Compose-стек). **GitHub Actions на Linux для S04 не прогонялся** (G-43). Production-проверки (backup/PITR, restore, ротация секретов) вне этапа: `IMPLEMENTATION NOT VERIFIED` для production.
+**Дата:** 2026-11-11 · **Промпт:** `increments/prompts/S04_persistence_foundation.md` · **Итоговый статус:** VERIFIED (локально: Testcontainers PostgreSQL 16.15 и живой Compose-стек). **GitHub Actions на Linux зелёный** (2026-11-11, PR #2: `ci` run 42989650789, `contracts` run 42989650777; G-43). Production-проверки (backup/PITR, restore, ротация секретов) вне этапа: `IMPLEMENTATION NOT VERIFIED` для production.
 
 ## 1. Что реализовано
 - Alembic environment: allowlist 18 схем (ADR-014), `platform.alembic_version`, naming convention, `SET ROLE ai_res_owner`, advisory lock, lock/statement timeouts, offline `--sql`, отказ под SUPERUSER/BYPASSRLS.
@@ -74,14 +74,14 @@ Registry v4.1: все нормативные источники промпта �
 `reviews/S04_REVIEWS.md`: CRITICAL 0, HIGH 0; все MEDIUM исправлены или записаны (G-41…G-45). Повторный проход агентов после исправлений не выполнялся.
 
 ## 12. Не выполненные проверки, ограничения, риски
-G-41 (preflight long_transaction best-effort), G-42 (пароль литералом в `ALTER ROLE`), G-43 (нет Linux-CI; Testcontainers без TLS), G-44 (`postgres` в hba без CIDR), G-45 (Alembic в образе API), G-46 (ADR вне `adrs.py`), G-47 (PERSIST-002/005–014 полно — S05; backup — S32). PERSIST-015/016 — S10, -021 — S32, -022 — S37 (ADR-035). Значения таймаутов — WORKING.
+G-41 (preflight long_transaction best-effort), G-42 (пароль литералом в `ALTER ROLE`), G-43 (Linux-CI закрыт; Testcontainers без TLS остаётся), G-44 (`postgres` в hba без CIDR), G-45 (Alembic в образе API), G-46 (ADR вне `adrs.py`), G-47 (PERSIST-002/005–014 полно — S05; backup — S32). PERSIST-015/016 — S10, -021 — S32, -022 — S37 (ADR-035). Значения таймаутов — WORKING.
 
 ## 13. Обновлённые документы и статусы
 STATUS (S04 VERIFIED), ADL (ADR-046…049), KNOWN_GAPS (G-41…G-47), REQUIREMENTS_TRACEABILITY (24 строки), ECC_USAGE, LOCAL_DEVELOPMENT, CONTEXT_HANDOFF, `docs/runbooks/migrations.md`, reviews. Не обновлялись: `prompts/README.md` (генерируется, G-46), DECISIONS_PENDING (новых вопросов к владельцу нет), CONTRACT_TRACEABILITY_MAP (контракты не менялись).
 
 ## 14. Статус DoD
 - ✅ PERSIST-тесты этапа (001, 003, 004, 024; 002 — частично) на PostgreSQL 16 (Testcontainers) — ✅
-- ✅ Grants audit автоматизирован (gate `audit.sh`, тесты в backend и на живом стеке); подключение в GitHub Actions — через `make backend-test` и `infra-runtime` job (первый прогон на Linux не выполнен, G-43)
+- ✅ Grants audit автоматизирован (gate `audit.sh`, тесты в backend и на живом стеке); подключение в GitHub Actions — через `make backend-test` и `infra-runtime` job (первый прогон на Linux зелёный, G-43)
 - ✅ `.claude/rules/database-and-migrations.md` согласован с ADR-015 (без изменений)
 - ✅ Результаты созданы, заглушек нет (test-only ревизия и probe-таблицы — только в тестах, маркированы)
 - ✅ Тесты проверяют реальное поведение; команды и результаты выше
@@ -94,4 +94,4 @@ STATUS (S04 VERIFIED), ADL (ADR-046…049), KNOWN_GAPS (G-41…G-47), REQUIREMEN
 - ✅ Критических открытых дефектов нет
 
 ## 15. Можно ли начинать следующий этап
-Да, S05 (Core tenant и execution schema + RLS): зависимость S04 выполнена (ADR-032). Рекомендуется перед S05 один раз прогнать ветку в GitHub Actions (G-43) и решить G-46.
+Да, S05 (Core tenant и execution schema + RLS): зависимость S04 выполнена (ADR-032). Перед S05 рекомендуется решить G-46.
