@@ -1,0 +1,24 @@
+{
+	admin off
+	auto_https disable_redirects
+}
+
+# Local TLS via Caddy's internal CA; the only published endpoint of the stack (ADR-020).
+https://localhost:8443 {
+	tls internal
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		# API-only CSP (the SPA in S35 will need its own policy, owner-reviewed): nothing may be loaded or framed.
+		Content-Security-Policy "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+
+	# Caddy overwrites client-supplied forwarding headers: the application trusts X-Forwarded-For only from this proxy (ADR-020).
+	reverse_proxy api:8000 {
+		header_up X-Forwarded-For {remote_host}
+		header_up -X-Real-IP
+	}
+}

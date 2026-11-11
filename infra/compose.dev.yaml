@@ -1,0 +1,6 @@
+# Local development overrides. Never loosens hardening, networks or published ports (checked by scripts/check_compose.py).
+services:
+  api:
+    environment:
+      AI_RES_ENVIRONMENT: local
+      AI_RES_LOG_LEVEL: DEBUG

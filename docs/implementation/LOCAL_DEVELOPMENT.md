@@ -1,6 +1,6 @@
 # LOCAL_DEVELOPMENT
 
-Статус: **заготовка** — команды появляются по мере выполнения этапов; не заявлять как работающие до соответствующего отчёта.
+Статус: команды S01–S03 работают (см. отчёты); остальные — заготовка, не заявлять как работающие до соответствующего отчёта. Подробности стека: `docs/runbooks/local-stack.md`.
 
 ## Требования к машине (проверено в S00)
 
@@ -16,8 +16,9 @@ Python 3.13 (ADR-001), uv 0.11+, Docker 29 + Compose v2, Node 22 LTS для cont
 | `make contracts-test` | pytest негативных/позитивных тестов toolchain | S01 |
 | `make contracts-baseline` | Принять текущие контракты как baseline (решение владельца) | S01 |
 | `make backend-check` | ruff, mypy, unit tests | S02 |
-| `make up` / `make down` | Локальный стек Compose | S03 |
-| `make secrets-dev` | Генерация dev-секретов (без default credentials) | S03 |
+| `make secrets-dev` | Генерация dev-секретов и локального TLS Postgres (SOPS/age, без default credentials) | S03 ✅ |
+| `make up` / `make down` / `make reset CONFIRM=yes` | Стек Compose; `down` сохраняет тома, `reset` удаляет их | S03 ✅ |
+| `make infra-check` / `infra-test` / `infra-test-runtime` / `infra-verify-digests` / `backend-audit` | Политики Compose, статические и runtime-тесты, digests, аудит зависимостей | S03 ✅ |
 | `make migrate` | Отдельный migration job | S04 |
 | `make test-integration` | Testcontainers suites | S04 |
 | `make bootstrap-admin` | Одноразовое создание первого администратора | S07 |
@@ -25,6 +26,6 @@ Python 3.13 (ADR-001), uv 0.11+, Docker 29 + Compose v2, Node 22 LTS для cont
 
 ## Правила
 
-- Секреты только через `infra/secrets/encrypted` (SOPS/age) и Compose secrets; `.env` не коммитится (`.gitignore`).
+- Секреты только через SOPS/age → Compose secrets (`infra/secrets/runtime`, git-ignored); `local.enc.yaml` per-machine и не коммитится; `.env` не коммитится.
 - Миграции не запускаются из API startup.
 - Публичный порт — только reverse proxy.

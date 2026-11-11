@@ -1,0 +1,15 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", "helpers:pinGitHubActionDigests", "docker:pinDigests"],
+  "automerge": false,
+  "platformAutomerge": false,
+  "separateMajorMinor": true,
+  "separateMultipleMajor": true,
+  "dependencyDashboard": true,
+  "labels": ["dependencies"],
+  "packageRules": [
+    { "matchUpdateTypes": ["major"], "addLabels": ["breaking-review-required"] },
+    { "matchManagers": ["dockerfile", "docker-compose"], "groupName": "container images", "matchUpdateTypes": ["minor", "patch", "digest"] },
+    { "matchPackageNames": ["temporalio/server", "temporalio/admin-tools", "temporalio/ui", "postgres"], "addLabels": ["stateful-component-compat-review"] }
+  ]
+}

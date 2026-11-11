@@ -6,6 +6,7 @@
 |---|---|
 | Приложение AI RES | SemVer `MAJOR.MINOR.PATCH`; релиз связан с Release Manifest |
 | Release Manifest | Версии всех сервисов, image tag + **immutable digest**, конфигурация, schema versions (Alembic head, LangGraph checkpoint, Temporal), source commit, подписи (DOC-015 §12) |
+| Release Manifest (формат S03) | `infra/releases/release-manifest.schema.json` (WORKING, v0.1) + `infra/scripts/release_manifest.py`; подписи/миграции/профили пока не заполняются (`signature_verified` всегда false) |
 | Контейнеры | Только digest-pinned; `latest` запрещён; собственные образы — SBOM, сканирование, Cosign подпись (S37) |
 | Зависимости | `uv.lock`, `package-lock.json`; обновления — Renovate PR (DOC-015 §13), решение о включении — контролируемое |
 | Public API | Base path `/api/v1`; additive optional = non-breaking; breaking → новая major версия; `contracts/CHANGELOG.md` |

@@ -1,0 +1,5 @@
+# Test profile: environment=test is the only mode in which the deterministic LLM test double may be enabled (ADR-022).
+services:
+  api:
+    environment:
+      AI_RES_ENVIRONMENT: test

@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-res.invalid/schemas/release-manifest-0.1.json",
+  "title": "AI RES Infrastructure Release Manifest (format skeleton, DOC-015 §12.3)",
+  "description": "Status: WORKING format (S03 skeleton). Contains no secrets. Fields not yet produced by a release process are null/empty and must not be read as verified.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["manifest_version", "release_id", "ai_res_version", "release_channel", "created_at", "source_commit", "compose", "services"],
+  "properties": {
+    "manifest_version": { "const": "0.1" },
+    "release_id": { "type": "string", "minLength": 1 },
+    "ai_res_version": { "type": ["string", "null"], "description": "SemVer once a release contract exists" },
+    "release_channel": { "enum": ["dev", "rc", "release"] },
+    "created_at": { "type": "string", "format": "date-time" },
+    "source_commit": { "type": ["string", "null"], "pattern": "^[0-9a-f]{40}$" },
+    "source_tree_dirty": { "type": "boolean" },
+    "compose": {
+      "type": "object", "additionalProperties": false, "required": ["files", "rendered_sha256"],
+      "properties": {
+        "files": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "rendered_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "services": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["name", "image", "origin"],
+        "properties": {
+          "name": { "type": "string" },
+          "image": { "type": "string", "description": "repository:tag, no digest" },
+          "digest": { "type": ["string", "null"], "pattern": "^sha256:[0-9a-f]{64}$", "description": "Registry digest for third-party images; null for locally built images (built from digest-pinned bases)" },
+          "origin": { "enum": ["third-party", "built"] },
+          "sbom_sha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+          "signature_verified": { "const": false, "description": "Cosign verification is not implemented in S03; always false" }
+        }
+      }
+    },
+    "config_schema_versions": { "type": "object", "description": "Config schema / DB migration / rules versions: empty until S04+" },
+    "known_limitations": { "type": "array", "items": { "type": "string" } }
+  }
+}

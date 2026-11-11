@@ -203,13 +203,13 @@
 | DEP-MVP-12 | DOC-009 | Повторная проверка Обязательно | Новая проверка связана с | S23, S30 | NOT_STARTED |
 | DEP-MVP-13 | DOC-009 | Аудит переходов | Обязательно | S23, S30 | NOT_STARTED |
 | DEP-MVP-14 | DOC-009 | Замещение | Обязательно | S23, S30 | NOT_STARTED |
-| INF-MVP-001 | DOC-009 | Развёртывать MVP локально через Docker Compose | MVP | S03; S11; S13; S32 | NOT_STARTED |
+| INF-MVP-001 | DOC-009 | Развёртывать MVP локально через Docker Compose | MVP | S03; S11; S13; S32 | TESTED (S03) |
 | INF-MVP-002 | DOC-009 | Разделить API, Manager Runtime и общий Worker Runtime | MVP | S03; S11; S13; S32 | NOT_STARTED |
 | INF-MVP-003 | DOC-009 | Использовать Temporal как durable Workflow Engine, LangGraph — для агентной логики | MVP | S03; S11; S13; S32 | NOT_STARTED |
-| INF-MVP-004 | DOC-009 | Разделить `ai_res_db` и `temporal_db` в одном PostgreSQL instance | MVP | S03; S11; S13; S32 | NOT_STARTED |
-| INF-MVP-005 | DOC-009 | Использовать PostgreSQL Checkpointer LangGraph с отделением от доменных таблиц | MVP | S03; S11; S13; S32 | NOT_STARTED |
-| INF-MVP-006 | DOC-009 | Использовать MinIO для файловых объектов | MVP | S03; S11; S13; S32 | NOT_STARTED |
-| INF-MVP-007 | DOC-009 | Сделать Redis необязательным | MVP | S03; S11; S13; S32 | NOT_STARTED |
+| INF-MVP-004 | DOC-009 | Разделить `ai_res_db` и `temporal_db` в одном PostgreSQL instance | MVP | S03; S11; S13; S32 | TESTED (S03; + temporal_visibility_db, G-39) |
+| INF-MVP-005 | DOC-009 | Использовать PostgreSQL Checkpointer LangGraph с отделением от доменных таблиц | MVP | S03; S11; S13; S32 | PARTIAL (S03: schema+роль provisioned, TESTED; брокер — S23) |
+| INF-MVP-006 | DOC-009 | Использовать MinIO для файловых объектов | MVP | S03; S11; S13; S32 | TESTED (S03) |
+| INF-MVP-007 | DOC-009 | Сделать Redis необязательным | MVP | S03; S11; S13; S32 | TESTED (S03: Redis не включён) |
 | INF-MVP-008 | DOC-009 | Реализовать PostgreSQL backup через pgBackRest + WAL Archiving | MVP | S03; S11; S13; S32 | NOT_STARTED |
 | INF-MVP-009 | DOC-009 | Резервировать MinIO objects отдельно | MVP | S03; S11; S13; S32 | NOT_STARTED |
 | INF-MVP-010 | DOC-009 | Поддержать целевые RPO ≤ 1 часа и RTO ≤ 4 часов | Цель MVP | S03; S11; S13; S32 | NOT_STARTED |
@@ -217,9 +217,9 @@
 | INF-MVP-012 | DOC-009 | Использовать готовый LLM Gateway, не разрабатывать свой | MVP | S03; S11; S13; S32 | NOT_STARTED |
 | INF-MVP-013 | DOC-009 | Провести Bifrost PoC и security review до production-подобного использования | Gate | S03; S11; S13; S32 | NOT_STARTED |
 | INF-MVP-014 | DOC-009 | Поддержать внешний и локальный модельный provider через Gateway architecture | MVP architecture | S03; S11; S13; S32 | NOT_STARTED |
-| INF-MVP-015 | DOC-009 | Не передавать секреты в LLM context, logs, traces, Temporal History и Worker results | MVP | S03; S11; S13; S32 | NOT_STARTED |
+| INF-MVP-015 | DOC-009 | Не передавать секреты в LLM context, logs, traces, Temporal History и Worker results | MVP | S03; S11; S13; S32 | PARTIAL (S03: инфраструктура; S11/S13 — Temporal/telemetry) |
 | INF-MVP-016 | DOC-009 | Применять least privilege и scoped Worker permissions | MVP | S03; S11; S13; S32 | NOT_STARTED |
-| INF-MVP-017 | DOC-009 | Ограничить контейнеры и выполнение | MVP | S03; S11; S13; S32 | NOT_STARTED |
+| INF-MVP-017 | DOC-009 | Ограничить контейнеры и выполнение | MVP | S03; S11; S13; S32 | TESTED (S03) |
 | INF-MVP-018 | DOC-009 | Инструментировать компоненты через OpenTelemetry | MVP | S03; S11; S13; S32 | NOT_STARTED |
 | INF-MVP-019 | DOC-009 | Развернуть Prometheus, Grafana, Loki, Tempo и Alertmanager | MVP | S03; S11; S13; S32 | NOT_STARTED |
 | INF-MVP-020 | DOC-009 | Хранить доменный Audit Log отдельно в PostgreSQL | MVP | S03; S11; S13; S32 | NOT_STARTED |
@@ -228,21 +228,21 @@
 | INF-MVP-023 | DOC-009 | Разделить retention для logs, traces, metrics, LLM traces и audit | MVP | S03; S11; S13; S32 | NOT_STARTED |
 | INF-MVP-024 | DOC-009 | Не блокировать выполнение при потере обычной telemetry | MVP | S03; S11; S13; S32 | NOT_STARTED |
 | INF-MVP-025 | DOC-009 | Обеспечить надёжную запись критических audit events | MVP | S03; S11; S13; S32 | NOT_STARTED |
-| INF-MVP-026 | DOC-009 | Управлять конфигурацией как кодом в Git | MVP | S03; S11; S13; S32 | NOT_STARTED |
-| INF-MVP-027 | DOC-009 | Разделить конфигурацию инфраструктуры, окружения, приложения, Rules/Policy и secrets | MVP | S03; S11; S13; S32 | NOT_STARTED |
-| INF-MVP-028 | DOC-009 | Валидировать конфигурацию до запуска | MVP | S03; S11; S13; S32 | NOT_STARTED |
-| INF-MVP-029 | DOC-009 | Хранить секреты только зашифрованными в Git | MVP | S03; S11; S13; S32 | NOT_STARTED |
-| INF-MVP-030 | DOC-009 | Передавать runtime secrets через Compose secrets | MVP | S03; S11; S13; S32 | NOT_STARTED |
-| INF-MVP-031 | DOC-009 | Фиксировать container images по digest | MVP | S03; S11; S13; S32 | NOT_STARTED |
-| INF-MVP-032 | DOC-009 | Формировать Release Manifest | MVP | S03; S11; S13; S32 | NOT_STARTED |
-| INF-MVP-033 | DOC-009 | Использовать Renovate для предложений обновлений | MVP | S03; S11; S13; S32 | NOT_STARTED |
+| INF-MVP-026 | DOC-009 | Управлять конфигурацией как кодом в Git | MVP | S03; S11; S13; S32 | PARTIAL (S03) |
+| INF-MVP-027 | DOC-009 | Разделить конфигурацию инфраструктуры, окружения, приложения, Rules/Policy и secrets | MVP | S03; S11; S13; S32 | PARTIAL (S03) |
+| INF-MVP-028 | DOC-009 | Валидировать конфигурацию до запуска | MVP | S03; S11; S13; S32 | PARTIAL (S03: policy-проверки Compose; typed settings — S02) |
+| INF-MVP-029 | DOC-009 | Хранить секреты только зашифрованными в Git | MVP | S03; S11; S13; S32 | PARTIAL (S03: нет общих секретов; dev per-machine, ADR-045) |
+| INF-MVP-030 | DOC-009 | Передавать runtime secrets через Compose secrets | MVP | S03; S11; S13; S32 | TESTED (S03) |
+| INF-MVP-031 | DOC-009 | Фиксировать container images по digest | MVP | S03; S11; S13; S32 | TESTED (S03) |
+| INF-MVP-032 | DOC-009 | Формировать Release Manifest | MVP | S03; S11; S13; S32 | PARTIAL (S03: формат+генератор) |
+| INF-MVP-033 | DOC-009 | Использовать Renovate для предложений обновлений | MVP | S03; S11; S13; S32 | PARTIAL (S03: конфиг не проверен приложением Renovate, G-31) |
 | INF-MVP-034 | DOC-009 | Проверять обновления до развёртывания | MVP | S03; S11; S13; S32 | NOT_STARTED |
 | INF-MVP-035 | DOC-009 | Разделять процедуры миграций | MVP | S03; S11; S13; S32 | NOT_STARTED |
 | INF-MVP-036 | DOC-009 | Поддержать безопасный rollback/forward-fix | MVP | S03; S11; S13; S32 | NOT_STARTED |
-| INF-MVP-037 | DOC-009 | Формировать SBOM для release images | MVP | S03; S11; S13; S32 | NOT_STARTED |
-| INF-MVP-038 | DOC-009 | Сканировать образы и зависимости | MVP | S03; S11; S13; S32 | NOT_STARTED |
+| INF-MVP-037 | DOC-009 | Формировать SBOM для release images | MVP | S03; S11; S13; S32 | TESTED (S03: SBOM локально) |
+| INF-MVP-038 | DOC-009 | Сканировать образы и зависимости | MVP | S03; S11; S13; S32 | TESTED (S03: own blocking, third-party report-only) |
 | INF-MVP-039 | DOC-009 | Подписывать собственные release images | MVP | S03; S11; S13; S32 | NOT_STARTED |
-| INF-MVP-040 | DOC-009 | Вести Runbooks эксплуатации | MVP | S03; S11; S13; S32 | NOT_STARTED |
+| INF-MVP-040 | DOC-009 | Вести Runbooks эксплуатации | MVP | S03; S11; S13; S32 | PARTIAL (S03: local-stack) |
 | INF-MVP-041 | DOC-009 | Связывать Release Manifest с Recovery Manifest | MVP | S03; S11; S13; S32 | NOT_STARTED |
 | INT-MVP-001 | DOC-009 | Система должна вести реестр подключений и версий адаптеров | MVP | S29 | NOT_STARTED |
 | INT-MVP-002 | DOC-009 | Адаптеры должны реализовывать общий типизированный контракт | MVP | S29 | NOT_STARTED |
@@ -516,8 +516,8 @@
 | SEC-MVP-008 | DOC-009 | Deny-by-default external writes in MVP | MUST | S07; S37 | NOT_STARTED |
 | SEC-MVP-009 | DOC-009 | Prompt injection and tool misuse evaluation cases | MUST | S07; S37 | NOT_STARTED |
 | SEC-MVP-010 | DOC-009 | SSRF protection for URL/document/connectors | MUST | S07; S37 | NOT_STARTED |
-| SEC-MVP-011 | DOC-009 | Non-root containers, no privileged, no Docker Socket | MUST | S07; S37 | NOT_STARTED |
-| SEC-MVP-012 | DOC-009 | Internal data services not publicly exposed | MUST | S07; S37 | NOT_STARTED |
+| SEC-MVP-011 | DOC-009 | Non-root containers, no privileged, no Docker Socket | MUST | S07; S37 | TESTED (S03) |
+| SEC-MVP-012 | DOC-009 | Internal data services not publicly exposed | MUST | S07; S37 | TESTED (S03) |
 | SEC-MVP-013 | DOC-009 | Security audit events and correlation | MUST | S07; S37 | NOT_STARTED |
 | SEC-MVP-014 | DOC-009 | Authorized Temporal Signals/Updates | MUST | S07; S37 | NOT_STARTED |
 | SEC-MVP-015 | DOC-009 | Encrypted, access-controlled backups | MUST | S07; S37 | NOT_STARTED |

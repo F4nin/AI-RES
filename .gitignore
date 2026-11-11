@@ -23,6 +23,7 @@ __pycache__/
 /secrets/
 infra/secrets/*
 !infra/secrets/encrypted/
+infra/secrets/encrypted/local.enc.yaml
 *.agekey
 keys.txt
 *.pem
@@ -58,3 +59,8 @@ htmlcov/
 *.tmp
 *.swp
 .DS_Store
+
+infra/releases/sbom/
+infra/.cache/
+infra/releases/scan/
+infra/releases/release-manifest.json

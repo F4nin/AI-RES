@@ -5,17 +5,19 @@ permissions:
 jobs:
   contracts:
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }   # TODO(S03): pin actions by commit SHA (THR-017)
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with: { fetch-depth: 0, persist-credentials: false }
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
         with: { node-version-file: contracts/.nvmrc }
-      - run: curl -LsSf https://astral.sh/uv/install.sh | sh   # TODO(S03): replace with pinned installer
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
+        with: { version: "0.11.31" }
       - name: baseline snapshot must not change in the same PR as the contract (owner approval required)
         if: github.event_name == 'pull_request'
-        run: |
-          git fetch --depth=1 origin ${{ github.base_ref }}
-          git diff --exit-code FETCH_HEAD -- contracts/baseline
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: git diff --exit-code "origin/$BASE_REF" -- contracts/baseline   # fetch-depth: 0 already provides the base branch
       - run: make contracts-install
       - run: make contracts-check
       - run: make contracts-test

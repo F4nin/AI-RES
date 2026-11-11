@@ -1,0 +1,86 @@
+name: ci
+on: [push, pull_request]
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  UV_VERSION: "0.11.31"
+jobs:
+  backend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with: { persist-credentials: false }
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
+        with: { version: "${{ env.UV_VERSION }}" }
+      - run: make backend-install
+      - run: make backend-check   # ruff, mypy --strict, import-linter
+      - run: make backend-test
+      - name: dependency audit (locked runtime set)
+        run: make backend-audit
+
+  infra-static:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with: { persist-credentials: false }
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
+        with: { version: "${{ env.UV_VERSION }}" }
+      - run: make infra-install
+      # docker compose config (rendered per profile) + policy checks need the secret FILES to exist but not their values
+      - name: placeholder secret files for `docker compose config`
+        run: |
+          mkdir -p infra/secrets/runtime
+          for n in postgres_superuser_password temporal_db_password checkpointer_db_password minio_root_user minio_root_password cursor_hmac_key; do
+            touch "infra/secrets/runtime/$n"
+          done
+      - run: make infra-check
+      - run: cd infra && uv run --locked pytest -q --ignore=tests/runtime
+      - name: repository secret scan
+        run: cd infra && uv run --locked python scripts/scan_secrets.py
+      - name: pinned image digests still match the registry
+        run: make infra-verify-digests
+      - name: hadolint
+        env:
+          HADOLINT: hadolint/hadolint:v2.12.0-alpine@sha256:3c206a451cec6d486367e758645269fd7d696c5ccb6ff59d8b03b0e45268a199
+        run: |
+          for f in backend/Dockerfile infra/images/caddy/Dockerfile infra/images/minio/Dockerfile; do
+            docker run --rm -i "$HADOLINT" hadolint --failure-threshold error - < "$f"
+          done
+      - name: actionlint
+        run: docker run --rm -v "$PWD:/repo:ro" -w /repo rhysd/actionlint:1.7.7@sha256:887a259a5a534f3c4f36cb02dca341673c6089431057242cdc931e9f133147e9 -color
+
+  infra-runtime:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    needs: [backend, infra-static]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with: { persist-credentials: false }
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
+        with: { version: "${{ env.UV_VERSION }}" }
+      - name: sops + age (pinned, checksum-verified)
+        run: infra/scripts/install_tools.sh
+      - run: make infra-install
+      - name: stack up from a clean clone
+        env:
+          AI_RES_AGE_KEY_FILE: ${{ runner.temp }}/age/keys.txt
+          AI_RES_SECRETS_WORLD_READABLE: "1"   # ephemeral runner only; see scripts/secrets_dev.py
+        run: make up
+      - name: runtime evidence (live stack; a missing stack FAILS, it never skips)
+        env:
+          AI_RES_REQUIRE_STACK: "1"
+        run: make infra-test-runtime
+      - name: repository secret scan with the real dev secret values present
+        run: cd infra && uv run --locked python scripts/scan_secrets.py
+      - name: SBOM + vulnerability scan (own images blocking)
+        run: infra/scripts/supply_chain.sh
+      - name: stack logs on failure
+        if: failure()
+        run: docker compose -p ai-res -f infra/compose.yaml -f infra/compose.dev.yaml logs --no-color --tail 200 | sed -E 's/[A-Za-z0-9_-]{40,}/<redacted>/g'
+      - run: make down
+        if: always()
