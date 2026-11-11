@@ -91,3 +91,9 @@ backend-audit:
 # Live-stack evidence (needs `make up`); skipped tests are NOT evidence.
 infra-test-runtime:
 	cd infra && AI_RES_REQUIRE_STACK=1 uv run --locked pytest tests/runtime -q -rs
+
+# Everything CI runs, in one command, before opening or updating a PR. A change to migrations/schema/contracts affects checks outside backend/ too
+# (S05: a runtime test pinned the S04 migration head and failed in CI only). Starts the local stack (`make up` applies migrations to the LOCAL dev DB).
+.PHONY: pre-pr
+pre-pr: contracts-check contracts-test backend-check backend-test infra-check up infra-test infra-test-runtime
+	@echo "pre-pr: all CI-equivalent checks passed. Linux CI on GitHub Actions is still the final evidence."

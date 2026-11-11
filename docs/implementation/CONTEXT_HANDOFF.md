@@ -25,6 +25,9 @@
 ## Открытое (владелец)
 OD-01 провайдер LLM/egress (S16) · OD-02 SLO/пороги/retention (S33, S38) · OD-03 wire names, Bifrost security review · OD-04 NCP-01…08 · OD-05 risk calibration · OD-06 git commit. Подробно: `DECISIONS_PENDING.md`.
 
+## Перед PR (урок S05)
+`make pre-pr` — всё, что запускает CI (contracts, backend, infra static, `make up` с миграциями на ЛОКАЛЬНУЮ dev-БД, runtime-набор). Изменение миграций/схемы/контрактов влияет на проверки вне `backend/` (в S05 runtime-тест зашил head S04 и упал только в CI). Не зашивать в тесты номера ревизий/версий: вычислять из источника. Сбои внешних сервисов при сборке образов (sum.golang.org, git clone) — повторяются внутри Dockerfile (`retry`), проверка пинов и GOSUMDB остаются включёнными.
+
 ## Известные ограничения среды
 Docker работает; Node 26 (проект целится в 22); oasdiff не установлен (G-20/G-21); sops/age/actionlint/hadolint установлены через brew; Linux-CI для S04 зелёный (G-43; Testcontainers без TLS остаётся). Serena (uvx из GitHub) — запуск вне MCP заблокирован классификатором, проверка через `/mcp`.
 
