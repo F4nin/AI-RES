@@ -24,8 +24,6 @@ def test_persist_001_upgrade_from_empty_reaches_head(migrated: Pg):
             "SELECT nspname, pg_get_userbyid(nspowner) FROM pg_namespace WHERE nspname = ANY(%s)", [list(DOMAIN_SCHEMAS)]
         ).fetchall()
         assert {o for _, o in owners} == {"ai_res_owner"} and len(owners) == 18
-        assert c.execute("SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname = ANY(%s) AND c.relkind='r'",
-                         [[s for s in DOMAIN_SCHEMAS if s != "platform"]]).fetchone() == (0,)  # S04 creates no domain tables
         assert run_audit(c, "postflight.sql") == []
         assert run_audit(c, "grants_audit.sql") == []
         assert run_audit(c, "rls_coverage.sql") == []
@@ -134,7 +132,8 @@ def _scratch_scripts(tmp_path: Path, extra_revision: str | None = None) -> Path:
     dst = tmp_path / "scratch_migrations"
     shutil.copytree(BACKEND / "src/ai_res/db/migrations", dst, ignore=shutil.ignore_patterns("__pycache__"))
     if extra_revision is not None:
-        (dst / "versions" / "0002_test_only_concurrent_index.py").write_text(extra_revision)
+        head = ScriptDirectory.from_config(alembic_config()).get_current_head()
+        (dst / "versions" / "9000_test_only_concurrent_index.py").write_text(extra_revision.replace("__HEAD__", str(head)))
     return dst
 
 
@@ -142,7 +141,7 @@ SYNTHETIC = '''"""TEST-ONLY revision (ADR-011): proves autocommit_block + CREATE
 from alembic import op
 
 revision = "ffff00000002"
-down_revision = "3b7e9c41a0d2"
+down_revision = "__HEAD__"  # replaced by the real head of the shipped chain
 branch_labels = None
 depends_on = None
 
@@ -158,6 +157,50 @@ def downgrade() -> None:
 '''
 
 
+MODE_ON = '''"""TEST-ONLY revision: switches the owner migration flag on and leaves it on."""
+from alembic import op
+
+revision = "ffff00000003"
+down_revision = "__HEAD__"
+branch_labels = None
+depends_on = None
+
+
+def upgrade() -> None:
+    op.execute("CREATE TABLE work.mm_probe (v text)")
+    op.execute("SELECT set_config('app.migration_mode', 'on', true)")
+
+
+def downgrade() -> None:
+    op.execute("DROP TABLE work.mm_probe")
+'''
+MODE_READ = '''"""TEST-ONLY revision: records the flag a LATER revision of the same upgrade observes."""
+from alembic import op
+
+revision = "ffff00000004"
+down_revision = "ffff00000003"
+branch_labels = None
+depends_on = None
+
+
+def upgrade() -> None:
+    op.execute("INSERT INTO work.mm_probe SELECT coalesce(current_setting('app.migration_mode', true), 'unset')")
+
+
+def downgrade() -> None:
+    pass
+'''
+
+
+def test_migration_mode_does_not_leak_into_the_next_revision(empty_db: Pg, migrate_env, tmp_path):
+    """All revisions of one upgrade share a transaction: a flag switched on by one revision must be off again for the next (verification pass, LOW)."""
+    scripts = _scratch_scripts(tmp_path, MODE_ON.replace("ffff00000002", "ffff00000003"))
+    (scripts / "versions" / "9001_test_only_mode_read.py").write_text(MODE_READ)
+    command.upgrade(alembic_config(scripts), "head")
+    with empty_db.connect() as c:
+        assert c.execute("SELECT v FROM work.mm_probe").fetchall() == [("off",)]
+
+
 def test_persist_004_concurrent_index_runs_in_autocommit_block(empty_db: Pg, migrate_env, tmp_path):
     cfg = alembic_config(_scratch_scripts(tmp_path, SYNTHETIC))
     command.upgrade(cfg, "head")
@@ -169,7 +212,7 @@ def test_persist_004_concurrent_index_runs_in_autocommit_block(empty_db: Pg, mig
     import io
     buf = io.StringIO()
     cfg.output_buffer = buf
-    command.upgrade(cfg, "3b7e9c41a0d2:head", sql=True)
+    command.upgrade(cfg, "d4c18a7e5b92:head", sql=True)
     assert "CREATE INDEX CONCURRENTLY" in buf.getvalue() and "COMMIT" in buf.getvalue()
 
 

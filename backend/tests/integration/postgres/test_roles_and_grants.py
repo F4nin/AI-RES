@@ -151,7 +151,7 @@ SABOTAGE = [
     ("ALTER DATABASE ai_res_db OWNER TO postgres", "postflight.sql", "database_not_owned_by_owner"),
     ("DROP TABLE platform.alembic_version", "postflight.sql", "missing_version_table"),
     ("INSERT INTO platform.alembic_version VALUES ('x')", "postflight.sql", "version_table_rows"),
-    ("DROP SCHEMA operations", "postflight.sql", "missing_schema"),
+    ("DROP SCHEMA requirements", "postflight.sql", "missing_schema"),
     ("GRANT TRUNCATE ON platform.alembic_version TO ai_res_api_group", "grants_audit.sql", "forbidden_table_privilege"),
     ("GRANT DELETE ON platform.alembic_version TO ai_res_api", "grants_audit.sql", "api_delete_privilege"),
     ("GRANT INSERT (version_num) ON platform.alembic_version TO ai_res_auditor", "grants_audit.sql", "read_only_role_can_write"),
@@ -174,6 +174,14 @@ SABOTAGE = [
      "CREATE POLICY p ON work.t4 FOR ALL TO PUBLIC USING (id = 1)", "rls_coverage.sql", "rls_policy_to_public"),
     ("CREATE TABLE work.t5 (id int); ALTER TABLE work.t5 ENABLE ROW LEVEL SECURITY; ALTER TABLE work.t5 FORCE ROW LEVEL SECURITY; "
      "CREATE POLICY p ON work.t5 FOR ALL TO ai_res_api_group USING (true)", "rls_coverage.sql", "rls_policy_always_true"),
+    ("CREATE TABLE work.t6 (id int, organization_id uuid); ALTER TABLE work.t6 ENABLE ROW LEVEL SECURITY; ALTER TABLE work.t6 FORCE ROW LEVEL SECURITY; "
+     "CREATE POLICY p ON work.t6 FOR ALL TO ai_res_api_group USING (organization_id IS NOT NULL)", "rls_coverage.sql", "owner_migration_policy_missing"),
+    ("CREATE TABLE work.t7 (id int); ALTER TABLE work.t7 ENABLE ROW LEVEL SECURITY; ALTER TABLE work.t7 FORCE ROW LEVEL SECURITY; "
+     "CREATE POLICY p ON work.t7 FOR ALL TO ai_res_owner USING (id IS NOT NULL)", "rls_coverage.sql", "owner_migration_policy_missing"),  # not gated
+    ("CREATE TABLE work.t8 (id int); ALTER TABLE work.t8 ENABLE ROW LEVEL SECURITY; ALTER TABLE work.t8 FORCE ROW LEVEL SECURITY; "
+     "CREATE POLICY p ON work.t8 FOR ALL TO ai_res_owner USING (true OR coalesce(current_setting('app.migration_mode', true), '') = 'on') "
+     "WITH CHECK (true OR coalesce(current_setting('app.migration_mode', true), '') = 'on')",
+     "rls_coverage.sql", "owner_migration_policy_missing"),  # mentioned, not enforced
     ("CREATE VIEW work.v1 AS SELECT 1 AS x", "rls_coverage.sql", "view_without_security_invoker"),
     ("CREATE MATERIALIZED VIEW work.mv1 AS SELECT 1 AS x", "rls_coverage.sql", "materialized_view_in_domain_schema"),
 ]

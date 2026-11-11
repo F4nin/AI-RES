@@ -26,6 +26,12 @@ def include_name(name: str | None, type_: str, parent_names: Any) -> bool:
     return parent_names.get("schema_name") in _ALLOWED
 
 
+def _close_migration_mode(ctx: Any, *_: Any, **__: Any) -> None:
+    """All revisions of one `upgrade` share a transaction, so a transaction-local `app.migration_mode` set by one revision would stay on for every later one."""
+    if not ctx.as_sql:  # offline (--sql) renders SQL only and has no connection
+        ctx.connection.exec_driver_sql("SELECT set_config('app.migration_mode', 'off', true)")
+
+
 def _configure(**kw: Any) -> None:
     context.configure(
         target_metadata=metadata,
@@ -35,6 +41,7 @@ def _configure(**kw: Any) -> None:
         compare_type=True,
         compare_server_default=False,  # enabled deliberately later, after the first drift review (Blueprint §4.2.6)
         transaction_per_migration=False,
+        on_version_apply=_close_migration_mode,
         **kw,
     )
 

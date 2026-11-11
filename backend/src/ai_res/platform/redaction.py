@@ -6,25 +6,54 @@ repr'd and redacted). Reserved log fields cannot be overwritten by `extra` value
 import json
 import logging
 import re
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any
 
 REDACTED = "[REDACTED]"
-_SENSITIVE_TOKENS = frozenset({
-    "password", "passwd", "passphrase", "secret", "token", "cookie", "authorization", "apikey", "csrf", "session", "credential",
-    "credentials", "privatekey", "totp", "otp", "mfa", "seed", "recovery", "prompt", "dsn", "jwt", "payload", "body", "source",
-    "content", "response", "args"})
-_SENSITIVE_PAIRS = frozenset({("api", "key"), ("private", "key"), ("connection", "string"), ("set", "cookie")})
+# Secret-class tokens: sensitive wherever they appear in a key. Content-class tokens (what a payload carries) are sensitive too, unless the key only names a
+# reference to it (`source_id`, `SourceVersion`, `body_ref`): identifiers are allowed in logs and events (security.md), the content is not.
+_SECRET_TOKENS = frozenset({
+    "password", "passwd", "passphrase", "pwd", "secret", "token", "cookie", "authorization", "bearer", "apikey", "csrf", "session", "credential",
+    "privatekey", "totp", "otp", "mfa", "seed", "recovery", "dsn", "jwt", "digest", "ciphertext", "hmac", "signature"})
+_CONTENT_TOKENS = frozenset({"prompt", "payload", "body", "source", "content", "response", "args"})
+_REFERENCE_SUFFIXES = frozenset({"id", "ids", "ref", "refs", "version", "versions", "hash", "code", "type", "uri", "count", "size", "length", "kind"})
+_SENSITIVE_PAIRS = frozenset({
+    ("api", "key"), ("private", "key"), ("signing", "key"), ("encryption", "key"), ("access", "key"), ("master", "key"), ("shared", "key"),
+    ("connection", "string"), ("set", "cookie")})
+# Run-together spellings (`accesstoken`, `clientsecret`): long, unambiguous words are also matched as substrings of the key without separators.
+_RUN_TOGETHER = ("password", "passwd", "passphrase", "secret", "token", "authorization", "apikey", "privatekey", "credential", "cookie", "bearer")
 _EXEMPT_KEYS = frozenset({"content_type", "content_length", "response_time", "response_size"})
 
 
+def _is_token(part: str, tokens: frozenset[str]) -> bool:
+    return part in tokens or (part.endswith("s") and part[:-1] in tokens)  # plural: tokens, secrets, cookies, credentials
+
+
 def is_sensitive_key(key: str) -> bool:
-    """Token-based match (split on non-alphanumerics): `resource_id` is not sensitive, `source_text` and `api_key` are."""
+    """Token-based match (split on non-alphanumerics and camelCase): `resource_id` is not sensitive, `source_text`, `api_key` and `accesstoken` are."""
     norm = re.sub(r"[^a-z0-9]+", "_", re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", key).lower()).strip("_")
     if norm in _EXEMPT_KEYS:
         return False
     parts = norm.split("_")
-    return any(p in _SENSITIVE_TOKENS for p in parts) or any(pair in _SENSITIVE_PAIRS for pair in zip(parts, parts[1:], strict=False))
+    if any(_is_token(p, _SECRET_TOKENS) for p in parts) or any(pair in _SENSITIVE_PAIRS for pair in zip(parts, parts[1:], strict=False)):
+        return True
+    if any(w in norm.replace("_", "") for w in _RUN_TOGETHER):
+        return True
+    return any(_is_token(p, _CONTENT_TOKENS) for p in parts) and parts[-1] not in _REFERENCE_SUFFIXES
+
+
+def assert_no_sensitive_keys(value: Any, path: str = "data") -> None:
+    """Persisted structured payloads (events, results, refs, snapshots) must not carry secret-looking KEYS: rejected, never silently redacted
+    (a mutated payload would be a different record). Key-based only: a secret inside a free-text value is not detected (documented limitation)."""
+    if isinstance(value, Mapping):
+        for key, inner in value.items():
+            if is_sensitive_key(str(key)):
+                raise ValueError(f"payload must not contain sensitive key {path}.{key}")
+            assert_no_sensitive_keys(inner, f"{path}.{key}")
+    elif isinstance(value, list | tuple | set | frozenset):
+        for i, inner in enumerate(value):
+            assert_no_sensitive_keys(inner, f"{path}[{i}]")
 
 
 _VALUE_PATTERNS = [

@@ -1,5 +1,6 @@
 """PERSIST-024: schema drift fails CI. The committed snapshot is the reviewed design; `alembic upgrade head` must reproduce it exactly."""
 import os
+import re
 
 import pytest
 
@@ -23,8 +24,9 @@ def test_migrated_schema_matches_committed_snapshot(migrated: Pg):
 def test_snapshot_is_deterministic_and_secret_free(migrated: Pg):
     first, second = build_snapshot(migrated), build_snapshot(migrated)
     assert first == second
-    for forbidden in ("SCRAM-SHA-256$", "PASSWORD", *migrated.passwords.values(), migrated.superuser_pw):
+    for forbidden in ("SCRAM-SHA-256$", *migrated.passwords.values(), migrated.superuser_pw):
         assert forbidden not in first
+    assert not re.search(r"\bPASSWORD\s+'", first)  # role-password syntax; the word alone is a legitimate enum value (iam.credentials.kind)
 
 
 def test_drift_is_detected(migrated: Pg):

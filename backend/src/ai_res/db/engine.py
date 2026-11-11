@@ -38,4 +38,5 @@ def create_runtime_engine(settings: Settings) -> AsyncEngine:
         pool_pre_ping=True,
         pool_recycle=settings.db_pool_recycle_s,
         pool_reset_on_return="rollback",
+        hide_parameters=True,  # DBAPIError text would otherwise embed bound parameters (digests, fingerprints, event/result payloads)
     )

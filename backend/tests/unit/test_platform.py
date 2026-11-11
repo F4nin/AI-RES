@@ -214,9 +214,13 @@ async def test_request_id_with_trailing_newline_is_replaced():
 
 def test_sensitive_key_matching_is_token_based():
     from ai_res.platform.redaction import is_sensitive_key
-    for k in ("password", "api_key", "apiKey", "Set-Cookie", "csrf_token", "source_text", "connection_string", "X-Session-Id"):
+    for k in ("password", "api_key", "apiKey", "Set-Cookie", "csrf_token", "source_text", "connection_string", "X-Session-Id",
+              "keyDigest", "secretCiphertext", "hmac_key", "webhook_signature", "accesstoken", "clientsecret", "tokens", "secrets", "passwords", "cookies",
+              "signing_key", "encryptionKey", "pwd", "bearer", "prompt", "response_body", "payload"):
         assert is_sensitive_key(k), k
-    for k in ("resource_id", "resource_type", "content_type", "footprint", "organization_id", "request_id"):
+    for k in ("resource_id", "resource_type", "content_type", "footprint", "organization_id", "request_id", "source_id", "sourceId",
+              "SourceVersion", "body_ref",
+              "response_code", "content_hash", "operation_id"):
         assert not is_sensitive_key(k), k
 
 

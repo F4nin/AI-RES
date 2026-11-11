@@ -10,6 +10,7 @@
 | OD-04 | Normative Change Proposals NCP-01…NCP-08 (обновление Spec, DDL, Blueprint, DOC-007 статус, AsyncAPI, OAS, Registry) | Владелец | Синхронизацию baseline (не старт этапов) | Изменение нормативных документов | Реализация следует ACCEPTED ADR; расхождения перечислены в NCP |
 | OD-05 | Quantitative risk calibration и organization authority matrix (DOC-051 WORKING) | Владелец | Сокращение ручной эскалации в S24–S26 | Бизнес-полномочия | ADR-029: автономно только детерминированно LOW-risk, остальное — человеку |
 | OD-06 | Фиксация в git подготовленных файлов (`.claude/` ECC, `docs/implementation/`, правки CLAUDE.md и правила БД) | Владелец | — | Commit только по явной просьбе | Файлы в рабочем дереве |
+| OD-13 | Форма `dataschema` (сейчас WORKING: `urn:aires:schemas:<CloudEvents type>`) и `source` WorkerRun-событий (`urn:aires:worker-runs`); решения по NCP-09…11 (расхождения Event Model / API Contracts / State Machine с AsyncAPI v1.6) | Владелец | Фиксацию форм до S10 (dispatcher/SSE); не блокирует S05 | Нормативные документы значений не задают; выбор — изменение контракта | Значения централизованы в `modules/events/envelope.py`, ADR-054 |
 
 ## Закрыто решением владельца 2026-11-11
 | ID | Решение |
@@ -19,3 +20,4 @@
 | OD-09 | Владелец: проектировать недостающие endpoint по информации проекта → ADR-009 (дополнение) и ADR-038: overlay WORKING в `contracts/*/extensions/` |
 | OD-10 | Подтверждено владельцем: FastAPI (ADR-008), правки CLAUDE.md и `.claude/rules/database-and-migrations.md` |
 | OD-11 | Закрыто 2026-11-11 по просьбе пользователя: из `.claude/settings.local.json` убраны `Bash(bash *)` и `Bash(brew upgrade *)`; оставлены узкие разрешения (make contracts-*, tools/*.py, git status/diff/log) |
+| OD-12 | G-56 (форма CloudEvents-envelope): владелец выбрал вариант A — привести к каноническим сообщениям AsyncAPI v1.6 сейчас (2026-11-11) → ADR-054. Остаточные WORKING-значения см. OD-13 |

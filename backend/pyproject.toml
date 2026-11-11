@@ -26,6 +26,9 @@ dev = [
   "mypy>=1.13",
   "import-linter>=2.1",
   "testcontainers[postgres]>=4.9",
+  "jsonschema>=4.24",
+  "referencing>=0.36",
+  "pyyaml>=6",
 ]
 
 [build-system]

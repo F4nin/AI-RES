@@ -27,9 +27,9 @@ backend-check:
 backend-test:
 	cd backend && uv run --locked pytest -q
 
-# Fast subset without Docker (graph, config, tenant-context argument safety, import rules).
+# Fast subset without Docker (graph, config, tenant-context argument safety, import rules, event envelope vs AsyncAPI).
 backend-test-unit:
-	cd backend && uv run --locked pytest -q tests/unit tests/architecture
+	cd backend && uv run --locked pytest -q tests/unit tests/architecture tests/contract
 
 # Regenerate the reviewed design snapshot (PERSIST-024). Review `git diff backend/ops/postgres/schema_snapshot.sql` before committing.
 db-snapshot:
