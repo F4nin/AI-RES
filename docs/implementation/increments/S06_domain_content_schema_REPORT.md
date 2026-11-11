@@ -1,6 +1,6 @@
 # S06 — Domain content schema: Increment Report
 
-**Дата:** 2026-11-11 · **Промпт:** `increments/prompts/S06_domain_content_schema.md` · **Итоговый статус:** TESTED (локально; не VERIFIED — см. §12, §14). GitHub Actions на Linux для этой ветки ещё не запускался.
+**Дата:** 2026-11-11 · **Промпт:** `increments/prompts/S06_domain_content_schema.md` · **Итоговый статус:** VERIFIED по решению владельца (2026-11-11). GitHub Actions на Linux зелёный (2026-11-11, PR #5, коммит a7db82c: ci 43074829225 и 43074859429, contracts 43074829230 и 43074859545 — backend/infra-static/infra-runtime/contracts success).
 
 ## 1. Что реализовано
 - **Схема (ревизии 0007–0011, 18 схем S04):** requirements (types, requirements, requirement_versions, requirement_epics), `work.task_requirements`, sources (sources, uploads, source_versions), knowledge.extraction_records, artifacts (types, version_statuses, artifacts, artifact_versions, validation_reports, publications), governance (reviews, approvals, change_requests, baselines, baseline_items, rules, rule_versions), context (packages, immutable versions, items), decisions (decisions, assumptions, risks, issues, unknowns, hypotheses, conflicts), traceability (object/link types, правила пар, traceability_links), `platform.display_number_counters`, пять таблиц event history, `audit.aggregate_types` +5.
@@ -43,7 +43,7 @@ Cross-tenant и cross-project IDOR (чтение 0 строк, UPDATE затра
 См. `reviews/S06_REVIEWS.md`: `database-reviewer` (1 CRITICAL, 4 HIGH, 6 MEDIUM, 6 LOW), `silent-failure-hunter` (4 HIGH, 5 MEDIUM, 3 LOW), `code-reviewer` (результат — в том же файле). CRITICAL/HIGH исправлены либо явно вынесены в G-72/OD-14 как доменные решения; исправления после review тестами подтверждены, **отдельным агентом дельта исправлений не пересматривалась**.
 
 ## 12. Не выполненные проверки, ограничения, риски
-Linux CI не запускался. Репозитории для 6 агрегатов отсутствуют (G-69). Нет эмиссии событий (G-70). Открытые доменные правила (G-71, G-72, OD-14). FK worker_runs→context_package_versions не добавлен (G-73). Нет Observability-инструментации новых компонентов (репозитории без OTel-спанов; общий слой — S02). Покрытие как метрика не измерялось. Параллельные сценарии покрыты для счётчика и финализации источника.
+Репозитории для 6 агрегатов отсутствуют (G-69). Нет эмиссии событий (G-70). Открытые доменные правила (G-71, G-72, OD-14). FK worker_runs→context_package_versions не добавлен (G-73). Нет Observability-инструментации новых компонентов (репозитории без OTel-спанов; общий слой — S02). Покрытие как метрика не измерялось. Параллельные сценарии покрыты для счётчика и финализации источника.
 
 ## 13. Обновлённые документы и статусы
 Да — перечислены в §3. `docs/architecture/` и Registry не менялись.
@@ -52,8 +52,8 @@ Linux CI не запускался. Репозитории для 6 агрега
 - Тесты зелёные, RLS coverage и drift = 0 (локально): да. Финальный `make pre-pr`: exit 0.
 - Обязательные тесты §9: да. Негативные security-кейсы этапа: да (§10).
 - Independent review с CRITICAL/HIGH устранены: да, дельта без повторного пересмотра.
-- Заглушки: нет. Observability: нет (§12). Linux CI: нет.
-Итог: **TESTED**, не VERIFIED.
+- Заглушки: нет. Observability: нет (§12). Linux CI: да.
+Итог: **VERIFIED** по решению владельца; Linux CI зелёный. Оговорки: дельта правок после review отдельным агентом не пересматривалась, `architect`/`python-reviewer`/`pr-test-analyzer`/`type-design-analyzer` не запускались.
 
 ## 15. Можно ли начинать следующий этап
-Следующий этап по порядку — S07 (Identity, Local Auth, Policy Engine, Audit, Idempotency); зависимость S06 — достаточно TESTED? ADR-032 требует DONE: перед S07 нужны зелёный Linux CI и решение владельца о принятии статуса.
+Следующий этап по порядку — S07 (Identity, Local Auth, Policy Engine, Audit, Idempotency); S06 принят владельцем (VERIFIED), зависимость для S07 выполнена (ADR-032). Перед S07 по необходимости решить OD-14 (не блокирует).
