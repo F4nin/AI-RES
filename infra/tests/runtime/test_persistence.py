@@ -11,7 +11,23 @@ from tests.runtime.test_stack import _psql
 pytestmark = pytest.mark.runtime
 BACKEND = Path(__file__).resolve().parents[3] / "backend"
 OPS = BACKEND / "ops" / "postgres"
-HEAD = re.search(r'revision: str = "([0-9a-f]+)"', next((BACKEND / "src/ai_res/db/migrations/versions").glob("0001_*.py")).read_text()).group(1)
+
+
+def _head() -> str:
+    """The single head of the shipped revision chain: the revision no other revision names as its down_revision (parsed, so that a new revision never needs an edit here)."""
+    revisions, parents = set(), set()
+    for f in (BACKEND / "src/ai_res/db/migrations/versions").glob("[0-9]*.py"):
+        text = f.read_text()
+        revisions.add(re.search(r'^revision: str = "([0-9a-f]+)"', text, re.M).group(1))  # type: ignore[union-attr]
+        parent = re.search(r'^down_revision: str \| None = (?:"([0-9a-f]+)"|None)', text, re.M)
+        if parent and parent.group(1):
+            parents.add(parent.group(1))
+    heads = revisions - parents
+    assert len(heads) == 1, f"expected exactly one head, found {sorted(heads)}"
+    return heads.pop()
+
+
+HEAD = _head()
 SCHEMAS = ["iam", "organization", "project", "work", "requirements", "sources", "knowledge", "decisions", "artifacts", "traceability",
            "governance", "agents", "context", "integrations", "audit", "platform", "operations", "execution"]
 
