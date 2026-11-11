@@ -1,6 +1,6 @@
 # S07 — Identity, Local Auth, Policy Engine, Audit, Idempotency: Increment Report
 
-**Дата:** 2026-11-11 · **Промпт:** `increments/prompts/S07_identity_auth_policy_audit_idempotency.md` · **Итоговый статус:** **TESTED** (локально: backend 655 passed, contracts 22 passed, infra static 181 passed, runtime 99 passed). **Не VERIFIED:** независимое review слоя 3 (ADR-037) не проводилось, Linux CI не запускался. `IMPLEMENTATION NOT VERIFIED` в части независимой проверки и production-значений WORKING-параметров.
+**Дата:** 2026-11-12 · **Промпт:** `increments/prompts/S07_identity_auth_policy_audit_idempotency.md` · **Итоговый статус:** **VERIFIED по решению владельца** (локально: backend 676, contracts 22, infra static 185, runtime 99; два прохода независимого review; GitHub Actions на Linux зелёный (2026-11-11, PR #6, коммит 86328e4: ci 43111752244 и 43111759690, contracts 43111752277 и 43111759762 — backend/infra-static/infra-runtime/contracts success; ранее на c8e9040: ci 43107954898 и 43107964966)).
 
 ## 1. Что реализовано
 - **Пароли:** Argon2id (WORKING-параметры), минимум 15, denylist-seed, decoy-проверка для неизвестной учётки, rehash.
@@ -57,7 +57,7 @@ G-75…G-82; интерактивный запуск `make bootstrap` в кон�
 Да: см. §3. Статус S07 в `IMPLEMENTATION_STATUS.md`: TESTED.
 
 ## 14. Статус DoD
-Выполнено: тесты раздела 9 промпта, миграции, контракты, секреты вне логов, документы, отчёт. **Не выполнено:** независимое review (слой 3), Linux CI → VERIFIED недостижим без них.
+Выполнено: тесты раздела 9 промпта, миграции, контракты, секреты вне логов, документы, отчёт, независимое review слоя 3 (два прохода, CRITICAL/HIGH нет), Linux CI зелёный. Оговорки: агенты читали код и не запускали тесты; OD-15 (матрица политик) остаётся WORKING; NCP-12 PROPOSED; G-75…G-83 открыты. VERIFIED присвоен по решению владельца.
 
 ## 15. Можно ли начинать следующий этап
-Технически — S08 (проекты/work API) может опираться на `IdentityServices`, Policy и `IdempotencyService`; **рекомендуется** сначала слой 3 для S07 (P0-этап, ADR-037) и решение OD-15.
+Да: S08 (проекты/work API) может опираться на `IdentityServices`, Policy Engine и `IdempotencyService`. Перед S08 стоит учесть G-83 и то, что матрица политик (OD-15) проверяется на реальных сценариях S08+.
