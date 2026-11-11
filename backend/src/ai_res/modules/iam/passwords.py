@@ -4,6 +4,7 @@ Argon2id with a unique random salt per hash. Cost parameters are configuration (
 the defaults in Settings are the OWASP Password Storage Cheat Sheet minimum profile and are WORKING until benchmarked on the target (ADR-061).
 No pepper is used: a pepper would need a secret outside the DB (Secrets v1.1) and is not an MVP requirement.
 """
+import logging
 import secrets
 import unicodedata
 from dataclasses import dataclass
@@ -15,6 +16,9 @@ from argon2.exceptions import InvalidHashError, VerificationError
 
 MIN_LENGTH = 15  # normative floor (Auth v1.1 §3.2); configuration may raise it, never lower it
 MAX_LENGTH = 1024  # bounds hashing work for an attacker-chosen input
+
+
+log = logging.getLogger(__name__)
 
 
 class PasswordPolicyError(ValueError):
@@ -71,7 +75,10 @@ class PasswordHasherService:
     def verify(self, stored_hash: str, password: str) -> bool:
         try:
             return self._hasher.verify(stored_hash, unicodedata.normalize("NFKC", password))
-        except (VerificationError, InvalidHashError):
+        except VerificationError:
+            return False
+        except InvalidHashError:
+            log.error("a stored password hash is malformed; the account cannot log in until it is reset")  # no ids, no hash
             return False
 
     def verify_unknown_account(self, password: str) -> bool:

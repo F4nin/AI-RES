@@ -256,3 +256,21 @@ async def test_secrets_never_appear_in_the_repr_of_issued_values(rig: Rig) -> No
     done = await rig.mfa.confirm_enrollment(s, rig.totp(e.secret), client_ip=IP, request_id="req-abcdef12")
     text = repr(e) + repr(done) + repr(done.session)
     assert e.secret not in text and done.recovery_codes[0] not in text and done.session.token not in text and done.session.csrf_token not in text
+
+
+async def test_an_owner_cannot_reset_their_own_second_factor_through_the_privileged_path(rig: Rig) -> None:
+    owner = make_owner(rig)
+    with pytest.raises(ProblemError) as err:
+        await rig.mfa.reset(rig.world.org_a, owner, actor_id=owner, request_id="req-abcdef12")
+    assert err.value.code is ErrorCode.STATE_TRANSITION_NOT_ALLOWED
+    assert "AUTH_MFA_RESET" not in rig.audit_actions()
+
+
+async def test_an_unreadable_seed_is_refused_like_a_wrong_code_but_the_operator_is_told(rig: Rig, caplog: pytest.LogCaptureFixture) -> None:
+    secret, _, s = await rig.enrolled()
+    with rig.world.pg.connect() as c:
+        c.execute("UPDATE iam.mfa_factors SET secret_ciphertext = decode(repeat('ab', 40), 'hex'), row_version = row_version + 1 WHERE status = 'ACTIVE'")
+    with caplog.at_level("ERROR"), pytest.raises(ProblemError) as err:
+        await rig.mfa.verify(s, rig.totp(secret), client_ip=IP, request_id="req-abcdef12")
+    assert err.value.status == 401  # the client learns nothing new
+    assert any("cannot be decrypted" in r.getMessage() for r in caplog.records) and secret not in caplog.text

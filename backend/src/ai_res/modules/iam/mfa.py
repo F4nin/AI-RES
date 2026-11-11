@@ -8,6 +8,7 @@
 * A successful second factor, and enrolment, rotate the session id and mark it mfa-verified (privilege elevation).
 * Reset is a privileged procedure: the CALLER must have authorised it through the Policy Engine; this service performs and audits it.
 """
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -32,6 +33,8 @@ from ai_res.platform.ports import AuditOutcome, AuditRecord
 from ai_res.platform.problems import ErrorCode, ProblemError
 
 RECOVERY_CODE_COUNT = 10  # WORKING
+
+log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -172,6 +175,8 @@ class MfaService:
             await uow.with_tenant(organization_id)
             s = uow.session
             now = require_utc(self._clock())
+            if actor_id == user_id:
+                raise ProblemError(ErrorCode.STATE_TRANSITION_NOT_ALLOWED, "You cannot do this to your own account.")  # same rule as AccountService; self-service path exists for own MFA
             await ensure_may_act_on(s, self._factory, organization_id, actor_id, user_id, action="iam.user.mfa_reset")
             if (await s.execute(text("SELECT 1 FROM iam.users WHERE organization_id = :o AND id = :u"), {"o": organization_id, "u": user_id})).first() is None:
                 raise ProblemError(ErrorCode.RESOURCE_NOT_FOUND, "Resource not found.")  # unknown or another organization's user: no success audit row
@@ -197,7 +202,8 @@ class MfaService:
         try:
             secret = self._box.open(bytes(factor["secret_ciphertext"]), _aad(current.organization_id, current.user_id, factor["id"])).decode()
         except SecretBoxError:
-            return None  # an undecryptable seed never authenticates; treated as a failed attempt
+            log.error("an MFA seed cannot be decrypted (key rotated or lost, or corrupt data); every code for this factor will be refused")  # no ids, no secrets
+            return None  # an undecryptable seed never authenticates; treated as a failed attempt, but the operator is told
         return match_totp_step(secret, code, require_utc(self._clock()), window=self._window)
 
     async def _issue_recovery_codes(self, s: AsyncSession, current: AuthenticatedSession) -> list[str]:

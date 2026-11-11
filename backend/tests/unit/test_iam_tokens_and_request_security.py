@@ -101,3 +101,11 @@ def test_allowed_origins_must_be_exact_origins(origin: str) -> None:
 def test_password_min_length_cannot_be_configured_below_normative_floor() -> None:
     with pytest.raises(Exception, match="password_min_length"):
         load_settings({"AI_RES_PASSWORD_MIN_LENGTH": "14"})
+
+
+def test_session_timing_requires_touch_interval_below_idle() -> None:
+    from datetime import timedelta
+
+    from ai_res.modules.iam.sessions import SessionService
+    with pytest.raises(ValueError):
+        SessionService(None, idle=timedelta(minutes=30), absolute=timedelta(hours=12), touch_interval=timedelta(minutes=30))  # type: ignore[arg-type]

@@ -9,7 +9,9 @@ Properties enforced here:
 * Nothing sensitive reaches audit `details`, exceptions or logs.
 """
 import asyncio
+import logging
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
@@ -28,6 +30,7 @@ from ai_res.platform.clock import require_utc, utc_now
 from ai_res.platform.ports import AuditOutcome, AuditRecord
 from ai_res.platform.problems import ErrorCode, ProblemError
 
+log = logging.getLogger(__name__)
 GENERIC_FAILURE = "Invalid credentials."
 
 
@@ -60,18 +63,22 @@ class AuthService:
     def __init__(self, factory: async_sessionmaker[AsyncSession], sessions: SessionService, hasher: PasswordHasherService, policy: PasswordPolicy,
                  throttle: LoginThrottle, *, clock: Callable[[], datetime] = utc_now, max_concurrent_hashes: int = 4) -> None:
         self._factory, self._sessions, self._hasher, self._policy, self._throttle, self._clock = factory, sessions, hasher, policy, throttle, clock
-        self._hash_slots = asyncio.Semaphore(max_concurrent_hashes)  # bounds CPU/memory spent on Argon2 by unauthenticated traffic
+        # At most N Argon2 computations run at once and at most N credential transactions are open at once. The executor (not a semaphore around to_thread) bounds the
+        # REAL threads, because a cancelled request stops waiting but its thread keeps running; the slot is taken BEFORE a pool connection, so waiting requests hold none.
+        self._executor = ThreadPoolExecutor(max_workers=max_concurrent_hashes, thread_name_prefix="argon2")
+        self._slots = asyncio.Semaphore(max_concurrent_hashes)
+
+    async def _run(self, fn: Callable[..., Any], *args: Any) -> Any:
+        return await asyncio.get_running_loop().run_in_executor(self._executor, fn, *args)
 
     async def _verify(self, stored: str | None, password: str) -> bool:
-        """Argon2 off the event loop (a verification takes tens of ms and `memory_kib` of RAM), at most N at a time; one verification on every path."""
-        async with self._hash_slots:
-            if stored:
-                return await asyncio.to_thread(self._hasher.verify, stored, password)
-            return await asyncio.to_thread(self._hasher.verify_unknown_account, password)
+        """Argon2 off the event loop (tens of ms and `memory_kib` of RAM each); exactly one verification on every path (a decoy when there is no stored hash)."""
+        if stored:
+            return bool(await self._run(self._hasher.verify, stored, password))
+        return bool(await self._run(self._hasher.verify_unknown_account, password))
 
     async def _hash(self, password: str) -> str:
-        async with self._hash_slots:
-            return await asyncio.to_thread(self._hasher.hash, password)
+        return str(await self._run(self._hasher.hash, password))
 
     @staticmethod
     def _account_key(organization_id: UUID, email_normalised: str) -> str:
@@ -98,7 +105,7 @@ class AuthService:
     async def _login_in_transaction(self, organization_id: UUID, email_n: str, password: str, client_ip: str, request_id: str | None, account: str,
                                     reservation: Reservation, replace: AuthenticatedSession | None) -> LoginResult | None:
         result: LoginResult | None = None
-        async with UnitOfWork(self._factory) as uow:
+        async with self._slots, UnitOfWork(self._factory) as uow:
             await uow.with_tenant(organization_id)
             s = uow.session
             org_exists = (await s.execute(text("SELECT 1 FROM organization.organizations WHERE id = :o"), {"o": organization_id})).first() is not None
@@ -133,7 +140,10 @@ class AuthService:
                     if reservation.signal:  # ip/global threshold crossed: an alert signal, nobody is refused because of it (ADR-071)
                         await self._audit(s, organization_id, "AUTH_RATE_LIMITED", AuditOutcome.FAILED, actor, "USER", actor, request_id, reason=f"{reservation.signal}_threshold_signal", details={"scope": "login"})
         if result is not None and replace is not None and replace.organization_id != organization_id:
-            await self._sessions.revoke(replace.organization_id, replace.session_id, RevokeReason.ROTATED)  # cookie of another organization: separate transaction
+            try:  # the login already committed: a failure here must not turn it into a 500 without a cookie (the presented session still expires on its own)
+                await self._sessions.revoke(replace.organization_id, replace.session_id, RevokeReason.ROTATED)  # cookie of another organization: separate transaction
+            except Exception:
+                log.exception("revoking a presented session of another organization failed after a successful login")
         return result
 
     async def logout(self, current: AuthenticatedSession, *, request_id: str | None) -> None:
@@ -150,7 +160,7 @@ class AuthService:
             raise rate_limited(reservation.delay)
         failed = False
         try:
-            async with UnitOfWork(self._factory) as uow:
+            async with self._slots, UnitOfWork(self._factory) as uow:
                 await uow.with_tenant(current.organization_id)
                 s = uow.session
                 row = (await s.execute(text("SELECT id, password_hash, row_version FROM iam.credentials WHERE user_id = :u AND kind = 'PASSWORD'"), {"u": current.user_id})).mappings().first()
@@ -186,7 +196,7 @@ class AuthService:
             raise rate_limited(reservation.delay)
         ok = False
         try:
-            async with UnitOfWork(self._factory) as uow:
+            async with self._slots, UnitOfWork(self._factory) as uow:
                 await uow.with_tenant(current.organization_id)
                 row = (await uow.session.execute(text("SELECT password_hash FROM iam.credentials WHERE user_id = :u AND kind = 'PASSWORD'"), {"u": current.user_id})).mappings().first()
                 ok = await self._verify(row["password_hash"] if row is not None else None, password) and row is not None

@@ -25,6 +25,9 @@ async def ensure_may_act_on(s: AsyncSession, factory: async_sessionmaker[AsyncSe
                             policy_version: str | None = None) -> None:
     """Role hierarchy (ADR-073, WORKING): an actor may act on a user whose organization role ranks strictly below their own; an OWNER may also act on another OWNER.
     Without it a compromised administrator could disable or reset the MFA of the owners who are meant to control administrators."""
+    # Serialise per organization BEFORE reading roles: rank check, last-owner count and the UPDATE then see one consistent picture (READ COMMITTED), and two owners
+    # disabling each other cannot both pass.
+    await s.execute(text("SELECT pg_advisory_xact_lock(hashtextextended('owner-guard:' || CAST(:o AS text), 0))"), {"o": organization_id})
     rows = (await s.execute(text("SELECT user_id, role_code FROM organization.memberships WHERE organization_id = :o AND status = 'ACTIVE' AND user_id IN (:a, :u)"),
                             {"o": organization_id, "a": actor_id, "u": subject_id})).mappings().all()
     roles = {r["user_id"]: r["role_code"] for r in rows}
@@ -57,8 +60,6 @@ class AccountService:
         if actor_id == user_id:
             raise ProblemError(ErrorCode.STATE_TRANSITION_NOT_ALLOWED, "You cannot do this to your own account.")
         await ensure_may_act_on(s, self._factory, organization_id, actor_id, user_id, action=action, policy_version=policy_version)
-        # Serialise owner-removing actions per organization: without it two owners disabling each other both see "the other one is still active" (READ COMMITTED).
-        await s.execute(text("SELECT pg_advisory_xact_lock(hashtextextended('owner-guard:' || CAST(:o AS text), 0))"), {"o": organization_id})
         owner_left = (await s.execute(text(
             "SELECT count(*) FROM organization.memberships m JOIN iam.users u ON u.organization_id = m.organization_id AND u.id = m.user_id "
             "WHERE m.organization_id = :o AND m.role_code = 'ORGANIZATION_OWNER' AND m.status = 'ACTIVE' AND u.status = 'ACTIVE' AND m.user_id <> :u"), {"o": organization_id, "u": user_id})).scalar_one()

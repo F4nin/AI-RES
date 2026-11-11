@@ -35,6 +35,8 @@ class ThrottlePolicy:
             raise ValueError("thresholds must be >= 1")
         if self.base_delay <= timedelta(0) or self.max_delay < self.base_delay or self.window <= timedelta(0) or self.max_entries < 10:
             raise ValueError("invalid delay/window/max_entries")
+        if self.max_delay > self.window:
+            raise ValueError("max_delay must not exceed the window: a block would outlive the counter that caused it")
 
 
 @dataclass(frozen=True, slots=True)
@@ -132,8 +134,10 @@ class LoginThrottle:
             return
         for key in [k for k, c in self._counters.items() if k != _GLOBAL and c.last_failure is not None and now - c.last_failure > self._p.window]:
             del self._counters[key]
-        if len(self._counters) > self._p.max_entries:  # still flooded: drop the least recently failed first, but NEVER an active block
+        if len(self._counters) > self._p.max_entries:
+            # Still flooded: evict down to 90% of the cap in ONE pass (amortised, not on every request). Never an active block.
+            target = self._p.max_entries * 9 // 10
             evictable = [k for k, c in self._counters.items() if k != _GLOBAL and not (c.blocked_until is not None and c.blocked_until > now)]
             evictable.sort(key=lambda k: self._counters[k].last_failure or now)
-            for key in evictable[: len(self._counters) - self._p.max_entries]:
+            for key in evictable[: max(0, len(self._counters) - target)]:
                 del self._counters[key]

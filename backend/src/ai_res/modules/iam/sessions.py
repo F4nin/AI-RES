@@ -63,8 +63,8 @@ class AuthenticatedSession:
     mfa_verified_at: datetime | None
     idle_expires_at: datetime
     absolute_expires_at: datetime
-    csrf_token: str  # derived from the presented token (see tokens.py)
-    csrf_digest: bytes
+    csrf_token: str = field(repr=False)  # derived from the presented token (see tokens.py)
+    csrf_digest: bytes = field(repr=False)
     second_factor_pending: bool = False  # an ACTIVE factor exists but this session has not presented it: usable ONLY to complete MFA or sign out
 
 
@@ -77,8 +77,8 @@ class SessionAuthResult:
 class SessionService:
     def __init__(self, factory: async_sessionmaker[AsyncSession], *, idle: timedelta, absolute: timedelta, touch_interval: timedelta,
                  clock: Callable[[], datetime] = utc_now) -> None:
-        if idle <= timedelta(0) or absolute < idle or touch_interval <= timedelta(0):
-            raise ValueError("invalid session timing: 0 < idle <= absolute and touch_interval > 0")
+        if idle <= timedelta(0) or absolute < idle or touch_interval <= timedelta(0) or touch_interval >= idle:
+            raise ValueError("invalid session timing: 0 < touch_interval < idle <= absolute (otherwise an active session is never extended)")
         self._factory, self._idle, self._absolute, self._touch, self._clock = factory, idle, absolute, touch_interval, clock
 
     def _uow(self) -> UnitOfWork:
@@ -139,6 +139,9 @@ class SessionService:
                     {"now": now, "idle": idle_expires, "id": row["id"], "rv": row["row_version"]})
                 if affected(touched) != 1:
                     idle_expires = row["idle_expires_at"]  # lost the CAS: report what the database really holds, not an extension that never happened
+                    revoked = (await uow.session.execute(text("SELECT revoked_at IS NOT NULL FROM iam.sessions WHERE id = :id"), {"id": row["id"]})).scalar_one()
+                    if revoked:
+                        return SessionAuthResult(None, AuthFailure.REVOKED)  # a logout/revoke won the race: this request must not proceed as authenticated
             return SessionAuthResult(AuthenticatedSession(row["id"], row["organization_id"], row["user_id"], row["mfa_verified_at"], idle_expires,
                                                            row["absolute_expires_at"], csrf_token_for(token), bytes(row["csrf_digest"]),
                                                            second_factor_pending=bool(row["mfa_enrolled"]) and row["mfa_verified_at"] is None), None)

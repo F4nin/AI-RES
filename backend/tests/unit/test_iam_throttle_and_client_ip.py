@@ -202,3 +202,40 @@ def test_in_signal_mode_the_account_still_slows_down_guessing_from_anywhere() ->
     for i in range(3):
         t.reserve("victim", f"198.51.100.{i}")
     assert t.retry_after("victim", "198.51.100.77") is not None
+
+
+# ---- delta review fixes (S07) ----
+def test_eviction_is_batched_down_to_ninety_percent_so_the_scan_is_not_repeated_per_request() -> None:
+    t = LoginThrottle(policy(max_entries=100, global_threshold=100_000), Clock())
+    for i in range(60):  # 3 keys per attempt: the table crosses the cap, then is cut once to 90%
+        t.record_failure(f"junk{i}", f"10.1.0.{i}")
+    assert t.size() <= 100
+    before = t.size()
+    for i in range(60, 62):
+        t.record_failure(f"junk{i}", f"10.1.0.{i}")
+    assert t.size() <= max(before, 100)  # never above the cap, and the next inserts do not trigger a fresh full eviction each time
+
+
+def test_interleaved_successes_cannot_hide_a_spray_from_the_signal() -> None:
+    t = LoginThrottle(policy(enforce_ip_global=False, ip_threshold=5, account_ip_threshold=100, account_threshold=100, global_threshold=100_000), Clock())
+    signals = []
+    for i in range(10):
+        r = t.reserve(f"victim{i}", "10.0.0.9")  # a guess against a different account each time
+        if r.signal:
+            signals.append(r.signal)
+        own = t.reserve("attacker", "10.0.0.9")  # ... then a valid login to their own account, refunded after success
+        t.release(own)
+    assert "ip" in signals
+
+
+def test_a_block_longer_than_the_window_is_a_configuration_error() -> None:
+    with pytest.raises(ValueError):
+        policy(max_delay=timedelta(minutes=30), window=timedelta(minutes=15))
+
+
+def test_a_stream_of_valid_logins_never_raises_the_ip_or_global_signal() -> None:
+    t = LoginThrottle(policy(enforce_ip_global=False, ip_threshold=5, global_threshold=8, account_ip_threshold=100, account_threshold=100), Clock())
+    for i in range(60):  # a busy office behind one address: every attempt succeeds and is refunded, so the signal measures FAILURES only
+        r = t.reserve(f"user{i % 7}", "10.0.0.9")
+        assert r.delay is None and r.signal is None
+        t.release(r)

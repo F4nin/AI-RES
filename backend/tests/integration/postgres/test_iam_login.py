@@ -245,3 +245,47 @@ async def test_a_failing_audit_write_aborts_the_login_and_leaves_no_session(rig:
         await rig.login()
     with rig.world.pg.connect() as c:
         assert c.execute("SELECT count(*) FROM iam.sessions").fetchone()[0] == 0
+
+
+async def test_a_failing_revocation_of_another_organizations_cookie_does_not_break_a_committed_login(rig: Rig, monkeypatch: pytest.MonkeyPatch) -> None:
+    foreign = await rig.sessions.create(rig.world.org_b, rig.world.user_b)
+    presented = (await rig.sessions.authenticate(foreign.token)).session
+    assert presented is not None
+
+    async def boom(*a: Any, **kw: Any) -> bool:
+        raise RuntimeError("database hiccup")
+
+    monkeypatch.setattr(rig.sessions, "revoke", boom)
+    result = await rig.login(replace=presented)  # the new session was committed; the best-effort cleanup failed
+    assert (await rig.sessions.authenticate(result.session.token)).session is not None
+
+
+async def test_argon2_work_and_open_credential_transactions_are_bounded_by_the_slot_count(rig: Rig) -> None:
+    import threading
+
+    from ai_res.db.session import create_session_factory
+    from ai_res.modules.iam.auth import AuthService
+
+    live, peak, lock = 0, 0, threading.Lock()
+
+    class Probe(CountingHasher):
+        def verify(self, stored_hash: str, password: str) -> bool:
+            nonlocal live, peak
+            with lock:
+                live += 1
+                peak = max(peak, live)
+            try:
+                import time
+                time.sleep(0.05)
+                return super().verify(stored_hash, password)
+            finally:
+                with lock:
+                    live -= 1
+
+    hasher = Probe(time_cost=1, memory_kib=8, parallelism=1)
+    loose = LoginThrottle(ThrottlePolicy(account_ip_threshold=1000, ip_threshold=1000, account_threshold=1000, global_threshold=1000,
+                                         base_delay=timedelta(seconds=1), max_delay=timedelta(seconds=5), window=timedelta(minutes=15)), rig.clock)
+    auth = AuthService(create_session_factory(rig.world.engine()), rig.sessions, hasher, PasswordPolicy(denylist=frozenset()), loose, clock=rig.clock, max_concurrent_hashes=2)
+    results = await asyncio.gather(*(auth.login(organization_id=rig.world.org_a, email="a@example.com", password=PASSWORD, client_ip=f"198.51.100.{i}", request_id=None)
+                                     for i in range(12)))
+    assert len(results) == 12 and 1 <= peak <= 2
