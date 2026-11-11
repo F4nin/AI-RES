@@ -11,6 +11,7 @@
 | OD-05 | Quantitative risk calibration и organization authority matrix (DOC-051 WORKING) | Владелец | Сокращение ручной эскалации в S24–S26 | Бизнес-полномочия | ADR-029: автономно только детерминированно LOW-risk, остальное — человеку |
 | OD-06 | Фиксация в git подготовленных файлов (`.claude/` ECC, `docs/implementation/`, правки CLAUDE.md и правила БД) | Владелец | — | Commit только по явной просьбе | Файлы в рабочем дереве |
 | OD-13 | Форма `dataschema` (сейчас WORKING: `urn:aires:schemas:<CloudEvents type>`) и `source` WorkerRun-событий (`urn:aires:worker-runs`); решения по NCP-09…11 (расхождения Event Model / API Contracts / State Machine с AsyncAPI v1.6) | Владелец | Фиксацию форм до S10 (dispatcher/SSE); не блокирует S05 | Нормативные документы значений не задают; выбор — изменение контракта | Значения централизованы в `modules/events/envelope.py`, ADR-054 |
+| OD-14 | Словарь и граф статусов ArtifactVersion (расхождение G-71), словарь статусов Change Request и требование «CR одобрен» для baseline, разделение автора и утверждающего правила, нужен ли review перед APPROVED артефакта (G-72) | Владелец | До S26 (артефакты) / S31 (change control) | Нормативные документы значений не задают | Реестр статусов в БД (`artifacts.artifact_version_statuses`), минимальный граф, ADR-060 |
 
 ## Закрыто решением владельца 2026-11-11
 | ID | Решение |

@@ -12,8 +12,8 @@
 | S03 | Local infrastructure (Docker Compose), secrets и CI baseline | VERIFIED (локально и на GitHub Actions Linux, 2026-11-11): runtime 81 + статика 76, backend 58, contracts 19; повторное независимое review (security, silent-failure) — 0 открытых HIGH/CRITICAL; CI на Linux зелёный (G-27 закрыт, runs 42980598813, 42980597940) | DONE (ADR-032); слой 4 ADR-037 (security owner) — на S37 | [report](increments/S03_local_infrastructure_secrets_ci_REPORT.md) |
 | S04 | Persistence foundation: Alembic, schemas, роли | VERIFIED (локально, 2026-11-11): backend 159 (unit 72 + arch 3 + PostgreSQL 16 integration 84), runtime 95, infra static 77, contracts 19; независимое review (4 агента) — 0 HIGH/CRITICAL; GitHub Actions на Linux зелёный (2026-11-11, PR #2: ci 42989650789, contracts 42989650777; G-43 в части Linux-CI закрыт) | DONE (ADR-032) | [report](increments/S04_persistence_foundation_REPORT.md) |
 | S05 | Core tenant и execution schema + RLS | VERIFIED по решению владельца (2026-11-11; локально: backend 297 passed, три раунда review; ветка `feat/s05-core-tenant-execution-schema-rls`). GitHub Actions на Linux зелёный (2026-11-11, PR #3; финальный коммит 6716730: ci 43034572213 и 43034582085, backend/infra-static/infra-runtime/contracts — success; ранее на 1cb09dc: ci 43029221024 и 43029232241 (повторный прогон), contracts 43029220792 и 43029232542); дельта третьего раунда отдельным агентом не пересматривалась (отчёт §11) | READY (S04 DONE) | — |
-| S06 | Domain content schema: requirements, sources, artifacts, context, decisions, traceability, rules | NOT_STARTED | PENDING_DEPS | — |
-| S07 | Identity, Local Auth, Policy Engine, Audit, Idempotency | NOT_STARTED | PENDING_DEPS | — |
+| S06 | Domain content schema: requirements, sources, artifacts, context, decisions, traceability, rules | VERIFIED по решению владельца (2026-11-11; локально: backend 331, runtime 95, infra static 172, contracts 19; три review). GitHub Actions на Linux зелёный (2026-11-11, PR #5, коммит a7db82c: ci 43074829225 и 43074859429, contracts 43074829230 и 43074859545 — backend/infra-static/infra-runtime/contracts success). Дельта после review отдельным агентом не пересматривалась; открыты G-69…G-74, OD-14 | — | `increments/S06_domain_content_schema_REPORT.md`, `reviews/S06_REVIEWS.md` |
+| S07 | Identity, Local Auth, Policy Engine, Audit, Idempotency | NOT_STARTED | READY | — |
 | S08 | Read-only API vertical slices | NOT_STARTED | PENDING_DEPS | — |
 | S09 | Controlled write commands | NOT_STARTED | PENDING_DEPS | — |
 | S10 | Outbox dispatcher, Inbox и CloudEvents | NOT_STARTED | PENDING_DEPS | — |
@@ -53,7 +53,7 @@
 |---|---|---|
 | Contract toolchain | VERIFIED | S01 |
 | Backend API | NOT_STARTED | S02, S07–S12 |
-| PostgreSQL `ai_res_db` (миграции, роли, RLS) | NOT_STARTED | S04–S06 |
+| PostgreSQL `ai_res_db` (миграции, роли, RLS) | TESTED (S04–S06 схемы; репозитории частично) | S04–S06 |
 | Docker Compose / secrets / CI | VERIFIED (локально и на GitHub Actions) | S03 |
 | Outbox / Inbox | NOT_STARTED | S10 |
 | Temporal, Manager Runtime, Worker Runtime | NOT_STARTED | S11, S20, S23 |

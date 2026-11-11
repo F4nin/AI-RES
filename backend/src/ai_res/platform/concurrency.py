@@ -39,3 +39,10 @@ class AggregateVersionConflict(ProblemError):
 
     def __init__(self) -> None:
         super().__init__(ErrorCode.AGGREGATE_VERSION_CONFLICT, "Aggregate version conflict.")
+
+
+class StateConflict(ProblemError):
+    """The object is not in a state from which the requested transition is allowed (409 STATE_TRANSITION_NOT_ALLOWED); shared by all domain repositories."""
+
+    def __init__(self) -> None:
+        super().__init__(ErrorCode.STATE_TRANSITION_NOT_ALLOWED, "State transition not allowed.")

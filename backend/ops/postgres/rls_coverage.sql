@@ -9,7 +9,13 @@ cross_tenant(policy_name, reason) AS (VALUES
 exempt(table_name, reason) AS (VALUES ('platform.alembic_version', 'Alembic bookkeeping; not tenant data, no runtime grants'),
   ('iam.roles', 'global reference data (ADR-050); runtime SELECT-only, writable only by migrations'),
   ('operations.operation_types', 'global operation_type registry (ADR-013); runtime SELECT-only, extended only by revisions'),
-  ('audit.aggregate_types', 'global aggregate_type registry (ADR-016); no runtime grants, extended only by revisions')),
+  ('audit.aggregate_types', 'global aggregate_type registry (ADR-016); no runtime grants, extended only by revisions'),
+  ('requirements.requirement_types', 'global requirement type registry (ADR-056); runtime SELECT-only, extended only by revisions'),
+  ('artifacts.artifact_types', 'global artifact type registry (ADR-060); runtime SELECT-only, extended only by revisions'),
+  ('artifacts.artifact_version_statuses', 'global artifact version status registry (ADR-060, WORKING vocabulary); runtime SELECT-only'),
+  ('traceability.object_types', 'global traceability object type registry (ADR-058); runtime SELECT-only'),
+  ('traceability.link_types', 'global traceability link type registry (ADR-058); runtime SELECT-only'),
+  ('traceability.link_type_rules', 'global registry of allowed (link type, source type, target type) triples (ADR-058); runtime SELECT-only')),
 tbl AS (
   SELECT c.oid, c.relrowsecurity AS rls, c.relforcerowsecurity AS forced, n.nspname || '.' || c.relname AS name,
          EXISTS (SELECT 1 FROM pg_attribute a WHERE a.attrelid = c.oid AND a.attname IN ('organization_id','project_id') AND NOT a.attisdropped) AS scoped

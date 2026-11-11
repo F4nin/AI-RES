@@ -2,7 +2,7 @@
 
 Единый журнал архитектурных и технических решений реализации AI RES (ненормативный). Статусы: PROPOSED, ACCEPTED, REJECTED, SUPERSEDED. Решения в пределах полномочий Implementation Lead регистрируются как ACCEPTED. Решения, меняющие нормативные документы, оформляются как NCP в `decisions/NORMATIVE_CHANGE_PROPOSALS.md` и не считаются утверждёнными до решения владельца. Подробные материалы крупных решений — `decisions/`. `docs/adr/` не используется (`.claude/rules/ecc-precedence.md`).
 
-Сводка: 55 записей; все ACCEPTED.
+Сводка: 60 записей; все ACCEPTED.
 
 | ID | Решение | Статус |
 |---|---|---|
@@ -61,6 +61,11 @@
 | ADR-053 | S05 срез D: outbox, inbox, audit_events, idempotency_records и reference aggregate_types — права и RLS по ADR-034 | ACCEPTED |
 | ADR-054 | S05: CloudEvents-envelope Operation/WorkerRun событий строго по каноническим сообщениям AsyncAPI v1.6 (G-56, вариант A) | ACCEPTED |
 | ADR-055 | S05: migration-политики owner под FORCE RLS (ADR-034 п.5, вариант 1) и hardening по независимым review | ACCEPTED |
+| ADR-056 | S06: шаблон «идентичность + неизменяемые версии», требования и нумерация | ACCEPTED |
+| ADR-057 | S06: sources, uploads, source_versions, extraction_records | ACCEPTED |
+| ADR-058 | S06: traceability, rules, context, decisions | ACCEPTED |
+| ADR-059 | S06: append-only история событий агрегатов и расширение aggregate_types | ACCEPTED |
+| ADR-060 | S06: артефакты, review/approval/publication, baseline; hardening по независимому review | ACCEPTED |
 
 ---
 
@@ -998,3 +1003,88 @@
 | Влияние на компоненты/контракты | Все будущие ревизии с tenant-таблицами (обязаны создавать owner-политику), S07 (auth lookup, column grants), S10 (dispatcher: fencing-токен), S13 (Gate: ревалидация, check_code) |
 | Риски и компромиссы | Флаг `app.migration_mode` — не граница безопасности против произвольного SQL владельца роли (owner NOLOGIN, достижим только через SET ROLE у migrator, который и так выполняет DDL); удаление тенантных данных миграцией по-прежнему требует решения владельца (политика FOR ALL включает DELETE). Остаточные gap: G-59…G-68. |
 | Затронутые тесты | test_migration_safety (owner backfill, PERSIST-002 с owner-политиками), test_roles_and_grants (sabotage owner_migration_policy_missing ×2), test_agents_execution_schema (start requires latest, result needs started open run, unique attempt), test_identity_org_project_schema / test_operations_work_schema (immutable), test_repositories (fencing, bounded retry, idempotency expiry/key_id, secret guards) |
+
+## ADR-056 — S06: шаблон «идентичность + неизменяемые версии», требования и нумерация
+
+| Поле | Значение |
+|---|---|
+| Статус | ACCEPTED |
+| Дата | 2026-11-11 |
+| Ответственный | Implementation Lead (делегированные полномочия) |
+| Проблема и контекст | DOC-005 §6, §16 требуют иммутабельных версий, контролируемого указателя текущей версии и уникальных номеров без MAX()+1; DDL v1.0 — только design snapshot. |
+| Связанные требования | DOC-003, DATA-MVP-004, ADR-016, ADR-027, coding-standards (UUIDv7, MAX+1 запрещён) |
+| Документы и разделы | Domain Model v1.9 §6, §16; Requirements Lifecycle v2.7 §13–§16; documentation-and-versioning.md |
+| Альтернативы | Статус только на агрегате (версия остаётся «чистым» снимком); указатель без FK; нумерация MAX()+1 — отвергнуты. |
+| Решение | (1) Агрегат хранит изменяемые указатель/счётчики (`current_version_id`, `last_version_number`, `row_version`); версия — insert-only, кроме именованных lifecycle-колонок, переходы которых проверяет БД (`platform.guard_status_transition`, `forbid_unset`, `require_initial_state` на INSERT). (2) Указатель — DEFERRABLE составной FK `(id, current_version_id) -> versions(parent_id, id)`: может назвать только версию того же агрегата и tenant. (3) Номера версий непрерывны (отложенная проверка при COMMIT). (4) Статусы RequirementVersion = DOC-003; граф переходов минимальный «только вперёд» (WORKING уточнения: IN_BASELINE->SUPERSEDED). CONFIRMED требует человека (`confirmed_by` FK iam.users), APPROVED — факта approval этого человека для ровно этой версии, IN_BASELINE — baseline_item. (5) Неизвестный тип: реестр `requirement_types` (BR…TR + UNKNOWN), тип вне реестра хранится как UNKNOWN с `declared_type_text`, никогда не ближайший. (6) Человекочитаемые номера: `platform.display_number_counters` (строка под блокировкой, +1 только на единицу), UNIQUE(org, project, номер). (7) Связи: requirement_epics, work.task_requirements (опционально закреплённая версия). |
+| Обоснование | «Утверждённое» нельзя получить без существующего факта (approval и т.п.) ни UPDATE, ни INSERT; БД проверяет только наличие факта и что утверждающий — пользователь организации, а полномочия актора проверяет Policy Engine (S07); указатель и нумерация не рассинхронизируются. |
+| Влияние на компоненты/контракты | S09 (команды требований), S26–S31, репозиторий `modules/requirements` |
+| Риски и компромиссы | Расширение реестра типов на уровне организации и provenance как FK-таблица — не в scope (G-74); номера не привязаны к счётчику на уровне БД (G-72). |
+| Затронутые тесты | test_domain_content_schema (immutability, UNKNOWN, lifecycle, указатель/нумерация), test_s06_repositories |
+
+## ADR-057 — S06: sources, uploads, source_versions, extraction_records
+
+| Поле | Значение |
+|---|---|
+| Статус | ACCEPTED |
+| Дата | 2026-11-11 |
+| Ответственный | Implementation Lead (делегированные полномочия) |
+| Проблема и контекст | Нужны проверка checksum до обработки, идемпотентность финализации и дедупликация без перезаписи версий. |
+| Связанные требования | Source and Context Lifecycle §3, §6; security.md (uploads); testing: duplicate ingestion, parser change |
+| Документы и разделы | Domain Model §7; Source and Context Lifecycle v1.3 |
+| Альтернативы | Версия из любого объекта MinIO без upload — отвергнуто (ревью C5). |
+| Решение | `uploads`: PENDING->UPLOADED->VERIFIED|REJECTED|EXPIRED; VERIFIED только при совпадении checksum и размера (CHECK). `source_versions` insert-only, `object_key ⇔ upload_id` (иначе внешняя ссылка `external_ref`), создаётся из VERIFIED upload того же источника с теми же checksum/размером/типом (триггер); UNIQUE(source_id, checksum) и UNIQUE(upload_id) — повтор не создаёт дубль. `knowledge.extraction_records`: смена parser/pipeline version = новая запись, завершённая запись заморожена. Время жизни upload URL — WORKING конфигурация вызывающего. |
+| Обоснование | Содержимое источника не принимается на веру: версия возможна только после проверки. |
+| Влияние на компоненты/контракты | S08–S09 (upload API), S10–S11 (ingestion), репозиторий `modules/sources` |
+| Риски и компромиссы | SourceFragment/SourceAssertion/DerivedFinding вне scope (G-74); object_key уникален только среди uploads. |
+| Затронутые тесты | test_domain_content_schema, test_s06_repositories |
+
+## ADR-058 — S06: traceability, rules, context, decisions
+
+| Поле | Значение |
+|---|---|
+| Статус | ACCEPTED |
+| Дата | 2026-11-11 |
+| Ответственный | Implementation Lead (делегированные полномочия) |
+| Проблема и контекст | Полиморфные ссылки не имеют FK; правила нужны трёх уровней; контекст должен быть неизменяемым снимком. |
+| Связанные требования | DOC-051, RULE-MVP-02..04, ADR-018, DOC-012 (WORKING) |
+| Документы и разделы | Domain Model §8, §10, §11.3; Agent Architecture Concept §15; MVP Capability Matrix RULE-MVP |
+| Альтернативы | Универсальная таблица заметок для решений (запрещена); произвольные object/link types (запрещены). |
+| Решение | (1) Реестры `object_types`, `link_types`, `link_type_rules` (составной FK пары); засеяны только типы из документов (REFINES, DEPENDS_ON, CONFLICTS_WITH, DUPLICATES, SUPERSEDES для REQUIREMENT↔REQUIREMENT — WORKING, расширение ревизией). Концы связи проверяются триггером на существование в том же tenant; неизвестный тип — fail closed. Подтверждение требует субъекта и evidence. (2) Правила в схеме `governance` (отдельной схемы `rules` в ADR-014 нет): SYSTEM-правила без tenant (читают все, пишут только ревизии), ORGANIZATION/PROJECT — по RLS; одна APPROVED версия на правило; неутверждённая версия не «активна»; Registry и Engine — раздельные интерфейсы (ADR-018, Engine вне scope). (3) Контекст: пакет, неизменяемая версия и элементы пишутся одной транзакцией (число элементов проверяется при COMMIT), элементы — типизированные FK, rule-элемент — только APPROVED версия, видимая tenant. (4) Решения: семь отдельных таблиц DOC-051, статусы — regex (WORKING), risk probability/impact по умолчанию UNKNOWN без числовых порогов. |
+| Обоснование | Целостность там, где её может дать БД; остальное — явный WORKING. |
+| Влияние на компоненты/контракты | S09, S12 (context), S26–S31, Rules Engine |
+| Риски и компромиссы | Словари статусов decisions и политики правил WORKING (G-72); FK worker_runs->context_package_versions не добавлен (G-73). |
+| Затронутые тесты | test_domain_content_schema (traceability, rules, context, decisions) |
+
+## ADR-059 — S06: append-only история событий агрегатов и расширение aggregate_types
+
+| Поле | Значение |
+|---|---|
+| Статус | ACCEPTED |
+| Дата | 2026-11-11 |
+| Ответственный | Implementation Lead (делегированные полномочия) |
+| Проблема и контекст | ADR-033: SSE строится из event history (в S06 созданы только таблицы истории — ни один продюсер событий не реализован, G-70); ADR-016/053: aggregate_types расширяется ревизиями S06/S10. |
+| Связанные требования | ADR-033, ADR-034, ADR-053, PERSIST-012 |
+| Документы и разделы | AsyncAPI v1.6 (RequirementVersionCreated, SourceVersionIngested, Artifact*, Baseline*, ChangeRequest*) |
+| Альтернативы | Один общий журнал событий — отвергнут (расходится с operation_events/worker_run_events). |
+| Решение | Таблицы `{requirement,source,artifact,baseline,change_request}_events` по образцу operation_events: insert-only для всех, RLS через агрегат, непрерывная sequence при COMMIT. `audit.aggregate_types` расширен. `assert_outbox_matches_event` намеренно НЕ расширена: outbox-строка для новых агрегатов отвергается (fail closed) до решения OD-13 (форма dataschema/source, до S10). |
+| Обоснование | История готова для SSE, а публикация в outbox не появится раньше решения владельца по форме envelope. |
+| Влияние на компоненты/контракты | S10 (расширить функцию и репозиторий событий), S08–S09 |
+| Риски и компромиссы | Эмиссия событий этими агрегатами не реализована (G-70). |
+| Затронутые тесты | test_domain_content_schema::test_event_history_is_append_only_contiguous_and_outbox_stays_fail_closed |
+
+## ADR-060 — S06: артефакты, review/approval/publication, baseline; hardening по независимому review
+
+| Поле | Значение |
+|---|---|
+| Статус | ACCEPTED |
+| Дата | 2026-11-11 |
+| Ответственный | Implementation Lead (делегированные полномочия) |
+| Проблема и контекст | Validation, Review, Approval, Publication — разные факты; Baseline неизменяем; словарь статусов артефакта «начальный предлагаемый». |
+| Связанные требования | DOC-005 §9, Artifacts Lifecycle §6, §10; documentation-and-versioning.md; ADR-037 |
+| Документы и разделы | Documentation Artifacts Lifecycle v1.0 §3, §6, §10; Domain Model §9, §16 |
+| Альтернативы | Единый статус «готов к публикации» — отвергнуто; смешение validation и approval — отвергнуто. |
+| Решение | (1) Статусы ArtifactVersion — реестр (FK), засеян словарём §6.1; граф переходов минимальный (WORKING). APPROVED требует approval человека для ровно этой версии, PUBLISHED — publication (создаётся только для APPROVED), содержимое неизменно. (2) Reviews/approvals/publications/validation_reports — insert-only; approvals имеют типизированные FK (requirement_version | artifact_version | baseline), approver — пользователь организации. (3) Baseline и baseline_items insert-only; элементы добавляются только в транзакции создания baseline, только для APPROVED версий; число элементов проверяется при COMMIT; baseline требует APPROVED approval человека в той же транзакции; номер n следует за n-1. (4) Ревью (C1–C5, M1, M4): все lifecycle-guard-ы действуют и на INSERT (ревизия 0011, `require_initial_state`); object_key ⇔ upload; rule-элемент контекста — только APPROVED версия tenant; approver правила — из той же организации; индексы под FK. РАСХОЖДЕНИЕ: documentation-and-versioning.md называет жизненный цикл DRAFT→PROPOSED→UNDER_REVIEW→APPROVED→PUBLISHED→SUPERSEDED, Artifacts Lifecycle §6.1 — другой словарь; выбран §6.1 как профильный документ, решение — владельцу (OD-14). |
+| Обоснование | Статус не может утверждать то, чего нет: факты проверяются самой БД, в том числе при INSERT. |
+| Влияние на компоненты/контракты | S26–S31 (artifact/baseline/change control), S07 (approvals через Policy) |
+| Риски и компромиссы | Открытые пункты review → G-72 (validation как предпосылка approval, xid-запечатывание, привязка номеров к счётчикам, статус CR, разделение обязанностей). |
+| Затронутые тесты | test_domain_content_schema (artifact facts, baseline, lifecycle on INSERT, rule item tenant) |

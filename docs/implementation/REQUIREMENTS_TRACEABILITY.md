@@ -150,8 +150,8 @@
 | CI-045 | DOC-039 | Accessibility and localization review | — | S34 (MVP A0–A2); остальное post-MVP | NOT_STARTED |
 | DATA-MVP-001 | DOC-009 | Модульный Backend и единая доменная БД PostgreSQL | MVP | S05, S06 | NOT_STARTED |
 | DATA-MVP-002 | DOC-009 | Организационная и проектная модель | MVP | S05, S06 | NOT_STARTED |
-| DATA-MVP-003 | DOC-009 | Независимость Task и Requirement | MVP | S05, S06 | NOT_STARTED |
-| DATA-MVP-004 | DOC-009 | Версионирование требований | MVP | S05, S06 | NOT_STARTED |
+| DATA-MVP-003 | DOC-009 | Независимость Task и Requirement | MVP | S05, S06 | IMPLEMENTED (S06: БД-инварианты и тесты; HTTP-слой — S09) |
+| DATA-MVP-004 | DOC-009 | Версионирование требований | MVP | S05, S06 | IMPLEMENTED (S06: БД-инварианты и тесты; HTTP-слой — S09) |
 | DATA-MVP-005 | DOC-009 | Версионирование источников и provenance | MVP | S05, S06 | NOT_STARTED |
 | DATA-MVP-006 | DOC-009 | Типизированные Decision/Assumption/Risk/Issue/Unknown/Hypothesis/Conflict | MVP | S05, S06 | NOT_STARTED |
 | DATA-MVP-007 | DOC-009 | Версионируемый Plan | MVP | S05, S06 | NOT_STARTED |
