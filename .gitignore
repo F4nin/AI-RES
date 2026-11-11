@@ -64,3 +64,4 @@ infra/releases/sbom/
 infra/.cache/
 infra/releases/scan/
 infra/releases/release-manifest.json
+infra/secrets/encrypted/*.tmp

@@ -8,7 +8,7 @@ INFRA = Path(__file__).resolve().parents[2]
 COMPOSE = ["docker", "compose", "-p", "ai-res", "-f", str(INFRA / "compose.yaml"), "-f", str(INFRA / "compose.dev.yaml")]
 SECRETS = INFRA / "secrets" / "runtime"
 LONG_RUNNING = ["api", "reverse-proxy", "postgres", "temporal", "temporal-ui", "minio", "otel-collector"]
-ONE_SHOT = ["postgres-provision", "temporal-schema", "temporal-namespace", "minio-init"]
+ONE_SHOT = ["postgres-provision", "migrate", "temporal-schema", "temporal-namespace", "minio-init"]
 
 
 def sh(cmd: list[str], *, stdin: str | None = None, check: bool = False, timeout: int = 120) -> subprocess.CompletedProcess[str]:

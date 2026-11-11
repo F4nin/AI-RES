@@ -76,7 +76,7 @@ def test_admin_services_reachable_from_admin_network_positive_control():
 def test_persist_023_network_part_only_allowlisted_services_on_data_network():
     """PERSIST-023 (network part for what exists in S03): Manager/Worker runtimes do not exist yet; every other service that is not
     allowlisted must have no route to PostgreSQL. The real Manager/Worker check is repeated in S11/S23."""
-    allowed = {"api", "postgres", "postgres-provision", "temporal", "temporal-schema", "minio", "minio-init"}
+    allowed = {"api", "postgres", "postgres-provision", "migrate", "temporal", "temporal-schema", "minio", "minio-init"}
     for svc in LONG_RUNNING + ONE_SHOT:
         nets = set(inspect(svc)["NetworkSettings"]["Networks"])
         assert ("ai-res_data" in nets) == (svc in allowed), (svc, nets)
@@ -216,6 +216,7 @@ def test_secrets_mounted_only_into_services_that_need_them():
     expect = {
         "api": {"cursor_hmac_key"},
         "postgres": {"postgres_superuser_password", "postgres_tls_server_cert", "postgres_tls_server_key"},
+        "migrate": {"migrator_db_password", "postgres_tls_ca_cert"},
         "temporal": {"temporal_db_password", "postgres_tls_ca_cert"},
         "minio": {"minio_root_user", "minio_root_password"},
         "reverse-proxy": set(),

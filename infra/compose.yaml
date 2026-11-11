@@ -25,6 +25,12 @@ secrets:
   postgres_superuser_password: { file: ./secrets/runtime/postgres_superuser_password }
   temporal_db_password: { file: ./secrets/runtime/temporal_db_password }
   checkpointer_db_password: { file: ./secrets/runtime/checkpointer_db_password }
+  migrator_db_password: { file: ./secrets/runtime/migrator_db_password }
+  api_db_password: { file: ./secrets/runtime/api_db_password }
+  outbox_db_password: { file: ./secrets/runtime/outbox_db_password }
+  consumer_db_password: { file: ./secrets/runtime/consumer_db_password }
+  auditor_db_password: { file: ./secrets/runtime/auditor_db_password }
+  backup_db_password: { file: ./secrets/runtime/backup_db_password }
   minio_root_user: { file: ./secrets/runtime/minio_root_user }
   minio_root_password: { file: ./secrets/runtime/minio_root_password }
   cursor_hmac_key: { file: ./secrets/runtime/cursor_hmac_key }
@@ -72,6 +78,8 @@ services:
     secrets: [cursor_hmac_key]
     tmpfs:
       - /tmp:uid=10001,gid=10001,mode=0700
+    depends_on:
+      migrate: { condition: service_completed_successfully }  # ordering only: the API process itself never runs migrations
     healthcheck:
       # Liveness only: S02 exposes no routes and a health endpoint needs a contract (api-and-contracts.md, G-23). Any HTTP answer = process serves.
       test: ["CMD", "python", "-c", "import urllib.request,urllib.error,sys\ntry: urllib.request.urlopen('http://127.0.0.1:8000/')\nexcept urllib.error.HTTPError: sys.exit(0)\nexcept Exception: sys.exit(1)"]
@@ -111,13 +119,51 @@ services:
     environment:
       PGSSLMODE: verify-full
       PGSSLROOTCERT: /run/secrets/postgres_tls_ca_cert
-    secrets: [postgres_superuser_password, temporal_db_password, checkpointer_db_password, postgres_tls_ca_cert]
+    secrets:
+      - postgres_superuser_password
+      - temporal_db_password
+      - checkpointer_db_password
+      - migrator_db_password
+      - api_db_password
+      - outbox_db_password
+      - consumer_db_password
+      - auditor_db_password
+      - backup_db_password
+      - postgres_tls_ca_cert
     volumes:
       - ./config/postgres/provision.sh:/provision/provision.sh:ro
+      - ./config/postgres/provision_roles.sql:/provision/provision_roles.sql:ro
     tmpfs:
       - /tmp:uid=999,gid=999,mode=0700
     depends_on:
       postgres: { condition: service_healthy }
+
+  # One-shot migration job (S04, Blueprint §4.1/§10): the ONLY place that runs `alembic upgrade head`; API startup never migrates.
+  # Runs as ai_res_migrator over TLS verify-full, then SET ROLE ai_res_owner. Timeouts are WORKING migration-profile values (ADR-047).
+  migrate:
+    <<: *oneshot
+    build: { context: ../backend, dockerfile: Dockerfile }
+    image: ai-res/api:dev
+    user: "10001:10001"
+    mem_limit: 256m
+    networks: [data]
+    command: ["alembic", "-c", "/app/alembic.ini", "upgrade", "head"]
+    environment:
+      AI_RES_ENVIRONMENT: prod
+      AI_RES_DB_HOST: postgres
+      AI_RES_DB_USER: ai_res_migrator
+      AI_RES_DB_PASSWORD_FILE: /run/secrets/migrator_db_password
+      AI_RES_DB_SSLMODE: verify-full
+      AI_RES_DB_SSLROOTCERT_FILE: /run/secrets/postgres_tls_ca_cert
+      AI_RES_DB_APPLICATION_NAME: ai-res-migrate
+      AI_RES_DB_STATEMENT_TIMEOUT_MS: "60000"
+      AI_RES_DB_LOCK_TIMEOUT_MS: "5000"
+      AI_RES_DB_IDLE_IN_TRANSACTION_TIMEOUT_MS: "60000"
+    secrets: [migrator_db_password, postgres_tls_ca_cert]
+    tmpfs:
+      - /tmp:uid=10001,gid=10001,mode=0700
+    depends_on:
+      postgres-provision: { condition: service_completed_successfully }
 
   temporal-schema:
     <<: *oneshot

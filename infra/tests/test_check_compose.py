@@ -151,6 +151,17 @@ def test_healthcheck_required_unless_declared_one_shot():
     assert run(m) == []
 
 
+def test_migrate_job_may_hold_only_the_migration_identity_secret():
+    """S04: runtime role passwords never reach the migration job, and the migration password never reaches any other service."""
+    def migrate_with(secret: str):
+        return mutate(lambda m: m["services"].update({"migrate": good_service(networks={"data": None}, restart="no", secrets=[{"source": secret}])}))
+    assert not [x for x in run(migrate_with("migrator_db_password")) if "not allowed to have" in x]
+    for leaked in ("api_db_password", "backup_db_password", "postgres_superuser_password"):
+        assert has(run(migrate_with(leaked)), "not allowed to have"), leaked
+    v = run(mutate(lambda m: m["services"]["api"].update(secrets=[{"source": "migrator_db_password"}])))
+    assert has(v, "not allowed to have")
+
+
 def test_disabled_healthcheck_rejected():
     assert has(run(mutate(lambda m: m["services"]["api"].update(healthcheck={"disable": True}))), "disabled")
 

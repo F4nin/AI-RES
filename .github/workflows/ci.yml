@@ -18,6 +18,7 @@ jobs:
         with: { version: "${{ env.UV_VERSION }}" }
       - run: make backend-install
       - run: make backend-check   # ruff, mypy --strict, import-linter
+      # PostgreSQL 16 integration tests (Testcontainers, same image digest as Compose): migrations, roles/grants audit, RLS, tenant context, drift
       - run: make backend-test
       - name: dependency audit (locked runtime set)
         run: make backend-audit
@@ -35,7 +36,7 @@ jobs:
       - name: placeholder secret files for `docker compose config`
         run: |
           mkdir -p infra/secrets/runtime
-          for n in postgres_superuser_password temporal_db_password checkpointer_db_password minio_root_user minio_root_password cursor_hmac_key; do
+          for n in postgres_superuser_password temporal_db_password checkpointer_db_password migrator_db_password api_db_password outbox_db_password consumer_db_password auditor_db_password backup_db_password minio_root_user minio_root_password cursor_hmac_key postgres_tls_ca_cert postgres_tls_server_cert postgres_tls_server_key; do
             touch "infra/secrets/runtime/$n"
           done
       - run: make infra-check

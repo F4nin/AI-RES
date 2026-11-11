@@ -30,6 +30,20 @@ class Settings(BaseModel):
     otlp_endpoint: str | None = None
     cursor_hmac_key_id: str = Field(default="k1", pattern=r"^[A-Za-z0-9._-]{1,32}$")
     cursor_hmac_key_file: Path | None = None
+    # PostgreSQL connection (S04). Passwords only via *_file. Numeric defaults are WORKING technical values (ADR-047), not SLOs (OD-02).
+    db_host: str | None = None
+    db_port: int = Field(default=5432, ge=1, le=65535)
+    db_name: str = Field(default="ai_res_db", pattern=r"^[a-z][a-z0-9_]{0,62}$")
+    db_user: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_]{0,62}$")
+    db_password_file: Path | None = None
+    db_sslmode: Literal["verify-full", "disable"] = "verify-full"
+    db_sslrootcert_file: Path | None = None
+    db_application_name: str = Field(default="ai-res", pattern=r"^[A-Za-z0-9._-]{1,48}$")
+    db_statement_timeout_ms: int = Field(default=15_000, ge=1)
+    db_lock_timeout_ms: int = Field(default=2_000, ge=1)
+    db_idle_in_transaction_timeout_ms: int = Field(default=30_000, ge=1)
+    db_pool_size: int = Field(default=5, ge=1, le=100)
+    db_pool_recycle_s: int = Field(default=1_800, ge=30)
 
     @field_validator("otlp_endpoint")
     @classmethod
@@ -44,6 +58,10 @@ class Settings(BaseModel):
     def _guards(self) -> "Settings":
         if self.llm_gateway == "deterministic-test-double" and self.environment != "test":
             raise ValueError("deterministic LLM test double is allowed only when environment=test (ADR-022)")
+        if self.db_sslmode == "disable" and self.environment not in ("local", "test"):
+            raise ValueError("db_sslmode=disable is allowed only when environment is local or test (TLS verify-full is mandatory, DBM-014)")
+        if self.db_sslmode == "verify-full" and self.db_host is not None and self.db_sslrootcert_file is None:
+            raise ValueError("db_sslrootcert_file is required when db_sslmode=verify-full")
         return self
 
 

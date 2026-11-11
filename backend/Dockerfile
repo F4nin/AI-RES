@@ -16,8 +16,11 @@ RUN groupadd --gid 10001 aires && useradd --uid 10001 --gid 10001 --no-create-ho
  && rm -rf /usr/local/lib/python3.13/site-packages/pip* /usr/local/lib/python3.13/site-packages/setuptools* \
            /usr/local/lib/python3.13/site-packages/pkg_resources /usr/local/lib/python3.13/site-packages/wheel* /usr/local/bin/pip*
 COPY --from=build /app/.venv /app/.venv
+COPY alembic.ini /app/alembic.ini
 ENV PATH=/app/.venv/bin:$PATH PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
+WORKDIR /app
 USER 10001:10001
 EXPOSE 8000
+# The one-shot `migrate` Compose service runs `alembic upgrade head` from this same image; API startup never migrates (Blueprint §4.1).
 # serve.py runs uvicorn with log_config=None so that redacting logging (platform.redaction) stays in force (ADR-037).
 CMD ["python", "-m", "ai_res.api.serve"]

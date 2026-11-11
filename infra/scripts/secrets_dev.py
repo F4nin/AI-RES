@@ -31,7 +31,11 @@ WORLD_READABLE = os.environ.get("AI_RES_SECRETS_WORLD_READABLE") == "1"
 if WORLD_READABLE and not (os.environ.get("GITHUB_ACTIONS") == "true" or os.environ.get("CI") == "true"):
     raise SystemExit("AI_RES_SECRETS_WORLD_READABLE=1 is only allowed in CI (GITHUB_ACTIONS/CI must be set)")
 FILE_MODE, DIR_MODE = (0o644, 0o755) if WORLD_READABLE else (0o600, 0o700)
-PASSWORDS = ["postgres_superuser_password", "temporal_db_password", "checkpointer_db_password", "minio_root_password", "cursor_hmac_key"]
+# S04: one password per PostgreSQL login identity (ADR-015); the secret files are mounted only into the services that need them
+DOMAIN_DB_PASSWORDS = [
+    "migrator_db_password", "api_db_password", "outbox_db_password", "consumer_db_password", "auditor_db_password", "backup_db_password",
+]
+PASSWORDS = ["postgres_superuser_password", "temporal_db_password", "checkpointer_db_password", "minio_root_password", "cursor_hmac_key", *DOMAIN_DB_PASSWORDS]
 TLS = ["postgres_tls_ca_cert", "postgres_tls_server_cert", "postgres_tls_server_key"]
 NAMES = [*PASSWORDS[:3], "minio_root_user", *PASSWORDS[3:], *TLS]
 TLS_DAYS = "825"  # local dev certificate lifetime (WORKING)
@@ -104,7 +108,24 @@ def write_runtime(values: dict[str, str]) -> None:
     print(f"{len(NAMES)} secret files in {RUNTIME.relative_to(INFRA.parent)} ({changed} written)")
 
 
-def decrypt() -> dict[str, str]:
+def _encrypt(values: dict[str, str], recipient: str) -> None:
+    res = subprocess.run(  # noqa: S603
+        ["sops", "--encrypt", "--age", recipient, "--input-type", "json", "--output-type", "yaml", "--filename-override", str(ENCRYPTED), "/dev/stdin"],  # noqa: S607
+        input=json.dumps(values), capture_output=True, text=True, check=True,
+    )
+    # Atomic replace: a crash between truncate and write must never leave an empty/corrupt file (it holds every dev secret incl. the TLS CA).
+    if ENCRYPTED.exists():
+        shutil.copy2(ENCRYPTED, ENCRYPTED.with_suffix(".yaml.bak"))  # one-step-back copy, same git-ignored directory and permissions
+    tmp = ENCRYPTED.with_suffix(".yaml.tmp")
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as fh:
+        fh.write(res.stdout)
+        fh.flush()
+        os.fsync(fh.fileno())
+    os.replace(tmp, ENCRYPTED)
+
+
+def _decrypt_raw() -> dict[str, str]:
     try:
         out = _run(["sops", "--decrypt", "--input-type", "yaml", "--output-type", "json", str(ENCRYPTED)]).stdout
     except subprocess.CalledProcessError as exc:
@@ -112,25 +133,32 @@ def decrypt() -> dict[str, str]:
             f"cannot decrypt {ENCRYPTED.name} with {AGE_KEY} (sops exit {exc.returncode}). The file is per-machine; remove it to regenerate "
             "(then `make down`: databases keep the old passwords)."
         ) from None
-    data = json.loads(out)
+    return {k: str(v) for k, v in json.loads(out).items()}
+
+
+def decrypt() -> dict[str, str]:
+    data = _decrypt_raw()
     missing = [n for n in NAMES if not data.get(n)]
     if missing:
-        raise SystemExit(f"encrypted file lacks: {', '.join(missing)} (remove it to regenerate)")
-    return {n: str(data[n]) for n in NAMES}
+        raise SystemExit(f"encrypted file lacks: {', '.join(missing)} (run `make secrets-dev` to add them; existing values are kept)")
+    return {n: data[n] for n in NAMES}
 
 
 def init() -> None:
     recipient = ensure_age_key(create=not ENCRYPTED.exists())
     if ENCRYPTED.exists():
-        print("encrypted secrets already exist: keeping them (no regeneration)")
+        existing = _decrypt_raw()
+        added = [n for n in NAMES if not existing.get(n) and n not in TLS]
+        if any(not existing.get(n) for n in TLS):
+            raise SystemExit("the TLS material is missing from the encrypted file (remove it to regenerate; databases keep old passwords)")
+        if added:  # new secret names introduced by a later stage: add ONLY the missing ones, never touch existing values
+            _encrypt({**existing, **{n: _generate(n) for n in added}}, recipient)
+            print(f"added {len(added)} new secret(s) to {ENCRYPTED.name}: {', '.join(added)}; existing values were kept")
+        else:
+            print("encrypted secrets already exist: keeping them (no regeneration)")
     else:
         ENCRYPTED.parent.mkdir(parents=True, exist_ok=True)
-        plain = json.dumps({**{n: _generate(n) for n in NAMES if n not in TLS}, **generate_tls()})
-        res = subprocess.run(  # noqa: S603
-            ["sops", "--encrypt", "--age", recipient, "--input-type", "json", "--output-type", "yaml", "--filename-override", str(ENCRYPTED), "/dev/stdin"],  # noqa: S607
-            input=plain, capture_output=True, text=True, check=True,
-        )
-        ENCRYPTED.write_text(res.stdout)
+        _encrypt({**{n: _generate(n) for n in NAMES if n not in TLS}, **generate_tls()}, recipient)
         print(f"encrypted secrets written to {ENCRYPTED.relative_to(INFRA.parent)}")
     write_runtime(decrypt())
 

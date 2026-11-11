@@ -18,17 +18,20 @@ PUBLISH_HOST_IP = "127.0.0.1"  # local profile; a different bind needs an owner 
 OPEN_NETWORKS = {"ingress", "egress"}  # the only networks with a gateway; membership is allowlisted per service below
 INGRESS_ALLOWED = {"reverse-proxy", "frontend"}
 EGRESS_ALLOWED = {"llm-gateway", "connector-platform"}  # DOC-015 §9.1: only controlled egress services (they do not exist yet)
-DATA_ALLOWED = {"api", "postgres", "postgres-provision", "temporal", "temporal-schema", "minio", "minio-init"}
+DATA_ALLOWED = {"api", "postgres", "postgres-provision", "migrate", "temporal", "temporal-schema", "minio", "minio-init"}
 MANAGER_WORKER_PREFIXES = ("manager-runtime", "worker-runtime")  # PERSIST-023: no network path to PostgreSQL
 MANAGER_WORKER_NETWORKS = {"app", "workflow"}  # never data, admin, ingress or egress
-ONE_SHOT = {"postgres-provision", "temporal-schema", "temporal-namespace", "minio-init"}  # may omit healthcheck (restart: "no")
+ONE_SHOT = {"postgres-provision", "migrate", "temporal-schema", "temporal-namespace", "minio-init"}  # may omit healthcheck (restart: "no")
 HEALTHCHECK_EXEMPT = {"otel-collector"}  # distroless image: no shell/HTTP client for an in-container probe; probed externally in S13
 ADMIN_ONLY = {"temporal-ui"}  # Temporal Web UI / MinIO console: admin network only, never ingress
 # Which Compose secrets each service may mount (Secrets §4: each service gets only what it needs). Unlisted service => no secrets.
 SECRET_ALLOWED: dict[str, set[str]] = {
     "api": {"cursor_hmac_key"},
     "postgres": {"postgres_superuser_password", "postgres_tls_server_cert", "postgres_tls_server_key"},
-    "postgres-provision": {"postgres_superuser_password", "temporal_db_password", "checkpointer_db_password", "postgres_tls_ca_cert"},
+    "postgres-provision": {"postgres_superuser_password", "temporal_db_password", "checkpointer_db_password", "postgres_tls_ca_cert",
+                           "migrator_db_password", "api_db_password", "outbox_db_password", "consumer_db_password", "auditor_db_password",
+                           "backup_db_password"},
+    "migrate": {"migrator_db_password", "postgres_tls_ca_cert"},  # S04: only the migration identity; runtime role secrets arrive with their consumers
     "temporal-schema": {"temporal_db_password", "postgres_tls_ca_cert"},
     "temporal": {"temporal_db_password", "postgres_tls_ca_cert"},
     "minio": {"minio_root_user", "minio_root_password"},

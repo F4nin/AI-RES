@@ -16,7 +16,7 @@ def lint(cwd: Path, config: Path | None = None) -> subprocess.CompletedProcess[s
 def test_project_contracts_are_kept():
     r = lint(BACKEND)
     assert r.returncode == 0, r.stdout[-800:]
-    assert "4 kept, 0 broken" in r.stdout
+    assert "5 kept, 0 broken" in r.stdout
 
 
 def test_contracts_fail_on_deliberate_violations(tmp_path):
