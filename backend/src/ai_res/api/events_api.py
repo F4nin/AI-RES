@@ -62,7 +62,8 @@ def register_events_api(app: FastAPI, services: IdentityServices) -> None:
         gap = False
         if last_event_id:
             try:
-                position = Position.from_keyset(decode_cursor(ring, last_event_id, subject=subject, audience=AUDIENCE, filters=filters))
+                position = Position.from_keyset(decode_cursor(ring, last_event_id, subject=subject, audience=AUDIENCE, filters=filters,
+                                                                   now=0.0))  # expiry unchecked: retention is, below
             except (InvalidCursor, ValueError):
                 raise ProblemError(ErrorCode.VALIDATION_ERROR, "Last-Event-ID is not valid for this stream.",
                                    errors=[{"field": "Last-Event-ID", "reason": "invalid_cursor"}]) from None
@@ -112,12 +113,12 @@ def register_events_api(app: FastAPI, services: IdentityServices) -> None:
                 running = position
                 for event in batch:
                     running = running.advanced([event])
+                    if len(running.seen) > MAX_TRACKED:  # never hand out a cursor the endpoint itself would refuse: resynchronise from REST instead
+                        yield _frame("gap", {"reason": "cursor_overflow", "resync": f"/api/v1/projects/{project_id}"})
+                        yield _frame("close", {"reason": "resync"})
+                        return
                     yield _frame("event", _projection(event), cursor_for(Position(after.watermark if event is batch[-1] else running.watermark, running.seen)))
                 position = after
-                if len(after.seen) > MAX_TRACKED:  # the delivered batch is already out; the cursor can no longer be bounded, so the client resynchronises
-                    yield _frame("gap", {"reason": "cursor_overflow", "resync": f"/api/v1/projects/{project_id}"})
-                    yield _frame("close", {"reason": "resync"})
-                    return
                 if not batch:
                     yield b": keep-alive\n\n"
             yield _frame("close", {"reason": "max_duration"})

@@ -7,7 +7,6 @@ defines a message) -> audit rows -> idempotency completion. Any failure rolls al
 projection. Authorization is the Policy Engine, decided BEFORE a data connection is taken; browser CSRF, Origin and the session come from the shared
 dependencies. Nothing here approves anything: requirement versions are CANDIDATE proposals.
 """
-import hashlib
 import logging
 import re
 from collections.abc import Awaitable, Callable
@@ -33,10 +32,10 @@ from ai_res.modules.iam.sessions import AuthenticatedSession
 from ai_res.modules.idempotency.repository import IdempotencyOutcome, IdempotencyRepository
 from ai_res.modules.idempotency.service import IdempotencyService, load_keyring
 from ai_res.modules.operations.cancellation import request_cancellation
-from ai_res.modules.operations.repository import NewOperation, OperationRepository
 from ai_res.modules.projects.repository import ProjectRepository, new_project_id
 from ai_res.modules.readmodel.queries import ReadQueries
 from ai_res.modules.requirements.repository import NewRequirementVersion, RequirementRepository
+from ai_res.modules.sources.completion import complete_verified_upload
 from ai_res.modules.sources.object_store import ObjectStore, ObjectStoreError, S3ObjectStore
 from ai_res.modules.sources.presign import StorageCredentials, checksum_header, presign_url
 from ai_res.modules.sources.repository import NewUpload, SourceRepository
@@ -474,7 +473,7 @@ def register_write_api(app: FastAPI, services: IdentityServices, *, idempotency:
                                        decision=decision, resource_type="UPLOAD", execute=execute, render=render))
 
     # -- completeUpload: the STORE'S view of the object (size + store-verified SHA-256) decides, never the client's claim -----------------------------------
-    shared: list[ObjectStore] = []  # one client (and connection pool) per app, not per request
+    shared: list[ObjectStore] = []  # one lightweight store object per app; each stat opens and closes its own connection (no lifecycle to leak)
 
     def objects() -> ObjectStore:
         if object_store is not None:
@@ -530,29 +529,11 @@ def register_write_api(app: FastAPI, services: IdentityServices, *, idempotency:
                 raise await reject_upload(s, project_id, upload_id, "REJECTED", "CHECKSUM_MISMATCH", "checksum_mismatch")
 
         async def execute(session: AsyncSession) -> UUID:
-            sources = SourceRepository(session)
-            upload = await sources.get_upload(upload_id)
-            if upload is None:
-                raise ProblemError(ErrorCode.RESOURCE_NOT_FOUND, "Resource not found.")
-            if upload.status not in ("PENDING", "UPLOADED") or observed is None:
-                raise ProblemError(ErrorCode.STATE_TRANSITION_NOT_ALLOWED, "The upload was already completed.")
-            if upload.status == "PENDING":
-                upload = await sources.mark_uploaded(upload)
-            assert observed.sha256 is not None  # established before the transaction; an unverifiable object never reaches here
-            upload = await sources.verify_upload(upload, observed.size_bytes, observed.sha256)
-            version = await sources.finalize_version(s.organization_id, project_id, upload, received_at=utc_now(), provenance={"uploadId": str(upload_id), "via": "completeUpload"},
-                                                     created_by=s.user_id)
-            operation_id = new_id()
-            correlation = correlation_uuid(current_request_id())
-            # WORKING: completion policy of SOURCE_INGESTION arrives with S21/S27. No start command is queued (G-107): the Operation waits ACCEPTED for the S27 pipeline.
-            await OperationRepository(session).create(
-                NewOperation(id=operation_id, organization_id=s.organization_id, project_id=project_id, operation_type="SOURCE_INGESTION", initiator_type="USER",
-                             initiator_id=s.user_id, idempotency_scope=f"complete-upload:{upload_id}", request_fingerprint=hashlib.sha256(upload_id.bytes).digest(),
-                             completion_policy_version="wip-1", completion_policy_snapshot={}, correlation_id=correlation, created_by=s.user_id),
-                EventSpec(event_type="operation.accepted", schema_version=1, actor_type="USER", actor_id=s.user_id, correlation_id=correlation,
-                          destinations=(DOMAIN_DESTINATION,), data={"sourceVersionId": str(version.id)}))
-            await SqlAuditWriter(session).write(audit(s, "UPLOAD_COMPLETE", "SOURCE", upload.source_id, project_id, {"uploadId": str(upload_id), "sourceVersionId": str(version.id)}))
-            return operation_id
+            done = await complete_verified_upload(session, organization_id=s.organization_id, project_id=project_id, upload_id=upload_id, actor_id=s.user_id,
+                                                  correlation_id=correlation_uuid(current_request_id()), observed=observed)
+            await SqlAuditWriter(session).write(audit(s, "UPLOAD_COMPLETE", "SOURCE", done.source_id, project_id,
+                                                      {"uploadId": str(upload_id), "sourceVersionId": str(done.source_version_id)}))
+            return done.operation_id
 
         async def render(session: AsyncSession, rid: UUID) -> Rendered:
             row = await ReadQueries(session).get_operation(rid)

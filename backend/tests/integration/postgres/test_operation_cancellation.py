@@ -97,3 +97,15 @@ async def test_confirm_with_a_forged_tenant_claim_is_the_same_404_as_a_missing_o
     with pytest.raises(PlatformPermanentError):
         await env.platform().confirm_cancellation(forged)
     assert env.row(ref)[0] == "CANCEL_REQUESTED"
+
+
+async def test_a_real_failure_wins_over_a_pending_cancel_and_keeps_its_problem_code(env: Env):
+    ref = await env.new_operation()
+    await env.platform().acknowledge_start(ref)
+    await cancel(env, ref)
+    assert env.row(ref)[0] == "CANCEL_REQUESTED"
+    state = await env.platform().record_failure(OperationFailure(ref, "SOME_FAILURE"))  # architect review M1: the outcome is not swallowed by the cancel
+    assert state.status == "FAILED" and env.row(ref)[0] == "FAILED"
+    assert env.scalar("SELECT count(*) FROM operations.operation_events WHERE operation_id=%s AND event_type='operation.failed' AND from_status='CANCEL_REQUESTED' "
+                      "AND reason_code='SOME_FAILURE'", ref.operation_id) == 1
+    assert (await env.platform().confirm_cancellation(ref)).status == "FAILED"  # and the late reconciliation cannot turn it into CANCELLED

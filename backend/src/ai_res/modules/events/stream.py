@@ -61,8 +61,12 @@ class Position:
         """A cursor that passed the HMAC check can still be malformed (older format): refuse rather than guess."""
         if len(keyset) != 2 or not isinstance(keyset[0], str) or not isinstance(keyset[1], dict) or len(keyset[1]) > MAX_TRACKED:
             raise ValueError("unsupported stream cursor")
-        seen = {str(UUID(k)): int(v) for k, v in keyset[1].items() if isinstance(v, int) and v >= 0}
-        return cls(datetime.fromisoformat(keyset[0]), seen)
+        if any(isinstance(v, bool) or not isinstance(v, int) or v < 1 for v in keyset[1].values()):
+            raise ValueError("unsupported stream cursor")  # an entry is refused, never silently dropped (a dropped aggregate would be re-delivered or skipped)
+        watermark = datetime.fromisoformat(keyset[0])
+        if watermark.tzinfo is None:
+            raise ValueError("unsupported stream cursor")
+        return cls(watermark, {str(UUID(k)): v for k, v in keyset[1].items()})
 
 
 class ProjectEventReader:

@@ -742,3 +742,17 @@ async def test_complete_upload_acl_viewer_is_403_and_foreign_missing_are_one_ide
         foreign, missing = await complete(o, upload), await complete(o, uuid4())
     assert denied.status_code == 403 and (foreign.status_code, missing.status_code) == (404, 404) and stripped(foreign) == stripped(missing)
     assert upload_state(wu, upload) == ("PENDING", None) and s3.heads == []  # nothing was even asked of the store
+
+
+async def test_complete_upload_input_contract_missing_key_bad_checksum_and_key_reuse(wu: World, s3: FakeS3) -> None:
+    upload, object_key = await new_intent(wu)
+    s3.objects[object_key] = (1234, SHA)
+    async with await wu.client("analyst") as c:
+        no_key = await c.post(f"/api/v1/uploads/{upload}/complete", json={"sha256": SHA}, headers={})
+        bad = [await complete(c, upload, sha=value) for value in ("zz" * 32, "ab" * 31, "")]
+        k = key()
+        first = await complete(c, upload, headers=k)
+        reused = await complete(c, upload, sha="cd" * 32, headers=k)  # same key, different request
+    assert no_key.status_code == 422 and [r.status_code for r in bad] == [422, 422, 422]
+    assert first.status_code == 202 and reused.status_code == 409 and reused.json()["code"] == "IDEMPOTENCY_KEY_REUSED"
+    assert wu.count("sources.source_versions", "upload_id = %s", upload) == 1

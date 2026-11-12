@@ -35,17 +35,15 @@ class S3ObjectStore:
     def __init__(self, endpoint: str, bucket: str, region: str, credentials: StorageCredentials, *, timeout_seconds: float = 10.0,
                  transport: httpx.AsyncBaseTransport | None = None) -> None:
         self._endpoint, self._bucket, self._region, self._credentials = endpoint, bucket, region, credentials
-        self._client = httpx.AsyncClient(timeout=timeout_seconds, transport=transport, follow_redirects=False)
-
-    async def aclose(self) -> None:
-        await self._client.aclose()
+        self._timeout, self._transport = timeout_seconds, transport
 
     async def stat(self, object_key: str) -> ObservedObject | None:
         headers = {"x-amz-checksum-mode": "ENABLED"}
         url = presign_url("HEAD", self._endpoint, f"/{self._bucket}/{object_key}", headers, self._credentials, region=self._region, now=utc_now(),
                           expires_seconds=60)
         try:
-            response = await self._client.head(url, headers=headers)
+            async with httpx.AsyncClient(timeout=self._timeout, transport=self._transport, follow_redirects=False) as client:  # closed on every path
+                response = await client.head(url, headers=headers)
         except httpx.HTTPError as exc:
             raise ObjectStoreError(type(exc).__name__) from None
         if response.status_code == 404:
@@ -62,5 +60,5 @@ class S3ObjectStore:
         try:
             digest = base64.b64decode(raw, validate=True)
         except (binascii.Error, ValueError):
-            raise ObjectStoreError("malformed checksum") from None
+            return ObservedObject(size, None)  # e.g. a composite multipart checksum ("<b64>-N"): permanently unverifiable, rejected rather than retried forever
         return ObservedObject(size, digest if len(digest) == 32 else None)
