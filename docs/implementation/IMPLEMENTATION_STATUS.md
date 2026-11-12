@@ -17,7 +17,7 @@
 | S08 | Read-only API vertical slices | VERIFIED (2026-11-12; GitHub Actions на Linux зелёный, PR #7, коммит 588055d: ci 43186306478 и 43186313460, contracts 43186306145 и 43186313578 — backend/infra-static/infra-runtime/contracts success; первый прогон упал на дрейфе дайджеста `caddy:2.11.9`, пин обновлён). Локально `make pre-pr` exit 0: backend 872, contracts 22, infra 185, runtime 99; schemathesis 13; review 3 агента — CRITICAL 0, HIGH 1 исправлен, дельта не пересматривалась). Дельта review отдельным агентом не пересматривалась. Открыты G-84…G-90, OD-17 | READY | `increments/S08_read_only_api_slices_REPORT.md`, `reviews/S08_REVIEWS.md` |
 | S09 | Controlled write commands | VERIFIED (2026-11-12; PR #8 `feat/s09-controlled-write-commands`, коммит cc26beb; `make pre-pr` ok: backend 924, infra static 186, runtime 99; GitHub Actions на Linux зелёный: ci 43203466196 и 43203684744, contracts 43203466171 и 43203684738 — backend/infra-static/infra-runtime/contracts success; независимое review 4 агента — 0 CRITICAL/HIGH; приём загрузки MinIO не проверен, G-92) | READY (S08 DONE) | `increments/S09_controlled_write_commands_REPORT.md` |
 | S10 | Outbox dispatcher, Inbox и CloudEvents | VERIFIED (2026-11-12; ветка `feat/s10-outbox-dispatcher-inbox-cloudevents`; `make pre-pr` exit 0: backend 964, contracts 22, infra static 186, runtime 99; review 3 агента — CRITICAL/HIGH нет, замечания исправлены; дельта review отдельным агентом не пересматривалась; GitHub Actions на Linux зелёный (2026-11-12, PR #9, коммит 248cd08: ci 43220712053 и 43220722294, contracts 43220712147 и 43220722299 — backend/infra-static/infra-runtime/contracts success)). OD-13 решён (ADR-084); открыты G-98…G-103, NCP-13 | READY (S09 DONE) | `increments/S10_outbox_dispatcher_inbox_cloudevents_REPORT.md`, `reviews/S10_REVIEWS.md` |
-| S11 | Temporal foundation и dispatch Operation | TESTED (2026-11-12, локально; Linux CI ещё не запускался; ветка `feat/s11-temporal-foundation-operation-dispatch`; G-104/G-107 открыты) | — | `increments/S11_temporal_foundation_operation_dispatch_REPORT.md` |
+| S11 | Temporal foundation и dispatch Operation | VERIFIED (2026-11-12; локально backend 1025, infra 207; Linux CI зелёный (PR #11, ci 43233885212/43233901267: backend, infra-runtime, infra-static, contracts — success; contracts 43233885308/43233901331); влит в `main`; G-104/G-107 открыты) | — | `increments/S11_temporal_foundation_operation_dispatch_REPORT.md` |
 | S12 | Operation API, process primitives, cancellation, SSE | NOT_STARTED | PENDING_DEPS | — |
 | S13 | Observability stack и мониторинг | NOT_STARTED | PENDING_DEPS | — |
 | S14 | Worker contracts: Envelope/Result/Notice | NOT_STARTED | PENDING_DEPS | — |
@@ -56,7 +56,7 @@
 | PostgreSQL `ai_res_db` (миграции, роли, RLS) | TESTED (S04–S06 схемы; репозитории частично) | S04–S06 |
 | Docker Compose / secrets / CI | VERIFIED (локально и на GitHub Actions) | S03 |
 | Outbox / Inbox | VERIFIED (dispatcher/consumer — библиотека + CLI; в стеке не запущен, G-98) | S10 |
-| Temporal, Manager Runtime, Worker Runtime | TESTED (skeleton: старт, ack, fail-closed; WorkerRun — S23) | S11, S20, S23 |
+| Temporal, Manager Runtime, Worker Runtime | VERIFIED (skeleton: старт, ack, fail-closed; WorkerRun — S23) | S11, S20, S23 |
 | LangGraph | NOT_STARTED | S23 |
 | LLM Gateway (port / Bifrost) | NOT_STARTED / BLOCKED | S15 / S16 |
 | Readiness Gate | NOT_STARTED | S22 |
