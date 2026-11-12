@@ -4,9 +4,9 @@ Decision of the project owner (2026-11-11): the envelope conforms to `AI_RES_Dom
 CloudEvents attributes (`additionalProperties: false`); tenant, aggregate, correlation and actor fields live in `data` (`OperationWorkerRunEventData`), and
 event-specific fields live in `data.details`. Pure functions, no I/O: the shape is verified against the contract by tests/contract/test_event_envelope.py.
 
-WORKING (not fixed by any normative document, kept in one place so that the owner's ruling is a one-line change):
-  * `dataschema` URI form (`DATASCHEMA_PREFIX`): the documents only demand a stable URI identifying the schema of a concrete event version;
-  * `source` of WorkerRun events (`SOURCES`): Event Model v1.4 §4 gives only the Operation example `urn:aires:operations`.
+DECIDED by the owner (OD-13, ADR-084, 2026-11-12; no normative document fixes them, so they stay in one place):
+  * `dataschema` = `DATASCHEMA_PREFIX` + CloudEvents type (stable URI of the schema of a concrete event version);
+  * `source` = one URN per aggregate kind (`SOURCES`).
 Known contract conflicts handled without choosing silently (see KNOWN_GAPS G-56): Event Model v1.4 §4 asks for `data.eventType`, AsyncAPI forbids it, and the
 AsyncAPI canonical set has no `worker_run.created` message although State Machine v1.2 lists the event type.
 """
@@ -40,10 +40,10 @@ ACTOR_TYPES = frozenset({"SYSTEM", "USER", "MANAGER", "WORKER", "SERVICE"})  # A
 SUPPORTED_SCHEMA_VERSIONS = frozenset({1})  # an unknown major version fails closed, never a silent downgrade
 
 SOURCES: Mapping[str, str] = {"OPERATION": "urn:aires:operations", "WORKER_RUN": "urn:aires:worker-runs", "PROJECT": "urn:aires:projects",
-                              "EPIC": "urn:aires:epics", "REQUIREMENT": "urn:aires:requirements"}  # WORKING except OPERATION (OD-13)
+                              "EPIC": "urn:aires:epics", "REQUIREMENT": "urn:aires:requirements"}  # OD-13 / ADR-084
 SUBJECT_PREFIX: Mapping[str, str] = {"OPERATION": "operations", "WORKER_RUN": "worker-runs", "PROJECT": "projects", "EPIC": "epics",
                                      "REQUIREMENT": "requirements"}  # Event Model v1.4 §4 (OPERATION, WORKER_RUN); the rest follow the same rule
-DATASCHEMA_PREFIX = "urn:aires:schemas:"  # WORKING: dataschema = prefix + CloudEvents type (unique per event type and major version)
+DATASCHEMA_PREFIX = "urn:aires:schemas:"  # OD-13 / ADR-084: dataschema = prefix + CloudEvents type (unique per event type and major version)
 
 
 @dataclass(frozen=True)

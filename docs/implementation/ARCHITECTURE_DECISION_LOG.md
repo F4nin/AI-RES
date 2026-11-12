@@ -89,6 +89,9 @@
 | ADR-081 | S09: SigV4-пресайнер и конфигурация объектного хранилища | ACCEPTED |
 | ADR-082 | S09: семантика createUploadIntent | ACCEPTED |
 | ADR-083 | S09: матрица политик записи (WORKING) и первый администратор проекта | ACCEPTED |
+| ADR-084 | S10: OD-13 — фиксация форм `dataschema` и `source` CloudEvents | ACCEPTED |
+| ADR-085 | S10: dispatcher, классификация ошибок доставки и WORKING-конфигурация | ACCEPTED |
+| ADR-086 | S10: durable consumer — checkpoint, режимы порядка, контрактная валидация | ACCEPTED |
 
 ---
 
@@ -1502,3 +1505,54 @@
 | Влияние на компоненты/контракты | policy/policy_config.json + .sha256, api/write_api.py (проверка на старте), modules/projects |
 | Риски и компромиссы | Матрица остаётся WORKING (OD-15); автоматическое членство создателя — предложение (OD-18). |
 | Затронутые тесты | test_write_api (ACL по ролям, MFA, IDOR), test_policy_engine |
+
+## ADR-084 — S10: OD-13 — фиксация форм `dataschema` и `source` CloudEvents
+
+| Поле | Значение |
+|---|---|
+| Статус | ACCEPTED |
+| Дата | 2026-11-12 |
+| Ответственный | Владелец проекта (выбор вариантов по OD-13, 2026-11-12) |
+| Проблема и контекст | Event Model v1.4 §4 требует «стабильный URI схемы конкретной версии» для `dataschema` и приводит только пример `source` для Operation. Значения WORKING с S05 (ADR-054); S10 (dispatcher, SSE) публикует события наружу. |
+| Связанные требования | DOC-008 AsyncAPI v1.6; Event Model v1.4 §4; ADR-054, ADR-079 |
+| Документы и разделы | Event Model v1.4 §4; AsyncAPI v1.6 (`dataschema`, `source` — произвольные string) |
+| Альтернативы | `dataschema`: https-URL схемы (нужен домен/хостинг схем, вне MVP); путь в `contracts/` (привязка wire-формата к раскладке репозитория). `source`: единый `urn:aires:operations` для Operation и WorkerRun; единый `urn:aires:backend`. |
+| Решение | (1) `dataschema = urn:aires:schemas:<CloudEvents type>` (уникален на тип и major-версию). (2) `source` — один URN на вид агрегата: `urn:aires:operations`, `urn:aires:worker-runs`, `urn:aires:projects`, `urn:aires:epics`, `urn:aires:requirements`. (3) NCP-09…11: следовать AsyncAPI v1.6 (без `data.eventType`, без extension-атрибутов `correlationid`/`traceparent`, `worker_run.created` по общему шаблону); правки нормативных документов — NCP, остаются PROPOSED. Значения в `modules/events/envelope.py` не меняются; формы стали DECIDED (не WORKING). |
+| Обоснование | Нулевая миграция иммутабельных строк outbox; соответствие Event Model §4; S10 не зависит от правок нормативных документов. |
+| Влияние на компоненты/контракты | `modules/events/envelope.py` (комментарий WORKING снят), dispatcher/SSE S10 используют значения без трансформации. |
+| Риски и компромиссы | Смена формы после появления production-данных потребует нового major типа события. NCP-09…11 остаются открытыми до правки нормативных документов. |
+| Затронутые тесты | tests/contract/test_event_envelope.py (без изменений) |
+
+## ADR-085 — S10: dispatcher, классификация ошибок доставки и WORKING-конфигурация
+
+| Поле | Значение |
+|---|---|
+| Статус | ACCEPTED |
+| Дата | 2026-11-12 |
+| Ответственный | Implementation Lead |
+| Проблема и контекст | Репозиторий S05 даёт claim/lease/fencing, но не процесс доставки: нужны цикл, классификация ошибок, backoff, карантин, controlled replay и метрики. |
+| Связанные требования | REL-*, TX-*, API-MVP (events) |
+| Документы и разделы | Event Model v1.4 §9.1, §15, §16; Persistence Blueprint PERSIST-015 |
+| Альтернативы | Брокер (запрещён в MVP); публикация внутри транзакции claim (держала бы lock над сетевым вызовом); автоматический replay/удаление опубликованных строк (ADR-030). |
+| Решение | (1) `Dispatcher.run_once`: claim отдельной транзакцией → проверка контракта → publish БЕЗ открытой транзакции → mark в новой короткой транзакции под fencing (owner, attempt). (2) Ошибки: `TransientDeliveryError` → PENDING с backoff (экспоненциальный, потолок, half-jitter), после `max_attempts` — карантин; `PermanentDeliveryError`/нарушение контракта → карантин сразу; неизвестное исключение publisher — transient `PUBLISH_FAILED`, логируется только класс (сообщение может нести payload). Неизвестный тип/major — карантин + счётчик `unknown_major_event`. (3) Событие в destination без consumer'ов — карантин `NO_CONSUMER`, не молчаливое «доставлено». (4) Controlled replay: `OutboxRepository.replay(event_ids)` только для QUARANTINED, только поимённо, бюджет попыток обнуляется, `replay_count + 1` (миграция 0015); CLI `ai_res.cli.outbox status|replay --confirm`. (5) Метрики — OpenTelemetry API (no-op без провайдера), атрибуты только машинные коды; алерты роста — чистые функции `alerts.py`, удаления нет (у ролей нет DELETE). (6) **WORKING (не утверждены):** batch 8, lease 60 с, publish timeout 5 с (ограничение batch × timeout ≤ 80 % lease), max_attempts 8, backoff 1–60 с, poll 1 с, интервал проверки роста 30 с, пороги алертов (backlog 1000, возраст 300 с, любая карантинная строка, 5 млн строк) — технические значения по умолчанию, меняются конфигурацией; OD-02. (6a) Fencing-токен = (owner, attempt, replay_count): replay обнуляет бюджет попыток, но меняет токен. Строка с истёкшим до очереди lease не публикуется. `observe()`/`run_forever` ведут gauge и счётчик `alert`; ошибка БД при `mark_*` считается и логируется классом, цикл завершается после `max_consecutive_errors` подряд. (7) Runtime-зависимости `jsonschema`, `referencing`, `rfc3339-validator`, `pyyaml` перенесены из dev (+ `types-*` в dev) — для проверки контракта в процессе. |
+| Обоснование | Доставка не теряет событие и не блокирует поток из-за одного отравленного; всё неопределённое уходит в карантин с машинным кодом. |
+| Влияние на компоненты/контракты | `modules/events/{dispatcher,delivery,alerts,metrics}.py`, `cli/outbox.py`, `outbox_repository.py`, миграция 0015, `pyproject.toml`/`uv.lock` |
+| Риски и компромиссы | Compose-сервис dispatcher не добавлен (нет consumer'ов до S12; топология — решение владельца, G-98). Роль утверждения replay и аудит replay не определены (G-100). Метрики не проверены на реальном MeterProvider (S13). |
+| Затронутые тесты | test_event_delivery (crash/duplicate/poison/concurrent/backoff/replay/lease lost/CLI), test_event_delivery_units |
+
+## ADR-086 — S10: durable consumer — checkpoint, режимы порядка, контрактная валидация
+
+| Поле | Значение |
+|---|---|
+| Статус | ACCEPTED |
+| Дата | 2026-11-12 |
+| Ответственный | Implementation Lead |
+| Проблема и контекст | Event Model §9.2 требует Inbox + проверку sequence + checkpoint в одной транзакции с локальным эффектом; таблицы checkpoint нет (G-57). |
+| Связанные требования | REL-*, TX-*; PERSIST-015/016 |
+| Документы и разделы | Event Model v1.4 §9.2, §9.3, §15; AsyncAPI v1.6 |
+| Альтернативы | Checkpoint как MAX(sequence) по inbox_messages (нет блокировки, не фиксирует фильтрованные потоки); advisory-lock без таблицы. |
+| Решение | (1) Миграция 0015: `audit.inbox_checkpoints (consumer_name, aggregate_type, aggregate_id, last_sequence)`, RLS ENABLE+FORCE, политика только для `ai_res_consumer_group` + owner-политика, UPDATE только `last_sequence/updated_at`, триггеры: идентичность неизменяема, checkpoint строго растёт. (2) `InboxConsumer.deliver`: одна транзакция — advisory lock (consumer, aggregate) → Inbox marker (дубликат = успешный no-op; иной контент при том же id — аномалия) → sequence: CONTIGUOUS требует checkpoint+1 (gap → `SEQUENCE_GAP` transient, событие откладывается, не применяется и не пропускается), `<=` checkpoint с новым event id → `SEQUENCE_REGRESSION` permanent; MONOTONIC (фильтрованный поток, где пропуски законны) требует только рост → handler → PROCESSED → checkpoint → COMMIT. Падение до COMMIT не оставляет следа (PERSIST-016). (3) `EventContract` строится из AsyncAPI v1.6 (`type.const` каждого сообщения) и проверяет envelope целиком (additionalProperties:false), неизвестный major → `UNKNOWN_MAJOR_VERSION`, неизвестный тип → `UNKNOWN_EVENT_TYPE`, чувствительные ключи в `data` → `FORBIDDEN_CONTENT`; пустой контракт — ошибка старта. Dispatcher и consumer проверяют независимо (consumer не доверяет dispatcher'у). |
+| Обоснование | Дубликаты и reorder не портят состояние; gap виден как алерт; checkpoint нельзя откатить даже ошибкой кода. |
+| Влияние на компоненты/контракты | `consumer.py`, `contract.py`, `inbox_repository.py`, миграция 0015, `contracts/` (читается как файл) |
+| Риски и компромиссы | Файл контракта должен быть доступен процессу (упаковка образа — G-99). Gap, вызванный потерянным (не карантинным) событием, откладывает бесконечно — только алерт. Inbox QUARANTINED финален (replay на стороне consumer'а не реализован, G-101). |
+| Затронутые тесты | test_event_delivery (gap, regression, monotonic, PERSIST-016, checkpoint role/trigger, contract), test_event_delivery_units |
