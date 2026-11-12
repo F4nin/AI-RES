@@ -1,6 +1,6 @@
 # S09 — Controlled write commands: Increment Report
 
-**Дата:** 2026-11-12 · **Промпт:** `increments/prompts/S09_controlled_write_commands.md` · **Итоговый статус:** TESTED (локально `make pre-pr` ok; Linux CI на GitHub Actions ещё не получен; приём загрузки хранилищем — IMPLEMENTATION NOT VERIFIED, G-92)
+**Дата:** 2026-11-12 · **Промпт:** `increments/prompts/S09_controlled_write_commands.md` · **Итоговый статус:** VERIFIED (локально `make pre-pr` ok; GitHub Actions на Linux зелёный на коммите cc26beb: ci 43203466196 и 43203684744, contracts 43203466171 и 43203684738; приём загрузки хранилищем — IMPLEMENTATION NOT VERIFIED, G-92)
 
 ## 1. Что реализовано
 Шесть команд записи Public API v1.3: createProject, updateProjectMetadata, createEpic, registerRequirementCandidate, proposeRequirementVersion, createUploadIntent — каждая в одной транзакции (проекция + событие + outbox + аудит + запись идемпотентности), с CSRF/Origin, ACL с утаиванием (404/403), If-Match (428/412) и Idempotency-Key. `createTask` в S09 не реализован: перенос в S21 (ADR-012, NCP-08; ADR-078).
