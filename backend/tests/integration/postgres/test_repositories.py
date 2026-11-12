@@ -82,6 +82,9 @@ def tenant_uow(engine: AsyncEngine) -> UnitOfWork:
     return UnitOfWork(create_session_factory(engine))
 
 
+NEXT_LEGAL = {"ACCEPTED": "QUEUED", "QUEUED": "RUNNING", "RUNNING": "RETRYING", "RETRYING": "RUNNING"}
+
+
 async def count(world: Pg, sql: str, *args: Any) -> int:
     with world.connect() as c:
         return int(c.execute(sql, list(args)).fetchone()[0])  # type: ignore[index]
@@ -132,7 +135,7 @@ async def test_stale_version_missing_and_foreign_ids_never_write_and_do_not_leak
         await uow.with_tenant(ORG_A, PRJ_A)
         repo = OperationRepository(uow.session)
         mine, _ = await repo.create(new_operation(), spec())
-        await repo.transition(mine, "RUNNING", spec("operation.started"))
+        await repo.transition(mine, "QUEUED", spec("operation.started"))
         with pytest.raises(AggregateVersionConflict):  # `mine` is stale now
             await repo.transition(mine, "QUEUED", spec("operation.queued"))
     forged = OperationRow(foreign_row.id, ORG_A, PRJ_A, "PLAN_EXECUTION", "ACCEPTED", foreign_row.row_version, 0, None)
@@ -142,7 +145,7 @@ async def test_stale_version_missing_and_foreign_ids_never_write_and_do_not_leak
         with pytest.raises(ProblemError) as exc:
             async with tenant_uow(api) as uow:
                 await uow.with_tenant(ORG_A, PRJ_A)
-                await OperationRepository(uow.session).transition(row, "RUNNING", spec("operation.started"))
+                await OperationRepository(uow.session).transition(row, "QUEUED", spec("operation.started"))
         problems.append((exc.value.code, str(exc.value)))
     assert problems[0] == problems[1] and problems[0][0] == ErrorCode.RESOURCE_NOT_FOUND
     assert await count(world, "SELECT last_event_sequence FROM operations.operations WHERE id=%s", foreign_row.id) == 1  # untouched
@@ -166,7 +169,7 @@ async def test_event_payload_destinations_and_columns_are_validated_before_any_s
         for bad in (spec(data={"nested": {"api_token": "x"}}), spec(data={"items": [{"password": "x"}]}), spec(dests=()), spec(dests=("a", "a")), spec(dests=("",)),
                     spec("operation.nonsense"), spec("worker_run.started"), spec(schema_version=2), spec(actor_type="WORKER_RUN"), spec(actor_type="")):
             with pytest.raises(ValueError):
-                await repo.transition(row, "RUNNING", bad)
+                await repo.transition(row, "QUEUED", bad)
         with pytest.raises(ValueError, match="not updatable"):
             await append_event(uow.session, OPERATION_KIND, aggregate_id=row.id, organization_id=ORG_A, project_id=PRJ_A, operation_id=row.id, expected_version=row.row_version,
                                spec=spec(), changes={"organization_id": ORG_B})
@@ -191,7 +194,7 @@ async def test_persist_012_parallel_transitions_through_the_repository_have_no_g
                     repo = OperationRepository(uow.session)
                     cur = await repo.get(row.id)
                     assert cur is not None
-                    await repo.transition(cur, "RUNNING", spec("operation.progress_updated"))
+                    await repo.transition(cur, NEXT_LEGAL[cur.status], spec("operation.progress_updated"))  # ACCEPTED->QUEUED->RUNNING->RETRYING->RUNNING...
                 done += 1
             except AggregateVersionConflict:
                 await asyncio.sleep(0)  # lost the CAS race: reload and retry the whole use case
@@ -240,8 +243,9 @@ async def test_gate_start_result_and_rework_after_a_terminal_operation(world: Pg
         run1 = await runs.get(run1.id)  # type: ignore[assignment]
         result_id = await runs.store_result(run1, "wip-1", {"summary": "findings"})
         await runs.transition(run1, "COMPLETED", spec("worker_run.completed"))
-        op1 = await OperationRepository(uow.session).get(op1.id)  # type: ignore[assignment]
-        await OperationRepository(uow.session).transition(op1, "SUCCEEDED", spec("operation.succeeded"))
+        for step in ("QUEUED", "RUNNING", "SUCCEEDED"):  # the legal path to a terminal Operation (State Machine v1.2)
+            op1 = await OperationRepository(uow.session).get(op1.id)  # type: ignore[assignment]
+            await OperationRepository(uow.session).transition(op1, step, spec(f"operation.{ {'QUEUED': 'queued', 'RUNNING': 'started', 'SUCCEEDED': 'succeeded'}[step] }"))
     with world.connect() as c:
         stored = c.execute("SELECT payload_hash, contract_version FROM agents.worker_results WHERE id=%s", [result_id]).fetchone()
     assert stored[0] == hashlib.sha256(b'{"summary":"findings"}').digest()  # type: ignore[index]
@@ -276,7 +280,7 @@ async def test_dispatcher_claims_in_aggregate_order_leases_expire_and_quarantine
         await uow.with_tenant(ORG_A, PRJ_A)
         repo = OperationRepository(uow.session)
         row, _ = await repo.create(new_operation(), spec())
-        await repo.transition(row, "RUNNING", spec("operation.started"))
+        await repo.transition(row, "QUEUED", spec("operation.started"))
         other, _ = await repo.create(new_operation(), spec())
 
     async def claim(owner: str, limit: int = 10, lease: float = 30, max_attempts: int = 5) -> list[Any]:
@@ -373,7 +377,7 @@ async def test_poison_outbox_row_is_quarantined_after_max_attempts_and_blocks_it
         await uow.with_tenant(ORG_A, PRJ_A)
         repo = OperationRepository(uow.session)
         row, _ = await repo.create(new_operation(), spec())
-        await repo.transition(row, "RUNNING", spec("operation.started"))  # sequence 2 waits behind sequence 1
+        await repo.transition(row, "QUEUED", spec("operation.started"))  # sequence 2 waits behind sequence 1
 
     async def claim() -> list[Any]:
         async with tenant_uow(disp) as uow:
@@ -397,7 +401,7 @@ async def test_transition_spec_must_describe_the_real_change_and_results_reject_
         row, _ = await repo.create(new_operation(), spec())
         for bad_spec, changes in ((spec(from_status="RUNNING"), {}), (spec(to_status="FAILED"), {}), (spec(), {"status": "SUCCEEDED"})):
             with pytest.raises(ValueError):
-                await repo.transition(row, "RUNNING", bad_spec, **changes)
+                await repo.transition(row, "QUEUED", bad_spec, **changes)
         with pytest.raises(ValueError, match="sensitive"):
             await append_event(uow.session, OPERATION_KIND, aggregate_id=row.id, organization_id=ORG_A, project_id=PRJ_A, operation_id=row.id, expected_version=row.row_version,
                                spec=spec(data={"detail": {"password": "x"}}))
@@ -407,7 +411,7 @@ async def test_transition_spec_must_describe_the_real_change_and_results_reject_
                                    expected_version=row.row_version, spec=bad)
         assert (await repo.get(row.id)).row_version == row.row_version  # type: ignore[union-attr]
         with pytest.raises(ValueError, match="naive"):
-            await repo.transition(row, "RUNNING", spec(occurred_at=datetime(2026, 1, 1)))  # noqa: DTZ001 - the point of the test
+            await repo.transition(row, "QUEUED", spec(occurred_at=datetime(2026, 1, 1)))  # noqa: DTZ001 - the point of the test
 
 
 async def test_persist_013_014_idempotency_replay_reuse_and_race(world: Pg, engine_for):
@@ -532,7 +536,7 @@ async def test_stored_payloads_reject_secret_keys_and_empty_updates(world: Pg, e
         with pytest.raises(ValueError, match="sensitive"):  # persisted snapshots of the Gate are guarded too
             await ReadinessRepository(uow.session).record(evaluation(run.id, "READY", 2), [NewCheck("OTHER", "PASS", "INFO", details={"authorization": "x"})])
         with pytest.raises(ValueError, match="sensitive"):
-            await ops.transition(op, "RUNNING", spec("operation.started"), result_ref={"credentials": "x"})
+            await ops.transition(op, "QUEUED", spec("operation.started"), result_ref={"credentials": "x"})
         with pytest.raises(ValueError, match="at least one change"):  # a bare version bump would invalidate other writers' If-Match for nothing
             await tasks.update_epic(epic, 1)
     with world.connect() as c:

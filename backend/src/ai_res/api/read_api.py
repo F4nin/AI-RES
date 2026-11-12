@@ -28,7 +28,7 @@ from ai_res.platform.problems import ErrorCode, ProblemError
 DEFAULT_LIMIT, OAS_MAX_LIMIT = 25, 100  # Public API v1.3 `Limit` parameter
 MAX_TEXT = 200  # cap for free-text fields copied out of JSON references (worker run problem / result)
 READ_ACTIONS = {"project.read": "PROJECT", "epic.read": "EPIC", "task.read": "TASK", "requirement.read": "REQUIREMENT", "source.read": "SOURCE",
-                "artifact.read": "ARTIFACT", "worker_run.read": "WORKER_RUN"}
+                "artifact.read": "ARTIFACT", "worker_run.read": "WORKER_RUN", "operation.read": "OPERATION"}
 _log = logging.getLogger("ai_res.api.read")
 T = TypeVar("T")
 
@@ -82,6 +82,8 @@ def artifact_version_dto(r: Row) -> dict[str, Any]:
 
 
 _PROBLEM_KEYS = ("type", "title", "status", "code")
+# the store vocabulary (operations.operations.initiator_type) differs from the OAS enum (HUMAN|SYSTEM|MANAGER|SCHEDULED): mapped, not passed through (G-112)
+_INITIATOR_TYPE = {"USER": "HUMAN", "SYSTEM": "SYSTEM", "MANAGER": "MANAGER", "SERVICE": "SYSTEM"}
 
 
 def _bounded(value: Any) -> str | int | None:
@@ -101,6 +103,21 @@ def worker_run_dto(r: Row) -> dict[str, Any]:
         "startedAt": None if r["started_at"] is None else _iso(r["started_at"]), "finishedAt": None if r["finished_at"] is None else _iso(r["finished_at"]),
         "resultRef": result["id"][:MAX_TEXT] if isinstance(result, dict) and isinstance(result.get("id"), str) else None,  # opaque reference only, never the stored object
         "problem": None if not isinstance(problem, dict) else {k: _bounded(problem[k]) for k in _PROBLEM_KEYS if _bounded(problem.get(k)) is not None},
+    }
+
+
+def operation_dto(r: Row) -> dict[str, Any]:
+    result, problem = r["result_ref"], r["problem_ref"]
+    return {
+        "id": str(r["id"]), "status": r["status"], "submittedAt": _iso(r["created_at"]), "acceptedAt": _iso(r["created_at"]),
+        "startedAt": None if r["started_at"] is None else _iso(r["started_at"]), "completedAt": None if r["completed_at"] is None else _iso(r["completed_at"]),
+        "lastProgressAt": None,  # no progress timestamp is stored (progress_snapshot is opaque and WORKING): marked, not invented
+        "resultRef": result["id"][:MAX_TEXT] if isinstance(result, dict) and isinstance(result.get("id"), str) else None,
+        "correlationId": str(r["correlation_id"]), "organizationId": str(r["organization_id"]), "projectId": str(r["project_id"]), "epicId": None,
+        "operationType": r["operation_type"], "initiatorType": _INITIATOR_TYPE.get(r["initiator_type"], "SYSTEM"), "initiatorId": _opt(r["initiator_id"]),
+        "subjectRef": None, "problem": None if not isinstance(problem, dict) else {k: _bounded(problem[k]) for k in _PROBLEM_KEYS if _bounded(problem.get(k)) is not None},
+        "rowVersion": r["row_version"], "aggregateVersion": r["row_version"], "parentOperationId": _opt(r["parent_operation_id"]),
+        "rootOperationId": str(r["root_operation_id"] or r["id"]),
     }
 
 
@@ -265,5 +282,7 @@ def register_read_api(app: FastAPI, services: IdentityServices) -> None:
     single("/epics/{object_id}", "getEpic", "work.epics", "epic.read", "EPIC", lambda q, i: q.get_epic(i), epic_dto, False)
     single("/tasks/{object_id}", "getTask", "work.tasks", "task.read", "TASK", lambda q, i: q.get_task(i), task_dto, True)
     single("/worker-runs/{object_id}", "getWorkerRun", "agents.worker_runs", "worker_run.read", "WORKER_RUN", lambda q, i: q.get_worker_run(i), worker_run_dto, False)
+
+    single("/operations/{object_id}", "getOperation", "operations.operations", "operation.read", "OPERATION", lambda q, i: q.get_operation(i), operation_dto, True)
 
     app.include_router(router)

@@ -40,6 +40,10 @@ class Settings(BaseModel):
     cursor_hmac_key_id: str = Field(default="k1", pattern=r"^[A-Za-z0-9._-]{1,32}$")
     cursor_hmac_key_file: Path | None = None
     read_lookup_max_projects: int = Field(default=100, ge=1, le=1000)  # WORKING: bound on by-id project probing (ADR-075, G-87)
+    sse_poll_interval_seconds: float = Field(default=2.0, gt=0, le=60)  # WORKING: poll + re-auth period (ADR-092)
+    sse_settle_seconds: float = Field(default=3.0, ge=0, le=60)  # WORKING hypothesis: hold back younger events (late commits)
+    sse_max_seconds: int = Field(default=300, ge=1, le=3600)  # WORKING: stream lifetime; client reconnects with Last-Event-ID
+    sse_retention_seconds: int = Field(default=604800, ge=60)  # WORKING (no approved retention): older cursor gets a gap signal
     cursor_ttl_seconds: int = Field(default=900, ge=60, le=86400)  # WORKING (page-token lifetime is not fixed by a contract); ADR-074
     # PostgreSQL connection (S04). Passwords only via *_file. Numeric defaults are WORKING technical values (ADR-047), not SLOs (OD-02).
     db_host: str | None = None

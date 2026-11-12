@@ -7,6 +7,8 @@ the list visibility SQL with the Policy Engine decision.
 """
 import asyncio
 import base64
+import json
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid4
@@ -70,7 +72,8 @@ class World:
         key_file = tmp_path / "mfa.key"
         key_file.write_text(base64.b64encode(bytes(range(32))).decode())
         self.settings = load_settings({"AI_RES_ENVIRONMENT": "test", "AI_RES_COOKIE_SECURE": "false", "AI_RES_MFA_ENCRYPTION_KEY_FILE": str(key_file),
-                                       "AI_RES_ARGON2_TIME_COST": "1", "AI_RES_ARGON2_MEMORY_KIB": "8", "AI_RES_DEFAULT_ORGANIZATION_ID": str(iam.org_a)})
+                                       "AI_RES_ARGON2_TIME_COST": "1", "AI_RES_ARGON2_MEMORY_KIB": "8", "AI_RES_DEFAULT_ORGANIZATION_ID": str(iam.org_a),
+                                       "AI_RES_SSE_POLL_INTERVAL_SECONDS": "0.1", "AI_RES_SSE_SETTLE_SECONDS": "0.5", "AI_RES_SSE_MAX_SECONDS": "3"})
         self.services = build_identity_services(self.settings, create_session_factory(iam.engine()))
         self.app = create_app(self.settings, identity=self.services)
         self.app.state.cursor_key_ring = KeyRing("k1", {"k1": bytes(range(32, 64))})
@@ -81,6 +84,10 @@ class World:
             issued = await self.services.sessions.create(org or self.iam.org_a, user, mfa_verified=mfa)
             c.cookies.set(self.settings.session_cookie_name, issued.token)
         return c
+
+    def sql_one(self, statement: str, *params: Any) -> Any:
+        with self.iam.pg.connect() as c:
+            return c.execute(statement, list(params)).fetchone()[0]
 
     def sql(self, statement: str, *params: Any) -> None:
         with self.iam.pg.connect() as c:
@@ -127,7 +134,7 @@ async def test_org_auditor_sees_every_project_of_its_own_organization_and_nothin
 
 
 GETS = [("projects/{p}", "p"), ("projects/{p}/epics", "p"), ("projects/{p}/requirements", "p"), ("projects/{p}/sources", "p"), ("projects/{p}/artifacts", "p"),
-        ("epics/{e}", "epic"), ("epics/{e}/tasks", "epic"), ("tasks/{e}", "task"), ("requirements/{e}/versions", "req"), ("artifacts/{e}/versions", "art"), ("worker-runs/{e}", "run")]
+        ("epics/{e}", "epic"), ("epics/{e}/tasks", "epic"), ("tasks/{e}", "task"), ("requirements/{e}/versions", "req"), ("artifacts/{e}/versions", "art"), ("worker-runs/{e}", "run"), ("operations/{e}", "op")]
 
 
 @pytest.mark.parametrize(("template", "kind"), GETS)
@@ -149,7 +156,8 @@ async def test_every_get_response_conforms_to_the_oas_schema(w: World) -> None:
     cases = [(f"/projects/{i['p1']}/epics", "EpicPage"), (f"/epics/{i['epic1']}", "Epic"), (f"/epics/{i['epic1']}/tasks", "TaskPage"), (f"/tasks/{i['task1']}", "Task"),
              (f"/projects/{i['p1']}/requirements", "RequirementPage"), (f"/requirements/{i['req1']}/versions", "RequirementVersionPage"),
              (f"/projects/{i['p1']}/sources", "SourcePage"), (f"/projects/{i['p1']}/artifacts", "ArtifactPage"),
-             (f"/artifacts/{i['art1']}/versions", "ArtifactVersionPage"), (f"/worker-runs/{i['run1']}", "WorkerRun")]
+             (f"/artifacts/{i['art1']}/versions", "ArtifactVersionPage"), (f"/worker-runs/{i['run1']}", "WorkerRun"),
+             (f"/operations/{i['op1']}", "Operation")]
     async with await w.client(w.viewer) as c:
         for path, schema in cases:
             r = await c.get(f"/api/v1{path}")
@@ -157,6 +165,16 @@ async def test_every_get_response_conforms_to_the_oas_schema(w: World) -> None:
             conforms(r.json(), schema)
         req = (await c.get(f"/api/v1/projects/{i['p1']}/requirements")).json()["data"][0]
     assert req["displayId"] == "REQ-000007"
+
+
+async def test_get_operation_reads_the_projection_with_oas_vocabulary_and_etag(w: World) -> None:
+    async with await w.client(w.viewer) as c:
+        r = await c.get(f"/api/v1/operations/{w.ids['op1']}")
+    body = r.json()
+    assert r.status_code == 200 and r.headers["etag"] and r.headers["cache-control"] == "no-store"
+    assert body["status"] == "ACCEPTED" and body["initiatorType"] in {"HUMAN", "SYSTEM", "MANAGER", "SCHEDULED"}  # store vocabulary USER/SERVICE is mapped, not leaked
+    assert body["rootOperationId"] == body["id"] and body["parentOperationId"] is None and body["completedAt"] is None
+    assert body["projectId"] == str(w.ids["p1"]) and body["organizationId"] == str(w.iam.org_a)
 
 
 async def test_pagination_walks_every_row_once_and_cursors_are_bound(w: World) -> None:
@@ -330,3 +348,88 @@ async def test_by_id_lookup_is_refused_when_the_caller_can_read_more_projects_th
         by_id = await c.get(f"/api/v1/tasks/{w.ids['task1']}")
         scoped = await c.get(f"/api/v1/projects/{w.ids['p1']}/epics")
     assert by_id.status_code == 503 and scoped.status_code == 200
+
+
+# ---------------------------------------------------------------- S12: streamProjectEvents (SSE, ADR-033 / ADR-092)
+def sse_frames(text: str) -> list[dict[str, str]]:
+    out = []
+    for block in text.split("\n\n"):
+        fields = dict(line.split(": ", 1) for line in block.splitlines() if ": " in line and not line.startswith(":"))
+        if fields:
+            out.append(fields)
+    return out
+
+
+async def cancel_op(w: World) -> None:
+    from ai_res.modules.operations.cancellation import request_cancellation
+    async with UnitOfWork(w.services.factory) as uow:
+        await uow.with_tenant(w.iam.org_a, w.ids["p1"])
+        await request_cancellation(uow.session, w.ids["op1"], actor_id=w.iam.user_a, correlation_id=uuid4())
+
+
+async def test_stream_delivers_new_events_as_an_acl_neutral_projection_with_resumable_ids(w: World) -> None:
+    async with await w.client(w.viewer) as c:
+        task = asyncio.create_task(c.get(f"/api/v1/projects/{w.ids['p1']}/events"))
+        await asyncio.sleep(0.4)
+        await cancel_op(w)
+        r = await task
+    assert r.status_code == 200 and r.headers["content-type"].startswith("text/event-stream") and r.headers["cache-control"] == "no-store"
+    frames = sse_frames(r.text)
+    events = [f for f in frames if f.get("event") == "event"]
+    assert len(events) == 1 and frames[-1] == {"event": "close", "data": '{"reason":"max_duration"}'}
+    data = json.loads(events[0]["data"])
+    assert data["type"] == "operation.cancelled" and data["aggregateId"] == str(w.ids["op1"]) and data["toStatus"] == "CANCELLED" and "data" not in data
+    assert events[0]["id"], "every event carries an opaque resumable id"
+
+
+async def test_stream_acl_unreadable_or_missing_project_is_404_and_anonymous_is_401(w: World) -> None:
+    async with await w.client(w.viewer) as c:
+        foreign = await c.get(f"/api/v1/projects/{w.ids['p2']}/events")
+        missing = await c.get(f"/api/v1/projects/{uuid4()}/events")
+    async with await w.client(None) as anon:
+        unauth = await anon.get(f"/api/v1/projects/{w.ids['p1']}/events")
+    assert (foreign.status_code, missing.status_code, unauth.status_code) == (404, 404, 401) and stripped(foreign) == stripped(missing)
+
+
+async def test_forged_foreign_or_cross_project_last_event_id_is_rejected_not_restarted(w: World) -> None:
+    async with await w.client(w.viewer) as c:
+        task = asyncio.create_task(c.get(f"/api/v1/projects/{w.ids['p1']}/events"))
+        await asyncio.sleep(0.4)
+        await cancel_op(w)
+        token = next(f["id"] for f in sse_frames((await task).text) if f.get("event") == "event")
+        forged = await c.get(f"/api/v1/projects/{w.ids['p1']}/events", headers={"Last-Event-ID": token[:-3] + "AAA"})
+        garbage = await c.get(f"/api/v1/projects/{w.ids['p1']}/events", headers={"Last-Event-ID": "not-a-cursor"})
+    async with await w.client(w.iam.user_a) as other:  # another session replaying the first one's cursor
+        stolen = await other.get(f"/api/v1/projects/{w.ids['p1']}/events", headers={"Last-Event-ID": token})
+    assert (forged.status_code, garbage.status_code, stolen.status_code) == (422, 422, 422)
+
+
+async def test_resuming_with_a_valid_cursor_does_not_repeat_delivered_events(w: World) -> None:
+    async with await w.client(w.viewer) as c:
+        task = asyncio.create_task(c.get(f"/api/v1/projects/{w.ids['p1']}/events"))
+        await asyncio.sleep(0.4)
+        await cancel_op(w)
+        token = next(f["id"] for f in sse_frames((await task).text) if f.get("event") == "event")
+        again = await c.get(f"/api/v1/projects/{w.ids['p1']}/events", headers={"Last-Event-ID": token})
+    assert again.status_code == 200 and [f for f in sse_frames(again.text) if f.get("event") == "event"] == []
+
+
+async def test_stream_closes_when_the_session_is_revoked_mid_stream(w: World) -> None:
+    async with await w.client(w.viewer) as c:
+        task = asyncio.create_task(c.get(f"/api/v1/projects/{w.ids['p1']}/events"))
+        await asyncio.sleep(0.4)
+        w.sql("UPDATE iam.sessions SET revoked_at = now(), revoked_reason = 'LOGOUT', row_version = row_version + 1 WHERE user_id = %s", w.viewer)
+        r = await task
+    frames = sse_frames(r.text)
+    assert frames[-1] == {"event": "close", "data": '{"reason":"access_revoked"}'}
+
+
+async def test_a_cursor_older_than_retention_gets_a_gap_signal_not_silence(w: World) -> None:
+    from ai_res.modules.events.stream import Position
+    async with await w.client(w.viewer) as c:
+        session_id = w.sql_one("SELECT id FROM iam.sessions WHERE user_id = %s", w.viewer)
+        old = Position(datetime(2020, 1, 1, tzinfo=UTC), {})
+        token = encode_cursor(w.app.state.cursor_key_ring, subject=str(session_id), audience="project-events",
+                              filters={"organization": str(w.iam.org_a), "project": str(w.ids["p1"])}, keyset=old.to_keyset(), ttl_seconds=600)
+        r = await c.get(f"/api/v1/projects/{w.ids['p1']}/events", headers={"Last-Event-ID": token})
+    assert sse_frames(r.text)[0]["event"] == "gap" and '"retention"' in sse_frames(r.text)[0]["data"]

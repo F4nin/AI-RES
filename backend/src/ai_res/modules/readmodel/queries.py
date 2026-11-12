@@ -153,6 +153,16 @@ class ReadQueries:
             "w.derivation_reason, w.attempt_number, w.latest_readiness_evaluation_id, w.started_with_readiness_evaluation_id, w.started_at, w.finished_at, "
             "w.result_ref, w.problem_ref FROM agents.worker_runs w WHERE w.id = :i", {"i": run_id})
 
+    # -- operations ---------------------------------------------------------------------------------------------------------------------------------
+    async def get_operation(self, operation_id: UUID) -> Row | None:
+        """The persisted projection only (Temporal is never asked). `root_operation_id` walks the parent chain inside the caller's tenant (RLS)."""
+        return await self._one(
+            "WITH RECURSIVE chain AS (SELECT o.id, o.parent_operation_id, 0 AS depth FROM operations.operations o WHERE o.id = :i "
+            "UNION ALL SELECT p.id, p.parent_operation_id, c.depth + 1 FROM operations.operations p JOIN chain c ON p.id = c.parent_operation_id WHERE c.depth < 16) "
+            "SELECT o.id, o.organization_id, o.project_id, o.parent_operation_id, o.operation_type, o.status, o.initiator_type, o.initiator_id, o.correlation_id, "
+            "o.created_at, o.started_at, o.completed_at, o.result_ref, o.problem_ref, o.row_version, o.progress_snapshot, "
+            "(SELECT id FROM chain ORDER BY depth DESC LIMIT 1) AS root_operation_id FROM operations.operations o WHERE o.id = :i", {"i": operation_id})
+
     # -- project resolution for by-id GETs --------------------------------------------------------------------------------------------------------
     async def exists_in_project(self, table: str, object_id: UUID, project_id: UUID) -> bool:
         if table not in _PROJECT_SCOPED_TABLES:
@@ -160,4 +170,4 @@ class ReadQueries:
         return await self._one(f"SELECT 1 AS x FROM {table} WHERE id = :i AND project_id = :p", {"i": object_id, "p": project_id}) is not None  # noqa: S608 - allowlisted constant
 
 
-_PROJECT_SCOPED_TABLES = frozenset({"work.epics", "work.tasks", "requirements.requirements", "artifacts.artifacts", "agents.worker_runs"})
+_PROJECT_SCOPED_TABLES = frozenset({"work.epics", "work.tasks", "requirements.requirements", "artifacts.artifacts", "agents.worker_runs", "operations.operations", "sources.uploads"})

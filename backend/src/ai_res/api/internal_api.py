@@ -25,6 +25,7 @@ from ai_res.platform.problems import ErrorCode, ProblemError, install_problem_ha
 CAPABILITIES: dict[str, frozenset[ServiceName]] = {  # WORKING (ADR-088)
     "operation.acknowledge_start": frozenset({ServiceName.MANAGER_RUNTIME}),
     "operation.record_failure": frozenset({ServiceName.MANAGER_RUNTIME}),
+    "operation.confirm_cancellation": frozenset({ServiceName.MANAGER_RUNTIME}),
 }
 
 
@@ -74,6 +75,12 @@ def create_internal_app(service: OperationOrchestrationService, verifier: Servic
     @app.post("/internal/v1/operations/{operationId}/failure")
     async def record_failure(operationId: UUID, body: FailureBody, _: Annotated[ServiceIdentity, caller("operation.record_failure")]) -> dict[str, Any]:
         state = await service.record_failure(OperationFailure(ref(operationId, body), body.code), correlation_uuid(current_request_id()))
+        return view(operationId, state.status)
+
+    @app.post("/internal/v1/operations/{operationId}/cancellation-confirmation")
+    async def confirm_cancellation(operationId: UUID, body: ScopeBody,
+                                   _: Annotated[ServiceIdentity, caller("operation.confirm_cancellation")]) -> dict[str, Any]:
+        state = await service.confirm_cancellation(ref(operationId, body), correlation_uuid(current_request_id()))
         return view(operationId, state.status)
 
     app.add_middleware(ErrorBoundaryMiddleware)

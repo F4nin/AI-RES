@@ -5,10 +5,12 @@ from collections.abc import Mapping
 from fastapi import FastAPI
 from opentelemetry.sdk.trace import TracerProvider
 
+from ai_res.api.events_api import register_events_api
 from ai_res.api.identity import IdentityServices, build_identity_services, register_identity
 from ai_res.api.read_api import register_read_api
 from ai_res.api.write_api import StorageConfig, register_write_api
 from ai_res.modules.idempotency.service import IdempotencyService
+from ai_res.modules.sources.object_store import ObjectStore
 from ai_res.platform.boundary import ErrorBoundaryMiddleware
 from ai_res.platform.config import Settings, cursor_key_ring, load_settings
 from ai_res.platform.correlation import CorrelationMiddleware
@@ -18,7 +20,8 @@ from ai_res.platform.telemetry import SERVICE_NAME, TelemetryMiddleware, build_t
 
 
 def create_app(settings: Settings, tracer_provider: TracerProvider | None = None, identity: IdentityServices | None = None,
-               idempotency: IdempotencyService | None = None, storage: StorageConfig | None = None) -> FastAPI:
+               idempotency: IdempotencyService | None = None, storage: StorageConfig | None = None,
+               object_store: ObjectStore | None = None) -> FastAPI:
     app = FastAPI(title="AI RES", docs_url=None, redoc_url=None, openapi_url=None)  # no schema/UI exposure in S02
     install_problem_handlers(app)
     provider = tracer_provider or build_tracer_provider()
@@ -27,7 +30,8 @@ def create_app(settings: Settings, tracer_provider: TracerProvider | None = None
     if identity is not None:
         register_identity(app, identity)
         register_read_api(app, identity)
-        register_write_api(app, identity, idempotency=idempotency, storage=storage)
+        register_events_api(app, identity)
+        register_write_api(app, identity, idempotency=idempotency, storage=storage, object_store=object_store)
     app.add_middleware(ErrorBoundaryMiddleware)
     app.add_middleware(TelemetryMiddleware, tracer=provider.get_tracer(SERVICE_NAME))
     app.add_middleware(CorrelationMiddleware)

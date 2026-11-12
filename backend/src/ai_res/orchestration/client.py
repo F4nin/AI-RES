@@ -9,8 +9,9 @@ from uuid import UUID
 from temporalio.client import Client
 from temporalio.common import WorkflowIDConflictPolicy, WorkflowIDReusePolicy
 from temporalio.exceptions import WorkflowAlreadyStartedError
+from temporalio.service import RPCError, RPCStatusCode
 
-from ai_res.orchestration.contracts import MANAGER_TASK_QUEUE, OPERATION_WORKFLOW_TYPE, OperationWorkflowInput, assert_compact, workflow_id_for
+from ai_res.orchestration.contracts import CANCEL_SIGNAL, MANAGER_TASK_QUEUE, OPERATION_WORKFLOW_TYPE, OperationWorkflowInput, assert_compact, workflow_id_for
 from ai_res.platform.config import ConfigError, Settings
 
 
@@ -39,3 +40,24 @@ class OperationStarter:
             return StartOutcome.ALREADY_FINISHED
         return StartOutcome.ENSURED
 
+
+
+class CancelOutcome(StrEnum):
+    SIGNALLED = "SIGNALLED"
+    NO_RUNNING_WORKFLOW = "NO_RUNNING_WORKFLOW"  # closed or unknown: the domain reconciler (G-107) owns an Operation still in CANCEL_REQUESTED
+
+
+class OperationCanceller:
+    def __init__(self, client: Client) -> None:
+        self._client = client
+
+    async def signal(self, operation_id: UUID) -> CancelOutcome:
+        """Signal only: the signal carries no payload, so nothing but the Workflow ID (derived from the Operation ID) leaves this process."""
+        handle = self._client.get_workflow_handle(workflow_id_for(operation_id))
+        try:
+            await handle.signal(CANCEL_SIGNAL)
+        except RPCError as exc:
+            if exc.status is RPCStatusCode.NOT_FOUND:
+                return CancelOutcome.NO_RUNNING_WORKFLOW
+            raise
+        return CancelOutcome.SIGNALLED

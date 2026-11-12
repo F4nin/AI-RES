@@ -99,7 +99,7 @@ class OperationFailure:
 
 @dataclass(frozen=True)
 class OperationWorkflowResult:
-    outcome: str  # SKELETON_FAILED_CLOSED | NOT_RUNNING
+    outcome: str  # SKELETON_FAILED_CLOSED | NOT_RUNNING | CANCELLED_CONFIRMED | CANCEL_PENDING
     status: str  # the domain status the workflow last observed
 
     def __post_init__(self) -> None:
@@ -127,3 +127,6 @@ def assert_compact(payload: Any) -> None:
 
 # Outbox destination of the Operation start command (S11). The accepted-event of an Operation that must be orchestrated lists it next to the domain destination.
 START_DESTINATION = "orchestration.operation-start"
+# Outbox destination of the cancellation command (S12): the Workflow gets a signal; the domain decides CANCELLED only after reconciliation (Decision v1.6 §2.4).
+CANCEL_DESTINATION = "orchestration.operation-cancel"
+CANCEL_SIGNAL = "request_cancel"

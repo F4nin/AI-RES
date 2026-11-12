@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "version": "2026-11-12.2",
+  "version": "2026-11-12.3",
   "status": "WORKING",
   "privilegedRoles": ["ORGANIZATION_OWNER", "ORGANIZATION_ADMIN", "PROJECT_ADMIN"],
   "actions": {
@@ -18,11 +18,15 @@
     "source.read": {"resourceType": "SOURCE", "allow": {"projectRoles": ["PROJECT_ADMIN", "ANALYST", "REVIEWER_APPROVER", "READ_ONLY_VIEWER", "AUDITOR"], "orgRoles": ["AUDITOR"]}},
     "artifact.read": {"resourceType": "ARTIFACT", "allow": {"projectRoles": ["PROJECT_ADMIN", "ANALYST", "REVIEWER_APPROVER", "READ_ONLY_VIEWER", "AUDITOR"], "orgRoles": ["AUDITOR"]}},
     "worker_run.read": {"resourceType": "WORKER_RUN", "allow": {"projectRoles": ["PROJECT_ADMIN", "ANALYST", "REVIEWER_APPROVER", "READ_ONLY_VIEWER", "AUDITOR"], "orgRoles": ["AUDITOR"]}},
+    "operation.read": {"resourceType": "OPERATION", "allow": {"projectRoles": ["PROJECT_ADMIN", "ANALYST", "REVIEWER_APPROVER", "READ_ONLY_VIEWER", "AUDITOR"], "orgRoles": ["AUDITOR"]}},
+    "project.events_read": {"resourceType": "PROJECT", "allow": {"projectRoles": ["PROJECT_ADMIN", "ANALYST", "REVIEWER_APPROVER", "READ_ONLY_VIEWER", "AUDITOR"], "orgRoles": ["AUDITOR"]}},
     "project.create": {"resourceType": "PROJECT", "allow": {"orgRoles": ["ORGANIZATION_OWNER", "ORGANIZATION_ADMIN"]}, "humanOnly": true},
     "project.update": {"resourceType": "PROJECT", "allow": {"projectRoles": ["PROJECT_ADMIN"]}, "humanOnly": true},
     "epic.create": {"resourceType": "EPIC", "allow": {"projectRoles": ["PROJECT_ADMIN", "ANALYST"]}, "humanOnly": true},
     "requirement.register": {"resourceType": "REQUIREMENT", "allow": {"projectRoles": ["PROJECT_ADMIN", "ANALYST"]}, "humanOnly": true},
     "requirement.propose_version": {"resourceType": "REQUIREMENT", "allow": {"projectRoles": ["PROJECT_ADMIN", "ANALYST"]}, "humanOnly": true},
-    "source.upload_create": {"resourceType": "SOURCE", "allow": {"projectRoles": ["PROJECT_ADMIN", "ANALYST"]}, "humanOnly": true}
+    "source.upload_create": {"resourceType": "SOURCE", "allow": {"projectRoles": ["PROJECT_ADMIN", "ANALYST"]}, "humanOnly": true},
+    "source.upload_complete": {"resourceType": "SOURCE", "allow": {"projectRoles": ["PROJECT_ADMIN", "ANALYST"]}, "humanOnly": true},
+    "operation.cancel": {"resourceType": "OPERATION", "allow": {"projectRoles": ["PROJECT_ADMIN", "ANALYST"]}, "humanOnly": true}
   }
 }

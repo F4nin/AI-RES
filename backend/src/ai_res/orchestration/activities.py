@@ -13,6 +13,7 @@ from ai_res.orchestration.platform_port import OperationPlatform, PlatformPerman
 
 ACK_ACTIVITY = "acknowledge_operation_start"
 FAIL_ACTIVITY = "record_operation_failure"
+CANCEL_ACTIVITY = "confirm_operation_cancellation"
 WORKER_RUN_ACTIVITY = "execute_worker_run"
 PERMANENT = "PermanentPlatformError"
 NOT_AVAILABLE = "WORKER_RUN_EXECUTION_NOT_AVAILABLE"
@@ -29,6 +30,10 @@ class ManagerActivities:
     @activity.defn(name=FAIL_ACTIVITY)
     async def record_operation_failure(self, failure: OperationFailure) -> OperationState:
         return await self._call(self._platform.record_failure(failure))
+
+    @activity.defn(name=CANCEL_ACTIVITY)
+    async def confirm_operation_cancellation(self, ref: OperationRef) -> OperationState:
+        return await self._call(self._platform.confirm_cancellation(ref))
 
     @staticmethod
     async def _call(call: Awaitable[OperationState]) -> OperationState:

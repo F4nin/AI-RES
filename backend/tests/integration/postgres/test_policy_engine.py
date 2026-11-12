@@ -82,7 +82,7 @@ for a in ADMIN_ACTIONS:
 
 
 READ_ACTIONS = {"project.read": "PROJECT", "epic.read": "EPIC", "task.read": "TASK", "requirement.read": "REQUIREMENT", "source.read": "SOURCE", "artifact.read": "ARTIFACT",
-                "worker_run.read": "WORKER_RUN"}  # S08: (who, mfa) -> (effect, reason); organization Owner/Admin hold no read grant by decision of the owner (OD-15)
+                "worker_run.read": "WORKER_RUN", "operation.read": "OPERATION", "project.events_read": "PROJECT"}  # S08/S12: (who, mfa) -> (effect, reason); organization Owner/Admin hold no read grant by decision of the owner (OD-15)
 READ_CASES = [("PADMIN", True, ALLOW, "allowed_role:PROJECT_ADMIN"), ("PADMIN", False, DENY, "mfa_required"), ("ANALYST", False, ALLOW, "allowed_role:ANALYST"),
               ("AUDITOR", False, ALLOW, "allowed_role:AUDITOR"), ("OWNER", True, DENY, "no_matching_grant"), ("ADMIN", True, DENY, "no_matching_grant"),
               ("NOBODY", True, DENY, "no_matching_grant")]
@@ -90,14 +90,14 @@ READ_CASES = [("PADMIN", True, ALLOW, "allowed_role:PROJECT_ADMIN"), ("PADMIN", 
 
 # S09 (ADR-083): action -> (resource type, project roles | None for org roles); organization roles apply to project.create only
 WRITE_ACTIONS = {"project.create": "PROJECT", "project.update": "PROJECT", "epic.create": "EPIC", "requirement.register": "REQUIREMENT",
-                 "requirement.propose_version": "REQUIREMENT", "source.upload_create": "SOURCE"}
+                 "requirement.propose_version": "REQUIREMENT", "source.upload_create": "SOURCE", "source.upload_complete": "SOURCE", "operation.cancel": "OPERATION"}
 WRITE_CASES = {
     "project.create": [("OWNER", True, ALLOW, "allowed_role:ORGANIZATION_OWNER"), ("ADMIN", True, ALLOW, "allowed_role:ORGANIZATION_ADMIN"), ("OWNER", False, DENY, "mfa_required"),
                        ("ANALYST", True, DENY, "no_matching_grant"), ("PADMIN", True, DENY, "no_matching_grant"), ("AUDITOR", True, DENY, "no_matching_grant")],
     "project.update": [("PADMIN", True, ALLOW, "allowed_role:PROJECT_ADMIN"), ("PADMIN", False, DENY, "mfa_required"), ("ANALYST", True, DENY, "no_matching_grant"),
                        ("OWNER", True, DENY, "no_matching_grant"), ("NOBODY", True, DENY, "no_matching_grant")],
 }
-for _a in ("epic.create", "requirement.register", "requirement.propose_version", "source.upload_create"):
+for _a in ("epic.create", "requirement.register", "requirement.propose_version", "source.upload_create", "source.upload_complete", "operation.cancel"):
     WRITE_CASES[_a] = [("ANALYST", False, ALLOW, "allowed_role:ANALYST"), ("PADMIN", True, ALLOW, "allowed_role:PROJECT_ADMIN"), ("PADMIN", False, DENY, "mfa_required"),
                        ("AUDITOR", True, DENY, "no_matching_grant"), ("OWNER", True, DENY, "no_matching_grant"), ("NOBODY", True, DENY, "no_matching_grant")]
 

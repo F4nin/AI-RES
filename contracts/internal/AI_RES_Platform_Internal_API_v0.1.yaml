@@ -50,6 +50,25 @@ paths:
         '404': { $ref: '#/components/responses/Problem' }
         '412': { $ref: '#/components/responses/Problem' }
         '422': { $ref: '#/components/responses/Problem' }
+  /internal/v1/operations/{operationId}/cancellation-confirmation:
+    post:
+      operationId: confirmOperationCancellation
+      summary: Reconciliation of a requested cancellation (idempotent). CANCEL_REQUESTED -> CANCELLED only when no WorkerRun is still active; any other status (a terminal fact included) is returned unchanged and never overwritten.
+      x-capability: operation.confirm_cancellation
+      x-callers: [MANAGER_RUNTIME]
+      parameters:
+        - { name: operationId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ScopeRequest' }
+      responses:
+        '200': { description: Current domain status, content: { application/json: { schema: { $ref: '#/components/schemas/OperationStatus' } } } }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
 components:
   responses:
     Problem:

@@ -105,7 +105,8 @@ class SessionService:
             {"id": sid, "org": org, "uid": user, "sd": session_digest(token), "cd": csrf_digest(csrf), "now": now, "idle": idle, "abs": absolute, "mfa": mfa_verified_at})
         return IssuedSession(token, csrf, sid, org, user, idle, absolute, mfa_verified_at)
 
-    async def authenticate(self, token: str) -> SessionAuthResult:
+    async def authenticate(self, token: str, *, touch: bool = True) -> SessionAuthResult:
+        """`touch=False` validates without extending the idle window: a background poll (SSE) is not user activity."""
         parsed = parse_session_token(token)
         if parsed is None:
             return SessionAuthResult(None, AuthFailure.MALFORMED)
@@ -131,7 +132,7 @@ class SessionService:
             if not row["org_member"]:
                 return SessionAuthResult(None, AuthFailure.MEMBERSHIP_REVOKED)  # a revoked membership ends access even if the session row survived
             idle_expires = row["idle_expires_at"]
-            if now - row["last_seen_at"] >= self._touch:
+            if touch and now - row["last_seen_at"] >= self._touch:
                 idle_expires = min(now + self._idle, row["absolute_expires_at"])
                 # CAS on row_version: a concurrent touch/revoke wins and this extension is simply skipped (never resurrects a revoked row).
                 touched = await uow.session.execute(text(

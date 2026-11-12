@@ -1,5 +1,5 @@
 # ruff: noqa: E501  -- SQL statements stay on one line per clause for review
-"""Operation aggregate persistence (Blueprint §3, TX-01). Statuses are validated by the database vocabulary; transition legality is the domain service's (S13)."""
+"""Operation aggregate persistence (Blueprint §3, TX-01). Statuses are validated by the database vocabulary; transition legality by `state_machine` (S12)."""
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
@@ -11,13 +11,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ai_res.db.cas import bind_value
 from ai_res.modules.events.aggregate_events import AggregateKind, AppendedEvent, EventSpec, append_event, validate_transition_spec
+from ai_res.modules.operations.state_machine import TERMINAL, require_transition
 from ai_res.platform.clock import utc_now
 from ai_res.platform.problems import ErrorCode, ProblemError
 
 # WORKING (Architecture Decision v1.6 §2.6 / ADR-051): the exact operation_type registry is not final. Must equal operations.operation_types
 # (tests/integration/postgres/test_migration_safety.py); extending it needs an Alembic revision AND this tuple, never one without the other.
 OPERATION_TYPES = frozenset({"MANAGER_MESSAGE", "TASK_EXECUTION", "SOURCE_INGESTION", "PLAN_EXECUTION"})
-TERMINAL = frozenset({"SUCCEEDED", "PARTIALLY_SUCCEEDED", "FAILED", "CANCELLED"})
 OPERATION_KIND = AggregateKind(
     aggregate_type="OPERATION", table="operations.operations", events_table="operations.operation_events", fk_column="operation_id",
     mutable={"status": None, "started_at": None, "completed_at": None, "cancel_requested_at": None, "workflow_id": None, "workflow_run_id": None,
@@ -84,6 +84,7 @@ class OperationRepository:
 
     async def transition(self, row: OperationRow, to_status: str, spec: EventSpec, **changes: Any) -> AppendedEvent:
         """CAS on `row.row_version`; a terminal status also stamps completed_at (CHECK: terminal <=> completed_at)."""
+        require_transition(row.status, to_status)  # terminal never reopens; refused before anything is written
         validate_transition_spec(row.status, to_status, spec, changes)
         values: dict[str, Any] = {"status": to_status, **changes}
         if to_status in TERMINAL:

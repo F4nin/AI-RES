@@ -14,6 +14,14 @@ from ai_res.orchestration.platform_port import PlatformPermanentError, PlatformT
 TOKEN_TTL = timedelta(seconds=60)  # WORKING: well under service_token_max_ttl_seconds
 
 
+def _problem_code(response: httpx.Response) -> str | None:
+    try:
+        code = response.json().get("code")
+    except (ValueError, AttributeError):
+        return None
+    return code if isinstance(code, str) else None
+
+
 class HttpOperationPlatform:
     def __init__(self, base_url: str, mint_token: Callable[[], str], *, timeout_seconds: float = 10.0,
                  transport: httpx.AsyncBaseTransport | None = None) -> None:
@@ -29,8 +37,10 @@ class HttpOperationPlatform:
         except httpx.HTTPError as exc:
             raise PlatformTransientError(type(exc).__name__) from None
         status = response.status_code
+        if status == 409 and _problem_code(response) == "STATE_TRANSITION_NOT_ALLOWED":
+            raise PlatformPermanentError("transition not allowed")  # a state error: retrying cannot make an illegal transition legal
         if status in (408, 409, 425, 429) or status >= 500:
-            raise PlatformTransientError(f"http {status}")
+            raise PlatformTransientError(f"http {status}")  # 409 otherwise = a lost compare-and-swap race: the retry sees the winner
         if status != 200:
             raise PlatformPermanentError(f"http {status}")
         try:
@@ -45,6 +55,9 @@ class HttpOperationPlatform:
 
     async def acknowledge_start(self, ref: OperationRef) -> OperationState:
         return await self._post(f"/internal/v1/operations/{ref.operation_id}/start-acknowledgement", self._scope(ref))
+
+    async def confirm_cancellation(self, ref: OperationRef) -> OperationState:
+        return await self._post(f"/internal/v1/operations/{ref.operation_id}/cancellation-confirmation", self._scope(ref))
 
     async def record_failure(self, failure: OperationFailure) -> OperationState:
         return await self._post(f"/internal/v1/operations/{failure.operation.operation_id}/failure", {**self._scope(failure.operation), "code": failure.code})

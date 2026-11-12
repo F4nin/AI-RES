@@ -14,7 +14,7 @@ from temporalio.exceptions import ActivityError, ApplicationError
 from temporalio.worker import Replayer, Worker
 
 from ai_res.orchestration.activities import ACK_ACTIVITY, WORKER_RUN_ACTIVITY
-from ai_res.orchestration.client import OperationStarter, StartOutcome
+from ai_res.orchestration.client import CancelOutcome, OperationCanceller, OperationStarter, StartOutcome
 from ai_res.orchestration.contracts import MANAGER_TASK_QUEUE, WORKER_TASK_QUEUE, OperationWorkflowInput, OperationWorkflowResult, workflow_id_for
 from ai_res.orchestration.workers import manager_worker, worker_runtime_worker
 from ai_res.orchestration.workflows import OperationWorkflow
@@ -151,3 +151,36 @@ async def test_worker_runtime_registers_but_refuses_worker_runs(client: Client):
     assert isinstance(activity_error, ActivityError)
     cause = activity_error.cause
     assert isinstance(cause, ApplicationError) and cause.type == "WORKER_RUN_EXECUTION_NOT_AVAILABLE" and cause.non_retryable
+
+
+async def test_cancel_requested_before_the_start_is_acknowledged_is_reconciled_to_cancelled(client: Client):
+    req = request()
+    platform = FakePlatform(preset={req.operation.operation_id: "CANCEL_REQUESTED"})
+    async with running(client, platform):
+        await OperationStarter(client).start(req)
+        result = await handle_of(client, req).result()
+    assert (result.outcome, result.status) == ("CANCELLED_CONFIRMED", "CANCELLED")
+    assert platform.calls["fail"] == 0  # the skeleton failure never runs over a cancel
+
+
+async def test_cancel_that_wins_the_race_against_the_skeleton_failure_is_reconciled_not_left_pending(client: Client):
+    platform, req = FakePlatform(cancel_wins_race=True), request()
+    async with running(client, platform):
+        await OperationStarter(client).start(req)
+        result = await handle_of(client, req).result()
+    assert (result.outcome, result.status) == ("CANCELLED_CONFIRMED", "CANCELLED")
+    assert platform.transitions[-1] == (req.operation.operation_id, "CANCELLED") and platform.calls["confirm_cancel"] == 1
+
+
+async def test_cancel_signal_reaches_a_running_workflow_and_a_missing_one_is_reported_not_raised(client: Client):
+    req = request()
+    canceller = OperationCanceller(client)
+    # nothing to signal: reconciliation owns it (G-107)
+    assert await canceller.signal(uuid.UUID(req.operation.operation_id)) is CancelOutcome.NO_RUNNING_WORKFLOW
+    platform = FakePlatform(transient_failures=1)  # keeps the workflow alive in its first Activity retry long enough to be signalled
+    async with running(client, platform):
+        await OperationStarter(client).start(req)
+        assert await canceller.signal(uuid.UUID(req.operation.operation_id)) is CancelOutcome.SIGNALLED
+        result = await handle_of(client, req).result()
+    # the domain never entered CANCEL_REQUESTED: the signal is a hint it does not back, so it is ignored and the Operation still ends terminal
+    assert (result.outcome, result.status) == ("SKELETON_FAILED_CLOSED", "FAILED")
