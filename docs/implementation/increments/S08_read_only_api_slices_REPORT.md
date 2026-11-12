@@ -1,6 +1,6 @@
 # S08 — Read-only API vertical slices: Increment Report
 
-**Дата:** 2026-11-12 · **Промпт:** `increments/prompts/S08_read_only_api_slices.md` · **Итоговый статус:** TESTED (локально; Linux CI не запускался, коммитов и PR нет; VERIFIED — по решению владельца после CI)
+**Дата:** 2026-11-12 · **Промпт:** `increments/prompts/S08_read_only_api_slices.md` · **Итоговый статус:** VERIFIED (локально `make pre-pr` ok; GitHub Actions на Linux зелёный, PR #7, коммит 588055d: ci 43186306478 и 43186313460, contracts 43186306145 и 43186313578)
 
 ## 1. Что реализовано
 12 GET Public API v1.3: listProjects, getProject, listEpics, getEpic, listTasks, getTask, listRequirements, listRequirementVersions, listSources, listArtifacts, listArtifactVersions, getWorkerRun — с ACL через Policy Engine, cursor-пагинацией, ETag (getProject, getTask), явными DTO. Записи (S09) и Operations/SSE (S12) не затронуты. Не реализовано: индекс расположения объектов (G-87), троттлинг (G-88).
@@ -64,13 +64,13 @@ IDOR: чужой проект/организация и несуществующ
 `reviews/S08_REVIEWS.md`. Дельта исправлений отдельным агентом не пересматривалась.
 
 ## 12. Не выполненные проверки, ограничения, риски
-Linux CI не запускался. G-87 (стоимость промаха), G-88 (нет троттлинга), OD-17. Матрица политик WORKING. Параметры `cursor_ttl_seconds`, `read_lookup_max_projects` — WORKING.
+Первый CI-прогон упал на `infra-verify-digests` (дрейф индекса `caddy:2.11.9`, не связан с кодом S08); пин обновлён отдельным коммитом, повторный прогон зелёный. G-87 (стоимость промаха), G-88 (нет троттлинга), OD-17. Матрица политик WORKING. Параметры `cursor_ttl_seconds`, `read_lookup_max_projects` — WORKING.
 
 ## 13. Обновлённые документы и статусы
 STATUS, ADL (074–077), KNOWN_GAPS (G-84…G-90), DECISIONS_PENDING (OD-15, OD-17), CONTRACT/REQUIREMENTS_TRACEABILITY, ECC_USAGE, CONTEXT_HANDOFF, reviews/S08_REVIEWS.md.
 
 ## 14. Статус DoD
-✅ все GET соответствуют OAS и проходят ACL-тесты · ✅ endpoint вне контракта не создан · ✅ результаты созданы, заглушек нет (помеченные UNKNOWN/null — G-84/85) · ✅ обязательные тесты раздела 9 зелёные · N/A миграции · ✅ negative-тесты · ➖ observability: используются существующие middleware (OTel, redaction) без новых метрик · ✅ review (3 агента; CRITICAL/HIGH устранены) · ✅ документы · ❌ Linux CI.
+✅ все GET соответствуют OAS и проходят ACL-тесты · ✅ endpoint вне контракта не создан · ✅ результаты созданы, заглушек нет (помеченные UNKNOWN/null — G-84/85) · ✅ обязательные тесты раздела 9 зелёные · N/A миграции · ✅ negative-тесты · ➖ observability: используются существующие middleware (OTel, redaction) без новых метрик · ✅ review (3 агента; CRITICAL/HIGH устранены) · ✅ документы · ✅ Linux CI.
 
 ## 15. Можно ли начинать следующий этап
-Да, S09 (Controlled write commands) разблокирован по зависимостям; рекомендуется сначала PR и зелёный Linux CI. Для S09 важны: формат ETag `"v<N>"` уже совместим с `parse_if_match`; `goal` (G-84) нужен для createProject.
+Да, S09 (Controlled write commands) разблокирован по зависимостям; PR #7 нужно влить в `main`. Для S09 важны: формат ETag `"v<N>"` уже совместим с `parse_if_match`; `goal` (G-84) нужен для createProject.
