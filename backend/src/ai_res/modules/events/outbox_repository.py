@@ -5,6 +5,7 @@ Runs under `ai_res_outbox_dispatcher` (cross-tenant by design, ADR-034/053; deli
 - not a row lock - protects the in-flight row; an expired lease is reclaimed. A row is claimable only when every earlier sequence of the same aggregate
 and destination is PUBLISHED, so a quarantined or pending event is never overtaken (a sequence gap is never swallowed).
 """
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -21,6 +22,7 @@ _CLAIM = text("""
 WITH next AS (
   SELECT o.id FROM audit.outbox_events o
    WHERE ((o.status = 'PENDING' AND o.available_at <= now()) OR (o.status = 'IN_FLIGHT' AND o.lease_until < now()))
+     AND (CAST(:dests AS text[]) IS NULL OR o.destination = ANY(CAST(:dests AS text[])))
      AND NOT EXISTS (SELECT 1 FROM audit.outbox_events p
                       WHERE p.aggregate_type = o.aggregate_type AND p.aggregate_id = o.aggregate_id AND p.destination = o.destination
                         AND p.aggregate_sequence < o.aggregate_sequence AND p.status <> 'PUBLISHED')
@@ -62,15 +64,21 @@ class OutboxRepository:
         self._s = session
         self.claim_quarantined = 0  # rows the last `claim` quarantined because their lease kept expiring (the caller reports them)
 
-    async def claim(self, owner: str, limit: int, lease_seconds: float, max_attempts: int) -> list[OutboxRow]:
+    async def claim(self, owner: str, limit: int, lease_seconds: float, max_attempts: int, destinations: Sequence[str] | None = None) -> list[OutboxRow]:
         """`lease_seconds` and `max_attempts` are WORKING configuration (no approved values): the caller supplies them.
-        A row whose lease expired after `max_attempts` claims (the dispatcher keeps dying on it) is quarantined, not leased again forever."""
+        A row whose lease expired after `max_attempts` claims (the dispatcher keeps dying on it) is quarantined, not leased again forever.
+        `destinations` (S11, ADR-089) restricts the claim - and the lease-expiry quarantine - to the destinations this dispatcher has routes for, so a dispatcher
+        never pushes another destination's events into NO_CONSUMER quarantine; None (default) means every destination."""
+        if destinations is not None and (not destinations or any(not d for d in destinations)):
+            raise ValueError("destinations must be a non-empty list of destination names, or None")
+        dests = None if destinations is None else list(destinations)
         if limit < 1 or lease_seconds <= 0 or max_attempts < 1 or not owner:
             raise ValueError("limit, lease_seconds, max_attempts and owner must be positive/non-empty")
         r = await self._s.execute(text("UPDATE audit.outbox_events SET status = 'QUARANTINED', last_error_code = 'LEASE_EXPIRED_MAX_ATTEMPTS', lease_owner = NULL, lease_until = NULL "
-                                       "WHERE status = 'IN_FLIGHT' AND lease_until < now() AND attempt_count >= :max"), {"max": max_attempts})
+                                       "WHERE status = 'IN_FLIGHT' AND lease_until < now() AND attempt_count >= :max "
+                                       "AND (CAST(:dests AS text[]) IS NULL OR destination = ANY(CAST(:dests AS text[])))"), {"max": max_attempts, "dests": dests})
         self.claim_quarantined = int(affected(r))
-        rows = (await self._s.execute(_CLAIM, {"limit": limit, "owner": owner, "lease": lease_seconds})).mappings().all()
+        rows = (await self._s.execute(_CLAIM, {"limit": limit, "owner": owner, "lease": lease_seconds, "dests": dests})).mappings().all()
         return sorted((OutboxRow(**r) for r in rows), key=lambda r: (str(r.aggregate_id), r.aggregate_sequence))
 
     async def mark_published(self, row_id: UUID, owner: str, attempt: int, replay_count: int = 0) -> bool:

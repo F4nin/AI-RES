@@ -8,7 +8,8 @@ import time
 
 PROJECT_FILES = ["-p", "ai-res", "-f", "compose.yaml", "-f", "compose.dev.yaml"]
 ONE_SHOT = {"postgres-provision", "migrate", "temporal-schema", "temporal-namespace", "minio-init"}
-LONG_RUNNING = {"api", "reverse-proxy", "postgres", "temporal", "temporal-ui", "minio", "otel-collector"}
+LONG_RUNNING = {"api", "platform-api", "outbox-dispatcher", "manager-runtime", "worker-runtime",
+                "reverse-proxy", "postgres", "temporal", "temporal-ui", "minio", "otel-collector"}
 NO_HEALTHCHECK = {"otel-collector"}  # distroless: only "running" can be asserted
 
 

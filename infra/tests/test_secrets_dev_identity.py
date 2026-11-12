@@ -19,3 +19,13 @@ def test_idempotency_keyring_is_one_key_id_and_32_bytes_and_is_a_managed_secret(
     key_id, key = line.split()
     assert key_id == "k1" and len(base64.b64decode(key, validate=True)) == 32 and line != sd._generate("idempotency_keyring")
     assert "idempotency_keyring" in sd.NAMES
+
+
+def test_manager_signing_key_is_a_32_byte_seed_and_the_public_registry_is_derived_from_it():
+    seed = sd._generate("manager_signing_key")
+    assert len(base64.b64decode(seed, validate=True)) == 32 and seed != sd._generate("manager_signing_key")
+    line = sd.derive_service_public_keys({"manager_signing_key": seed})
+    service, pub = line.split()
+    assert service == "MANAGER_RUNTIME" and len(base64.b64decode(pub, validate=True)) == 32
+    assert line == sd.derive_service_public_keys({"manager_signing_key": seed})  # deterministic: the registry is a pure function of the key
+    assert {"manager_signing_key", "service_public_keys"} <= set(sd.NAMES)

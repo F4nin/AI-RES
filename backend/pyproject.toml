@@ -21,6 +21,8 @@ dependencies = [
   "rfc3339-validator>=0.1.4",
   "referencing>=0.36",
   "pyyaml>=6",
+  "temporalio>=1.20,<2",
+  "httpx>=0.28.1",
 ]
 
 [dependency-groups]
@@ -47,7 +49,7 @@ packages = ["src/ai_res"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-markers = ["postgres: needs Docker (Testcontainers, real PostgreSQL 16); never replaced by SQLite (ADR-003)"]
+markers = ["temporal: needs Docker (Testcontainers, real Temporal dev server); never replaced by the SDK time-skipping stub", "postgres: needs Docker (Testcontainers, real PostgreSQL 16); never replaced by SQLite (ADR-003)"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 
@@ -116,6 +118,13 @@ name = "No application layer depends on the CLI package"
 type = "forbidden"
 source_modules = ["ai_res.api", "ai_res.platform", "ai_res.modules", "ai_res.db", "ai_res.policy"]
 forbidden_modules = ["ai_res.cli"]
+
+[[tool.importlinter.contracts]]
+name = "Manager/Worker Runtime and orchestration hold no database, ORM, policy or domain code (S11, ADR-087)"
+type = "forbidden"
+source_modules = ["ai_res.runtime", "ai_res.orchestration"]
+forbidden_modules = ["sqlalchemy", "psycopg", "alembic", "ai_res.db", "ai_res.policy", "ai_res.api", "ai_res.cli", "ai_res.modules"]
+ignore_imports = ["ai_res.runtime.manager -> ai_res.modules.iam.service_tokens"]  # signing a service token needs no database; the module imports only platform
 
 [[tool.importlinter.contracts]]
 name = "Platform and persistence layers do not depend on the policy engine"

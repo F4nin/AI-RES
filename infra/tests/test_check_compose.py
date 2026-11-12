@@ -330,3 +330,31 @@ def test_trusted_proxy_needs_a_fixed_address():
 def test_dynamic_range_must_exclude_the_proxy_address():
     assert has(run(trusted_model(ip_range=None)), "ip_range must exclude")
     assert has(run(trusted_model(ip_range="172.28.20.0/24")), "ip_range must exclude")
+
+
+# --- S11: Manager/Worker Runtime hold no database configuration or secret; the new data-network members are allowlisted ----------
+def test_manager_runtime_with_database_configuration_is_rejected():
+    m = mutate(lambda m: m["services"].update({"manager-runtime": good_service(networks={"app": None, "workflow": None}, environment={"AI_RES_DB_HOST": "postgres"})}))
+    assert has(run(m), "must not receive database configuration")
+
+
+def test_manager_runtime_may_not_mount_a_database_secret_but_may_mount_its_signing_key():
+    def with_secrets(names):
+        return mutate(lambda m: m["services"].update({"manager-runtime": good_service(networks={"app": None, "workflow": None}, secrets=[{"source": n} for n in names])}))
+    assert has(run(with_secrets(["api_db_password"])), "not allowed to have")
+    assert has(run(with_secrets(["postgres_tls_ca_cert"])), "not allowed to have")
+    assert run(with_secrets(["manager_signing_key"])) == []
+
+
+def test_worker_runtime_has_no_secrets_at_all():
+    m = mutate(lambda m: m["services"].update({"worker-runtime": good_service(networks={"workflow": None}, secrets=[{"source": "manager_signing_key"}])}))
+    assert has(run(m), "not allowed to have")
+
+
+def test_dispatcher_and_platform_api_are_data_members_with_their_own_identity_only():
+    ok = mutate(lambda m: m["services"].update({"outbox-dispatcher": good_service(networks={"data": None, "workflow": None}, secrets=[{"source": "outbox_db_password"}]),
+                                                "platform-api": good_service(networks={"app": None, "data": None}, secrets=[{"source": "api_db_password"}])}))
+    assert run(ok) == []
+    swapped = mutate(lambda m: m["services"].update({"outbox-dispatcher": good_service(networks={"data": None}, secrets=[{"source": "api_db_password"}])}))
+    assert has(run(swapped), "not allowed to have")
+    assert has(run(mutate(lambda m: m["services"].update({"rogue-dispatcher": good_service(networks={"data": None})}))), "not allowlisted for the data network")

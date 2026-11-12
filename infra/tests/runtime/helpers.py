@@ -7,7 +7,8 @@ from pathlib import Path
 INFRA = Path(__file__).resolve().parents[2]
 COMPOSE = ["docker", "compose", "-p", "ai-res", "-f", str(INFRA / "compose.yaml"), "-f", str(INFRA / "compose.dev.yaml")]
 SECRETS = INFRA / "secrets" / "runtime"
-LONG_RUNNING = ["api", "reverse-proxy", "postgres", "temporal", "temporal-ui", "minio", "otel-collector"]
+LONG_RUNNING = ["api", "platform-api", "outbox-dispatcher", "manager-runtime", "worker-runtime", "reverse-proxy", "postgres", "temporal", "temporal-ui", "minio",
+                "otel-collector"]
 ONE_SHOT = ["postgres-provision", "migrate", "temporal-schema", "temporal-namespace", "minio-init"]
 
 

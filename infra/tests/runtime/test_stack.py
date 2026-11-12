@@ -75,9 +75,10 @@ def test_admin_services_reachable_from_admin_network_positive_control():
 
 
 def test_persist_023_network_part_only_allowlisted_services_on_data_network():
-    """PERSIST-023 (network part for what exists in S03): Manager/Worker runtimes do not exist yet; every other service that is not
-    allowlisted must have no route to PostgreSQL. The real Manager/Worker check is repeated in S11/S23."""
-    allowed = {"api", "postgres", "postgres-provision", "migrate", "temporal", "temporal-schema", "minio", "minio-init"}
+    """PERSIST-023 (network part): only allowlisted services have a route to PostgreSQL. S11 adds the application-service tier
+    (`platform-api`, `outbox-dispatcher`); `manager-runtime` and `worker-runtime` must NOT be on the data network (ADR-090)."""
+    allowed = {"api", "platform-api", "outbox-dispatcher", "postgres", "postgres-provision", "migrate", "temporal", "temporal-schema", "minio", "minio-init"}
+    assert not {"manager-runtime", "worker-runtime"} & allowed
     for svc in LONG_RUNNING + ONE_SHOT:
         nets = set(inspect(svc)["NetworkSettings"]["Networks"])
         assert ("ai-res_data" in nets) == (svc in allowed), (svc, nets)
@@ -257,6 +258,10 @@ def test_secrets_mounted_only_into_services_that_need_them():
         "api": {"cursor_hmac_key", "api_db_password", "postgres_tls_ca_cert", "mfa_encryption_key", "idempotency_keyring"},  # never bootstrap_secret (S07)
         "postgres": {"postgres_superuser_password", "postgres_tls_server_cert", "postgres_tls_server_key"},
         "migrate": {"migrator_db_password", "postgres_tls_ca_cert"},
+        "platform-api": {"api_db_password", "postgres_tls_ca_cert", "service_public_keys"},  # S11
+        "outbox-dispatcher": {"outbox_db_password", "postgres_tls_ca_cert"},
+        "manager-runtime": {"manager_signing_key"},  # no database secret
+        "worker-runtime": set(),
         "temporal": {"temporal_db_password", "postgres_tls_ca_cert"},
         "minio": {"minio_root_user", "minio_root_password"},
         "reverse-proxy": set(),
@@ -269,14 +274,81 @@ def test_secrets_mounted_only_into_services_that_need_them():
 
 
 def test_no_default_credentials_secrets_are_random_and_distinct(secret_values):
-    vals = [v for k, v in secret_values.items() if k != "minio_root_user" and not k.startswith("postgres_tls_")]
+    vals = [v for k, v in secret_values.items() if k not in ("minio_root_user", "service_public_keys") and not k.startswith("postgres_tls_")]
     assert len(set(vals)) == len(vals)
     # mfa_encryption_key is base64 of exactly 32 random bytes (44 chars): its strength is the key size, not the text length
-    assert all(len(v) >= 48 for k, v in secret_values.items() if k not in ("minio_root_user", "mfa_encryption_key", "idempotency_keyring") and not k.startswith("postgres_tls_"))
+    assert all(len(v) >= 48 for k, v in secret_values.items() if k not in ("minio_root_user", "mfa_encryption_key", "idempotency_keyring", "manager_signing_key", "service_public_keys") and not k.startswith("postgres_tls_"))
     assert len(base64.b64decode(secret_values["mfa_encryption_key"], validate=True)) == 32
     key_id, key_b64 = secret_values["idempotency_keyring"].split()
     assert key_id == "k1" and len(base64.b64decode(key_b64, validate=True)) == 32  # `<key_id> <base64 32 bytes>`, the format load_keyring() accepts
     assert all(w not in v.lower() for v in vals for w in ("password", "changeme", "minioadmin", "admin"))
+
+
+# --- S11: Manager/Worker Runtime isolation and orchestration processes -----------------------------------------------------
+@pytest.mark.parametrize("svc", ["manager-runtime", "worker-runtime"])
+def test_manager_and_worker_have_no_database_secret_config_or_network_path(svc):
+    info = inspect(svc)
+    nets = set(info["NetworkSettings"]["Networks"])
+    assert not any(n.endswith(("_data", "_admin", "_ingress", "_egress")) for n in nets), nets  # PERSIST-023
+    env = {e.split("=", 1)[0] for e in info["Config"]["Env"]}
+    assert not {k for k in env if k.startswith("AI_RES_DB_")}
+    probe = exec_in(svc, "python", "-c", "import socket,sys\nfor host in ('postgres','minio'):\n    try:\n        socket.getaddrinfo(host, 5432)\n        sys.exit(1)\n    except socket.gaierror:\n        pass")
+    assert probe.returncode == 0, "the runtime can resolve (and so reach) a data-network host"
+
+
+def test_orchestration_processes_are_up_and_the_dispatcher_claims_only_its_destination():
+    for svc in ("platform-api", "outbox-dispatcher", "manager-runtime", "worker-runtime"):
+        assert inspect(svc)["State"]["Health"]["Status"] == "healthy", svc
+    assert "ai_res.cli.dispatcher" in " ".join(inspect("outbox-dispatcher")["Config"]["Cmd"])
+
+
+SMOKE = """
+import asyncio, os
+from uuid import UUID, uuid4
+from ai_res.db.engine import create_runtime_engine
+from ai_res.db.session import UnitOfWork, create_session_factory
+from ai_res.modules.events.aggregate_events import EventSpec
+from ai_res.modules.operations.repository import NewOperation, OperationRepository
+from ai_res.orchestration.contracts import START_DESTINATION
+from ai_res.platform.config import load_settings
+async def main():
+    org, prj, op = UUID("{org}"), UUID("{prj}"), uuid4()
+    eng = create_runtime_engine(load_settings(os.environ))
+    async with UnitOfWork(create_session_factory(eng)) as uow:
+        await uow.with_tenant(org, prj)
+        n = NewOperation(id=op, organization_id=org, project_id=prj, operation_type="PLAN_EXECUTION", initiator_type="USER", idempotency_scope="runtime-test",
+                         request_fingerprint=b"\\x03" * 32, completion_policy_version="wip-1", completion_policy_snapshot={{}}, correlation_id=uuid4())
+        await OperationRepository(uow.session).create(n, EventSpec(event_type="operation.accepted", schema_version=1, actor_type="USER", correlation_id=uuid4(),
+                                                                     destinations=(START_DESTINATION,)))
+    await eng.dispose()
+    print(op)
+asyncio.run(main())
+"""
+
+
+# ruff: noqa: S608 is applied per statement below: the SQL only interpolates UUIDs generated or returned inside this test
+def test_accepted_operation_is_orchestrated_end_to_end_through_the_real_stack(secret_values):
+    """Operation + Outbox (platform-api container, role ai_res_api) -> outbox-dispatcher -> Temporal -> manager-runtime -> platform-api -> FAILED (skeleton)."""
+    import time
+    import uuid
+    org, prj = uuid.uuid4(), uuid.uuid4()
+    seed = f"INSERT INTO organization.organizations (id,name) VALUES ('{org}','s11-runtime-test'); INSERT INTO project.projects (id,organization_id,name,project_type) VALUES ('{prj}','{org}','p','GREENFIELD');"  # noqa: S608
+    assert _psql("postgres", "postgres_superuser_password", "ai_res_db", seed, secret_values).returncode == 0
+    created = exec_in("platform-api", "python", "-", stdin=SMOKE.format(org=org, prj=prj))
+    assert created.returncode == 0, created.stderr[-400:]
+    op = created.stdout.strip().splitlines()[-1]
+    status = ""
+    for _ in range(30):
+        got = _psql("postgres", "postgres_superuser_password", "ai_res_db", f"SELECT status FROM operations.operations WHERE id='{op}'", secret_values)  # noqa: S608
+        status = got.stdout.strip()
+        if status == "FAILED":
+            break
+        time.sleep(1)
+    assert status == "FAILED", status
+    events = _psql("postgres", "postgres_superuser_password", "ai_res_db", f"SELECT string_agg(event_type, ',' ORDER BY aggregate_sequence) FROM operations.operation_events WHERE operation_id='{op}'", secret_values)  # noqa: S608
+    assert events.stdout.strip().count("operation.") == 4 or events.stdout.strip().count(".v1") == 4
+    wf = exec_in("temporal", "temporal", "workflow", "describe", "--address", "127.0.0.1:7233", "-n", "ai-res", "-w", f"operation-{op}")
+    assert "COMPLETED" in wf.stdout
 
 
 # --- PostgreSQL provisioning (ADR-036, DOC-015 §5.1) ----------------------------------------------------------------------

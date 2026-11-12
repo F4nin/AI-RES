@@ -19,7 +19,8 @@ PUBLISH_HOST_IP = "127.0.0.1"  # local profile; a different bind needs an owner 
 OPEN_NETWORKS = {"ingress", "egress"}  # the only networks with a gateway; membership is allowlisted per service below
 INGRESS_ALLOWED = {"reverse-proxy", "frontend"}
 EGRESS_ALLOWED = {"llm-gateway", "connector-platform"}  # DOC-015 §9.1: only controlled egress services (they do not exist yet)
-DATA_ALLOWED = {"api", "postgres", "postgres-provision", "migrate", "bootstrap", "temporal", "temporal-schema", "minio", "minio-init"}
+DATA_ALLOWED = {"api", "platform-api", "outbox-dispatcher", "postgres", "postgres-provision", "migrate", "bootstrap", "temporal", "temporal-schema",
+                "minio", "minio-init"}
 MANAGER_WORKER_PREFIXES = ("manager-runtime", "worker-runtime")  # PERSIST-023: no network path to PostgreSQL
 MANAGER_WORKER_NETWORKS = {"app", "workflow"}  # never data, admin, ingress or egress
 ONE_SHOT = {"postgres-provision", "migrate", "bootstrap", "temporal-schema", "temporal-namespace", "minio-init"}  # may omit healthcheck (restart: "no")
@@ -28,6 +29,9 @@ ADMIN_ONLY = {"temporal-ui"}  # Temporal Web UI / MinIO console: admin network o
 # Which Compose secrets each service may mount (Secrets §4: each service gets only what it needs). Unlisted service => no secrets.
 SECRET_ALLOWED: dict[str, set[str]] = {
     "api": {"cursor_hmac_key", "api_db_password", "postgres_tls_ca_cert", "mfa_encryption_key", "idempotency_keyring"},  # S07 DB/MFA; S09 idempotency
+    "platform-api": {"api_db_password", "postgres_tls_ca_cert", "service_public_keys"},  # S11: the internal Platform API verifies service tokens, signs nothing
+    "outbox-dispatcher": {"outbox_db_password", "postgres_tls_ca_cert"},  # S11: its own DB identity only
+    "manager-runtime": {"manager_signing_key"},  # S11: no DB secret, ever (PERSIST-023); worker-runtime has no secret at all
     "bootstrap": {"api_db_password", "postgres_tls_ca_cert", "bootstrap_secret"},  # S07: profile-gated one-shot; the bootstrap secret never reaches the API
     "postgres": {"postgres_superuser_password", "postgres_tls_server_cert", "postgres_tls_server_key"},
     "postgres-provision": {"postgres_superuser_password", "temporal_db_password", "checkpointer_db_password", "postgres_tls_ca_cert",
@@ -183,6 +187,9 @@ def check_service(name: str, svc: dict, dockerfiles: dict[str, list[str]], base_
     if name == PUBLISHER and nets & {"data", "admin"}:
         out.append(f"{w}: reverse-proxy must not join data/admin networks")
     if name.startswith(MANAGER_WORKER_PREFIXES):
+        db_env = sorted(k for k in (svc.get("environment") or {}) if k.startswith("AI_RES_DB_"))
+        if db_env:
+            out.append(f"{w}: Manager/Worker Runtime must not receive database configuration ({', '.join(db_env)}; PERSIST-023)")
         bad = nets - MANAGER_WORKER_NETWORKS
         if bad:
             out.append(f"{w}: Manager/Worker Runtime may join only {sorted(MANAGER_WORKER_NETWORKS)}, not {sorted(bad)} (PERSIST-023)")
