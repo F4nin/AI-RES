@@ -7,6 +7,7 @@ query parameters (limit, cursor) are generated, including invalid ones. Every re
 """
 import asyncio
 import threading
+import zlib
 from collections.abc import Iterator
 from typing import Any
 from uuid import UUID
@@ -63,14 +64,14 @@ def seeded(ids: dict[str, UUID], op: str) -> dict[str, str]:
 
 
 @schema.parametrize()
-@settings(max_examples=25, deadline=None, suppress_health_check=list(HealthCheck))
+@settings(max_examples=25, deadline=None, suppress_health_check=list(HealthCheck), derandomize=True)  # the same examples on every run: the guard below must not depend on luck
 def test_every_get_in_scope_conforms_to_the_openapi_contract(case: Any, request: pytest.FixtureRequest) -> None:
     op = case.operation.definition.raw.get("operationId")
     if case.method.upper() != "GET" or op not in SCOPE:
         return  # schemathesis also yields negative-method probes (e.g. TRACE); a skip here would skip the whole test
     rig: Rig = request.getfixturevalue("rig")
     positive = case.meta is None or str(case.meta.generation.mode).lower().endswith("positive")  # never rewrite the deliberately broken part of a negative case
-    if positive and case.path_parameters is not None and seeded(rig.world.ids, op) and hash(str(case.path_parameters)) % 2 == 0:
+    if positive and case.path_parameters is not None and seeded(rig.world.ids, op) and zlib.crc32(str(case.path_parameters).encode()) % 2 == 0:  # stable across processes (str hash() is salted per run)
         case.path_parameters = {**case.path_parameters, **seeded(rig.world.ids, op)}  # half of the examples reach the real object
     kwargs = case.as_transport_kwargs(base_url="http://testserver/api/v1")
     name = rig.world.settings.session_cookie_name
