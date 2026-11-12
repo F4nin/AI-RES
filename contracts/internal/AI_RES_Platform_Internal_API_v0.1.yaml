@@ -1,0 +1,81 @@
+openapi: 3.1.0
+info:
+  title: AI RES internal Platform API (Manager/Worker Runtime -> Application Services)
+  version: 0.1.0
+  description: |
+    WORKING overlay (ADR-088; NCP-14 proposes formalising it). Contracts v1.10 §7.2: a separate, NOT public listener (port 8001, never behind the reverse proxy).
+    Authentication: short-lived audience-scoped service token (`Authorization: Bearer ar1.…`, audience API), no cookies, no CSRF. Capability per service identity is a fixed table.
+    Both operations are idempotent: a retried Activity or a redelivered start never creates a second transition.
+x-status: WORKING
+x-source:
+  - AI_RES_API_and_Interaction_Contracts_v1.10.md §7.2, §9
+  - AI_RES_Operation_and_Readiness_Gate_Architecture_Decision_v1.6.md §2.5
+paths:
+  /internal/v1/operations/{operationId}/start-acknowledgement:
+    post:
+      operationId: acknowledgeOperationStart
+      summary: ACCEPTED -> QUEUED -> RUNNING (idempotent); an Operation already past that, terminal or cancel-requested is returned unchanged.
+      x-capability: operation.acknowledge_start
+      x-callers: [MANAGER_RUNTIME]
+      parameters:
+        - { name: operationId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ScopeRequest' }
+      responses:
+        '200': { description: Current domain status, content: { application/json: { schema: { $ref: '#/components/schemas/OperationStatus' } } } }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /internal/v1/operations/{operationId}/failure:
+    post:
+      operationId: recordOperationFailure
+      summary: RUNNING -> FAILED with a machine code (idempotent); a terminal status already recorded is returned, never overwritten.
+      x-capability: operation.record_failure
+      x-callers: [MANAGER_RUNTIME]
+      parameters:
+        - { name: operationId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FailureRequest' }
+      responses:
+        '200': { description: Current domain status, content: { application/json: { schema: { $ref: '#/components/schemas/OperationStatus' } } } }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '412': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+components:
+  responses:
+    Problem:
+      description: RFC 9457 Problem Details with a stable machine-readable `code`; no stack traces, no echo of input.
+      content: { application/problem+json: { schema: { type: object } } }
+  schemas:
+    ScopeRequest:
+      type: object
+      description: The tenant scope is a CLAIM proven against the stored Operation (RLS + row check); a mismatch is the same 404 as a missing Operation.
+      required: [organizationId, projectId]
+      additionalProperties: false
+      properties:
+        organizationId: { type: string, format: uuid }
+        projectId: { type: string, format: uuid }
+    FailureRequest:
+      type: object
+      required: [organizationId, projectId, code]
+      additionalProperties: false
+      properties:
+        organizationId: { type: string, format: uuid }
+        projectId: { type: string, format: uuid }
+        code: { type: string, pattern: '^[A-Z][A-Z0-9_]*$', minLength: 1, maxLength: 64 }
+    OperationStatus:
+      type: object
+      required: [operationId, status]
+      additionalProperties: false
+      properties:
+        operationId: { type: string, format: uuid }
+        status: { type: string, enum: [ACCEPTED, QUEUED, RUNNING, WAITING_FOR_HUMAN, WAITING_FOR_DEPENDENCY, RETRYING, CANCEL_REQUESTED, SUCCEEDED, PARTIALLY_SUCCEEDED, FAILED, CANCELLED] }

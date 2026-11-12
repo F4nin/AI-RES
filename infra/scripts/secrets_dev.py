@@ -38,15 +38,37 @@ DOMAIN_DB_PASSWORDS = [
 ]
 # S07: mfa_encryption_key = base64 of 32 random bytes (AES-256-GCM key for TOTP seeds);
 # bootstrap_secret = one-time first-administrator secret (never mounted into the API);
+# S11: manager_signing_key = base64 of a 32-byte Ed25519 seed (service token signing key of the Manager Runtime, mounted ONLY there);
+# service_public_keys = `<SERVICE_NAME> <base64 public key>` lines derived from it (public registry of the internal Platform API verifier)
 # S09: idempotency_keyring = one line `<key_id> <base64 of 32 bytes>` (HMAC key ring of the API, ADR-024)
 PASSWORDS = ["postgres_superuser_password", "temporal_db_password", "checkpointer_db_password", "minio_root_password", "cursor_hmac_key", *DOMAIN_DB_PASSWORDS,
-             "mfa_encryption_key", "bootstrap_secret", "idempotency_keyring"]
+             "mfa_encryption_key", "bootstrap_secret", "idempotency_keyring", "manager_signing_key", "service_public_keys"]
 TLS = ["postgres_tls_ca_cert", "postgres_tls_server_cert", "postgres_tls_server_key"]
 NAMES = [*PASSWORDS[:3], "minio_root_user", *PASSWORDS[3:], *TLS]
 TLS_DAYS = "825"  # local dev certificate lifetime (WORKING)
 
 
+_PKCS8_ED25519_PREFIX = bytes.fromhex("302e020100300506032b657004220420")
+SERVICE_KEYS = {"MANAGER_RUNTIME": "manager_signing_key"}
+
+
+def ed25519_public_b64(seed_b64: str) -> str:
+    """Raw Ed25519 public key (base64) of a base64 32-byte seed, through openssl (the infra checks have no Python crypto dependency)."""
+    seed = base64.b64decode(seed_b64, validate=True)
+    if len(seed) != 32:
+        raise ValueError("an Ed25519 seed is 32 bytes")
+    der = subprocess.run(["openssl", "pkey", "-inform", "DER", "-pubout", "-outform", "DER"], input=_PKCS8_ED25519_PREFIX + seed,  # noqa: S603
+                         capture_output=True, check=True).stdout
+    return base64.b64encode(der[-32:]).decode()
+
+
+def derive_service_public_keys(values: dict[str, str]) -> str:
+    return "".join(f"{service} {ed25519_public_b64(values[secret])}\n" for service, secret in SERVICE_KEYS.items())
+
+
 def _generate(name: str) -> str:
+    if name in SERVICE_KEYS.values():
+        return base64.b64encode(secrets.token_bytes(32)).decode()
     if name == "minio_root_user":
         return "aires-" + secrets.token_hex(6)
     if name == "mfa_encryption_key":
@@ -161,13 +183,17 @@ def init() -> None:
         if any(not existing.get(n) for n in TLS):
             raise SystemExit("the TLS material is missing from the encrypted file (remove it to regenerate; databases keep old passwords)")
         if added:  # new secret names introduced by a later stage: add ONLY the missing ones, never touch existing values
-            _encrypt({**existing, **{n: _generate(n) for n in added}}, recipient)
+            merged = {**existing, **{n: _generate(n) for n in added if n != "service_public_keys"}}
+            if "service_public_keys" in added:
+                merged["service_public_keys"] = derive_service_public_keys(merged)
+            _encrypt(merged, recipient)
             print(f"added {len(added)} new secret(s) to {ENCRYPTED.name}: {', '.join(added)}; existing values were kept")
         else:
             print("encrypted secrets already exist: keeping them (no regeneration)")
     else:
         ENCRYPTED.parent.mkdir(parents=True, exist_ok=True)
-        _encrypt({**{n: _generate(n) for n in NAMES if n not in TLS}, **generate_tls()}, recipient)
+        fresh = {n: _generate(n) for n in NAMES if n not in TLS and n != "service_public_keys"}
+        _encrypt({**fresh, "service_public_keys": derive_service_public_keys(fresh), **generate_tls()}, recipient)
         print(f"encrypted secrets written to {ENCRYPTED.relative_to(INFRA.parent)}")
     write_runtime(decrypt())
 

@@ -1,6 +1,6 @@
 # AI RES local stack (S03). Base file is prod-safe (environment=prod); local/test overrides: compose.dev.yaml, compose.test.yaml.
 # All third-party images are pinned by tag AND sha256 digest (DOC-015 §12.2). Resource limits are WORKING dev defaults (DOC-015 §9.4, OD-02).
-# Manager/Worker Runtime services are added only when their code exists (S11/S23) and must never join the `data` network (PERSIST-023).
+# Manager/Worker Runtime (S11) never join the `data` network (PERSIST-023) and hold no database secret; they reach the domain only via `platform-api`.
 name: ai-res
 
 x-hardened: &hardened
@@ -22,6 +22,7 @@ networks:
   data: { internal: true }   # PostgreSQL, Temporal, MinIO
   egress: {}                 # controlled egress (LLM Gateway, Connector Platform): no members until S15/S16/S28
   admin: { internal: true }  # Temporal UI, MinIO console: never reachable from ingress
+  workflow: { internal: true }  # S11: Temporal frontend <-> Manager/Worker Runtime <-> outbox dispatcher; PostgreSQL is NOT on it
 
 secrets:
   postgres_superuser_password: { file: ./secrets/runtime/postgres_superuser_password }
@@ -42,6 +43,11 @@ secrets:
   postgres_tls_ca_cert: { file: ./secrets/runtime/postgres_tls_ca_cert }
   postgres_tls_server_cert: { file: ./secrets/runtime/postgres_tls_server_cert }
   postgres_tls_server_key: { file: ./secrets/runtime/postgres_tls_server_key }
+  manager_signing_key: { file: ./secrets/runtime/manager_signing_key }
+  service_public_keys: { file: ./secrets/runtime/service_public_keys }
+
+configs:
+  domain_events_contract: { file: ../contracts/asyncapi/AI_RES_Domain_Events_AsyncAPI_v1.6.yaml }  # the dispatcher validates every event against it (G-99)
 
 volumes:
   postgres_data: {}
@@ -131,6 +137,121 @@ services:
       - /tmp:uid=10001,gid=10001,mode=0700
     depends_on:
       migrate: { condition: service_completed_successfully }
+
+  # Internal Platform API (S11, ADR-088): the ONLY door through which Manager/Worker Runtime change the domain. Own listener (8001), never behind the proxy.
+  platform-api:
+    <<: *hardened
+    build: { context: ../backend, dockerfile: Dockerfile }
+    image: ai-res/api:dev
+    user: "10001:10001"
+    mem_limit: 256m
+    networks: [app, data]
+    command: ["python", "-m", "ai_res.api.serve_internal"]
+    environment:
+      AI_RES_ENVIRONMENT: prod
+      AI_RES_DB_HOST: postgres
+      AI_RES_DB_USER: ai_res_api
+      AI_RES_DB_PASSWORD_FILE: /run/secrets/api_db_password
+      AI_RES_DB_SSLMODE: verify-full
+      AI_RES_DB_SSLROOTCERT_FILE: /run/secrets/postgres_tls_ca_cert
+      AI_RES_DB_APPLICATION_NAME: ai-res-platform-api
+      AI_RES_SERVICE_PUBLIC_KEYS_FILE: /run/secrets/service_public_keys
+    secrets: [api_db_password, postgres_tls_ca_cert, service_public_keys]
+    tmpfs:
+      - /tmp:uid=10001,gid=10001,mode=0700
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,urllib.error,sys\ntry: urllib.request.urlopen('http://127.0.0.1:8001/')\nexcept urllib.error.HTTPError: sys.exit(0)\nexcept Exception: sys.exit(1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Outbox dispatcher (S11, closes G-98 for the start route): claims ONLY `orchestration.operation-start`, starts Workflows in Temporal. Identity: ai_res_outbox_dispatcher.
+  outbox-dispatcher:
+    <<: *hardened
+    build: { context: ../backend, dockerfile: Dockerfile }
+    image: ai-res/api:dev
+    user: "10001:10001"
+    mem_limit: 256m
+    networks: [data, workflow]
+    command: ["python", "-m", "ai_res.cli.dispatcher"]
+    environment:
+      AI_RES_ENVIRONMENT: prod
+      AI_RES_DB_HOST: postgres
+      AI_RES_DB_USER: ai_res_outbox_dispatcher
+      AI_RES_DB_PASSWORD_FILE: /run/secrets/outbox_db_password
+      AI_RES_DB_SSLMODE: verify-full
+      AI_RES_DB_SSLROOTCERT_FILE: /run/secrets/postgres_tls_ca_cert
+      AI_RES_DB_APPLICATION_NAME: ai-res-outbox-dispatcher
+      AI_RES_TEMPORAL_ADDRESS: temporal:7233
+      AI_RES_ASYNCAPI_CONTRACT_FILE: /contracts/domain-events.yaml
+    configs:
+      - { source: domain_events_contract, target: /contracts/domain-events.yaml }
+    secrets: [outbox_db_password, postgres_tls_ca_cert]
+    tmpfs:
+      - /tmp:uid=10001,gid=10001,mode=0700
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      temporal-namespace: { condition: service_completed_successfully }
+    healthcheck:
+      # Reachability of Temporal from this process' network (a poller/loop liveness signal arrives with S13 metrics, G-108).
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('temporal', 7233), 3).close()"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # Manager Runtime (S11): workflow + Manager Activities on `ai-res-manager`. NO database secret, NO data network; calls platform-api with its own service token.
+  manager-runtime:
+    <<: *hardened
+    build: { context: ../backend, dockerfile: Dockerfile }
+    image: ai-res/api:dev
+    user: "10001:10001"
+    mem_limit: 256m
+    networks: [app, workflow]
+    command: ["python", "-m", "ai_res.runtime.manager"]
+    environment:
+      AI_RES_ENVIRONMENT: prod
+      AI_RES_TEMPORAL_ADDRESS: temporal:7233
+      AI_RES_PLATFORM_API_URL: http://platform-api:8001
+      AI_RES_SERVICE_SIGNING_KEY_FILE: /run/secrets/manager_signing_key
+    secrets: [manager_signing_key]
+    tmpfs:
+      - /tmp:uid=10001,gid=10001,mode=0700
+    depends_on:
+      temporal-namespace: { condition: service_completed_successfully }
+      platform-api: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('temporal', 7233), 3).close()"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # Worker Runtime (S11): registers on `ai-res-workers` only; WorkerRun execution does not exist before S23. No secrets at all.
+  worker-runtime:
+    <<: *hardened
+    build: { context: ../backend, dockerfile: Dockerfile }
+    image: ai-res/api:dev
+    user: "10001:10001"
+    mem_limit: 256m
+    networks: [workflow]
+    command: ["python", "-m", "ai_res.runtime.worker"]
+    environment:
+      AI_RES_ENVIRONMENT: prod
+      AI_RES_TEMPORAL_ADDRESS: temporal:7233
+    tmpfs:
+      - /tmp:uid=10001,gid=10001,mode=0700
+    depends_on:
+      temporal-namespace: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('temporal', 7233), 3).close()"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
 
   postgres:
     <<: *hardened
@@ -229,7 +350,7 @@ services:
     image: temporalio/server:1.29.7@sha256:688da708d0daca6ff8083334a4a7fbbdbc7e70d1cca8e2eda8c05b21fdbd601e
     user: "1000:1000"
     mem_limit: 1g
-    networks: [data, admin]
+    networks: [data, admin, workflow]
     entrypoint: ["/bin/sh", "/temporal/start.sh"]
     environment:
       DB: postgres12

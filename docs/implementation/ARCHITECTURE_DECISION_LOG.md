@@ -92,6 +92,10 @@
 | ADR-084 | S10: OD-13 — фиксация форм `dataschema` и `source` CloudEvents | ACCEPTED |
 | ADR-085 | S10: dispatcher, классификация ошибок доставки и WORKING-конфигурация | ACCEPTED |
 | ADR-086 | S10: durable consumer — checkpoint, режимы порядка, контрактная валидация | ACCEPTED |
+| ADR-087 | S11: пакет оркестрации без БД, компактные контракты, стратегия версионирования workflow | ACCEPTED |
+| ADR-088 | S11: внутренний Platform API для Runtime (транспорт, аутентификация, capability) | ACCEPTED |
+| ADR-089 | S11: маршрут запуска Operation в Temporal — destination, фильтр dispatcher'а, skeleton fail-closed | ACCEPTED |
+| ADR-090 | S11: топология Compose для оркестрации — сеть `workflow`, секреты, изоляция Runtime | ACCEPTED |
 
 ---
 
@@ -1556,3 +1560,71 @@
 | Влияние на компоненты/контракты | `consumer.py`, `contract.py`, `inbox_repository.py`, миграция 0015, `contracts/` (читается как файл) |
 | Риски и компромиссы | Файл контракта должен быть доступен процессу (упаковка образа — G-99). Gap, вызванный потерянным (не карантинным) событием, откладывает бесконечно — только алерт. Inbox QUARANTINED финален (replay на стороне consumer'а не реализован, G-101). |
 | Затронутые тесты | test_event_delivery (gap, regression, monotonic, PERSIST-016, checkpoint role/trigger, contract), test_event_delivery_units |
+
+## ADR-087 — S11: пакет оркестрации без БД, компактные контракты, стратегия версионирования workflow
+
+| Поле | Значение |
+|---|---|
+| Статус | ACCEPTED |
+| Дата | 2026-11-12 |
+| Ответственный | Implementation Lead |
+| Проблема и контекст | Нужны Manager/Worker Runtime без DB credentials, детерминированный workflow и компактная история Temporal (Contracts v1.10 §7.2, §9.1, §9.5). |
+| Связанные требования | INF-MVP-002; PROC-MVP (durable execution) |
+| Документы и разделы | API Contracts v1.10 §7.2, §9; Spec Inc. 7, Add. v1.13 п.2, 14, 17 |
+| Альтернативы | Один пакет с доменными модулями (нарушает изоляцию Runtime); Worker Versioning как основной механизм (требует PoC SDK/локального режима). |
+| Решение | (1) Пакет `ai_res/orchestration` (контракты, workflow, activities, порт `OperationPlatform`, HTTP-клиент, воркеры) и `ai_res/runtime` (процессы manager/worker) запрещены к импорту sqlalchemy/psycopg/alembic/`ai_res.db`/`policy`/`api`/`cli`/`modules` контрактом import-linter (одно исключение: подпись service-токена). (2) Вход workflow — `OperationWorkflowInput{contract_version, OperationRef{operation,organization,project}, correlation}`: только канонические UUID и короткие коды, `assert_compact` на границе, повторная валидация внутри workflow; major вне `SUPPORTED_CONTRACT_MAJORS` — fail closed (non-retryable). (3) Workflow ID = `operation-{operationId}`, старт с `USE_EXISTING` + `REJECT_DUPLICATE`. (4) Версионирование: major контракта во входе; изменения последовательности команд — через `workflow.patched`; каждая выпущенная история хранится как replay-fixture (`tests/integration/temporal/histories/`). Worker Versioning — техническая гипотеза (G-105), не применяется; Worker build id в истории пока не записывается. (5) Retry Activity ограничен ВРЕМЕНЕМ (`ACTIVITY_BUDGET` 15 мин, WORKING), не числом попыток; ошибки платформы классифицируются: transient (сеть, 5xx, 408/425/429/409) — retry, permanent (прочее 4xx) — non-retryable. |
+| Обоснование | Изоляция проверяется машинно, а не соглашением; история Temporal не может содержать документы/секреты; повторный старт не создаёт второй процесс; ack/fail идемпотентны, поэтому длительный bounded retry безопасен. |
+| Влияние на компоненты/контракты | `orchestration/*`, `runtime/*`, `pyproject.toml` (контракт import-linter), `platform/config.py` (temporal_*, platform_api_*) |
+| Риски и компромиссы | Порядок §9.5 (Worker Versioning основной) отложен: при долгоживущих workflow до PoC опираемся на patching — зафиксировано как G-105. Исчерпание бюджета оставляет Operation в ACCEPTED/RUNNING до reconciler (G-107). |
+| Затронутые тесты | test_operation_workflow (реальный Temporal: старт, дубль, retry, permanent, scan истории, replay + fixture + негатив), test_orchestration_units, test_architecture (import-linter) |
+
+## ADR-088 — S11: внутренний Platform API для Runtime (транспорт, аутентификация, capability)
+
+| Поле | Значение |
+|---|---|
+| Статус | ACCEPTED |
+| Дата | 2026-11-12 |
+| Ответственный | Implementation Lead |
+| Проблема и контекст | Activities Manager без DB credentials должны менять Operation через Application Service (Contracts v1.10 §7.2: internal authenticated Platform API, HTTP/JSON допустим). |
+| Связанные требования | INF-MVP-002; SEC-*; AUTH-012 |
+| Документы и разделы | API Contracts v1.10 §7.2; Auth v1.1 §8; IAM v1.5 §3; Decision v1.6 §2.5 п.5–7 |
+| Альтернативы | Тот же listener, что публичный API (общий порт, риск маршрутизации); gRPC/очередь (лишний компонент, расширение топологии); доступ Manager к БД (запрещён). |
+| Решение | Отдельное ASGI-приложение `api/internal_api.py` на порту 8001 в сервисе `platform-api` (тот же образ, другой entrypoint `ai_res.api.serve_internal`), не за reverse proxy. Аутентификация — service-токен `ar1.…` (Ed25519, audience API, TTL 60 с ≤ max_ttl), без cookie/CSRF; ключ подписи Manager — отдельный Compose-секрет, реестр публичных ключей — `service_public_keys`. Авторизация — фиксированная таблица `CAPABILITIES` (WORKING): `operation.acknowledge_start`, `operation.record_failure` → только MANAGER_RUNTIME; без токена 401, без capability 403. Две узкие идемпотентные команды `POST /internal/v1/operations/{id}/start-acknowledgement` и `…/failure`. Tenant-scope в теле — ЗАЯВЛЕНИЕ: применяется как transaction-local context и проверяется по строке (RLS + сверка), несовпадение = тот же 404, что и для отсутствующей Operation. Каждая команда = transition (CAS) + OperationEvent + Outbox + audit в одной транзакции (`OperationOrchestrationService`). Контракт — `contracts/internal/AI_RES_Platform_Internal_API_v0.1.yaml` (WORKING overlay, NCP-14). |
+| Обоснование | Минимальная поверхность и отдельная идентичность; Temporal-статус не копируется вслепую; повтор не создаёт второй переход. |
+| Влияние на компоненты/контракты | `api/internal_api.py`, `serve_internal.py`, `modules/operations/orchestration_service.py`, `orchestration/http_platform.py`, `contracts/internal/`, Compose `platform-api`, `manager-runtime` |
+| Риски и компромиссы | Capability привязана к идентичности, а не к конкретной Operation; нет jti-кэша, audience общий с публичным API, HTTP без TLS, DB-роль `ai_res_api` общая с публичным API, нет аудита отказов 401/403 (G-106, G-111). Это принятый WORKING-риск до решения security owner. |
+| Затронутые тесты | test_internal_platform_api (реальный PostgreSQL: ack, fail, терминальность, подмена tenant, auth/capability, валидация, гонка, контракт↔маршруты), test_check_compose |
+
+## ADR-089 — S11: маршрут запуска Operation в Temporal — destination, фильтр dispatcher'а, skeleton fail-closed
+
+| Поле | Значение |
+|---|---|
+| Статус | ACCEPTED |
+| Дата | 2026-11-12 |
+| Ответственный | Implementation Lead |
+| Проблема и контекст | dispatcher S10 клеймит все destination, а consumer'ов нет; нужен идемпотентный старт workflow из Outbox, а исполняемого плана до S21/S23 нет. |
+| Связанные требования | INF-MVP-002; PROC-MVP |
+| Документы и разделы | Decision v1.6 §2.5 п.2–5, §5; Spec Add. v1.13 п.2, 8, 14; Process v1.9 §13 |
+| Альтернативы | Dispatcher без фильтра (чужие события в карантин NO_CONSUMER); переводить QUEUED из dispatcher'а (у роли нет записи в доменные таблицы); оставлять Operation RUNNING/успешной в skeleton (ложь или вечная зависшая Operation). |
+| Решение | (1) Destination `orchestration.operation-start`: accepted-событие Operation, которую надо оркестрировать, перечисляет его рядом с доменным. (2) `OutboxRepository.claim(..., destinations=)` и `DispatcherConfig.destinations` ограничивают claim и lease-карантин своими destination (по умолчанию None = все: S10 совместим). (3) `TemporalStartPublisher` берёт из события только идентификаторы, проверяет destination/тип/агрегат (иначе permanent), классифицирует RPC-статусы (UNAVAILABLE/DEADLINE_EXCEEDED/… transient, остальное permanent), ALREADY_FINISHED не молчит (warning + метрика `start_already_finished`). (4) QUEUED→RUNNING подтверждает первая Activity workflow через Platform API (dispatcher доменные таблицы не пишет): принятый Temporal'ом, но не подтверждённый старт остаётся ACCEPTED и виден reconciler'у. (5) Skeleton после подтверждения старта фиксирует терминальный FAILED `ORCHESTRATION_NOT_IMPLEMENTED` (SUCCEEDED ложен, зависшая RUNNING недопустима); WorkerRun не создаётся. |
+| Обоснование | Не нарушает §2.4 (все переходы легальны, ничего не пропущено), не требует прав записи у dispatcher'а, не теряет события других destination. |
+| Влияние на компоненты/контракты | `outbox_repository.py`, `dispatcher.py`, `modules/events/temporal_start.py`, `cli/dispatcher.py`, `orchestration/workflows.py` |
+| Риски и компромиссы | Реального производителя START_DESTINATION пока нет (команды S09 не создают Operation; createTask — S21): dispatcher в стеке простаивает. До S21 нельзя направлять реальные типы Operation на этот маршрут (allowlist типов и reconciler — G-107). FAILED терминален и не переоткрывается; код ORCHESTRATION_NOT_IMPLEMENTED не внесён в реестр кодов ошибок (G-110). |
+| Затронутые тесты | test_orchestration_e2e (PostgreSQL+Temporal: дубль доставки, чужой destination остаётся PENDING, WorkerRun=0, claim-фильтр), test_orchestration_units, runtime-тест стека |
+
+## ADR-090 — S11: топология Compose для оркестрации — сеть `workflow`, секреты, изоляция Runtime
+
+| Поле | Значение |
+|---|---|
+| Статус | ACCEPTED |
+| Дата | 2026-11-12 |
+| Ответственный | Implementation Lead |
+| Проблема и контекст | Manager/Worker не должны иметь сетевого пути к PostgreSQL и DB-секретов (PERSIST-023), но обязаны достучаться до Temporal и Platform API. |
+| Связанные требования | INF-MVP-002; SEC-* |
+| Документы и разделы | Infrastructure v1.7 §3–4; Security v1.2; Secrets v1.1 |
+| Альтернативы | Сеть `data` для Temporal+Runtime (нарушает PERSIST-023); Temporal на `app` вместе с proxy. |
+| Решение | Сеть `workflow` (internal): temporal, manager-runtime, worker-runtime, outbox-dispatcher. `platform-api` [app, data]; `outbox-dispatcher` [data, workflow] с секретом `outbox_db_password`; `manager-runtime` [app, workflow] с единственным секретом `manager_signing_key`; `worker-runtime` [workflow] без секретов. `check_compose.py`: allowlists секретов/сетей и запрет `AI_RES_DB_*` у Manager/Worker. `secrets_dev.py`: `manager_signing_key` (seed Ed25519) и производный `service_public_keys` (через openssl, совпадение с cryptography проверено). Файл AsyncAPI монтируется Compose-`configs` (закрывает G-99 для dispatcher). Образ один (`ai-res/api:dev`), разные entrypoint; изоляция кода — import-linter, сети/секретов — Compose-проверки. |
+| Обоснование | Изоляция проверена статически (check_compose) и в живом стеке (разрешение имени postgres, env, /run/secrets). |
+| Влияние на компоненты/контракты | `infra/compose.yaml`, `infra/scripts/{check_compose,secrets_dev,wait_stack}.py`, infra-тесты |
+| Риски и компромиссы | Образ Runtime содержит DB-код (не импортируется, но присутствует); healthcheck'и Runtime/dispatcher проверяют только достижимость Temporal (G-108); platform-api делит сеть `app` с reverse proxy (G-106); Temporal без аутентификации (G-104). |
+| Затронутые тесты | infra static (check_compose, secrets), runtime: изоляция, секреты по сервисам, health, сквозной прогон |

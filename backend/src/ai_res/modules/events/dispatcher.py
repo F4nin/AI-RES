@@ -53,6 +53,7 @@ class DispatcherConfig:
     stats_interval_seconds: float = 30.0
     max_consecutive_errors: int = 10
     thresholds: GrowthThresholds = GrowthThresholds()
+    destinations: tuple[str, ...] | None = None  # only these destinations are claimed (ADR-089); None = all
 
     def __post_init__(self) -> None:
         if not self.owner or self.batch_size < 1 or self.lease_seconds <= 0 or self.max_attempts < 1 or self.backoff_base_seconds <= 0:
@@ -97,7 +98,7 @@ class Dispatcher:
         c = self._config
         async with UnitOfWork(self._factory) as uow:
             repo = OutboxRepository(uow.session)
-            rows = await repo.claim(c.owner, c.batch_size, c.lease_seconds, c.max_attempts)
+            rows = await repo.claim(c.owner, c.batch_size, c.lease_seconds, c.max_attempts, c.destinations)
             expired = repo.claim_quarantined
         for _ in range(expired):  # a row whose lease kept expiring was quarantined by the claim: that must be visible, not silent
             self._metrics.count("quarantined", "LEASE_EXPIRED_MAX_ATTEMPTS")
