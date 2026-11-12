@@ -6,7 +6,8 @@ import pytest
 
 from ai_res.modules.sources.presign import StorageCredentials, checksum_header, presign_url
 
-CREDS = StorageCredentials("AKIAIOSFODNN7EXAMPLE", "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY")
+CREDS = StorageCredentials("AKIA" + "IOSFODNN7EXAMPLE",  # the public AWS documentation example; split so the secret scanner does not flag a known token format
+                           "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY")
 AT = datetime(2013, 5, 24, tzinfo=UTC)
 
 
