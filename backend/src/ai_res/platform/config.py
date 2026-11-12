@@ -93,6 +93,18 @@ class Settings(BaseModel):
     service_signing_key_file: Path | None = None
     service_public_keys_file: Path | None = None
     service_token_max_ttl_seconds: int = Field(default=300, ge=1)  # WORKING cap on any service credential's lifetime
+    # Upload intents (S09, ADR-081). The object-store credentials are Compose secrets (files). Without all of endpoint, bucket, credentials and a size limit
+    # the command fails closed (503). There is NO default size limit: no normative document fixes it (WORKING, Source & Context v1.3 §5.1).
+    upload_public_endpoint: str | None = None  # scheme://host[:port] the BROWSER uploads to (the object store's S3 API is not exposed yet: S27, G-37)
+    upload_bucket: str | None = Field(default=None, pattern=r"^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$")
+    object_store_region: str = Field(default="us-east-1", pattern=r"^[a-z0-9-]{1,32}$")  # MinIO default region; WORKING
+    object_store_access_key_file: Path | None = None
+    object_store_secret_key_file: Path | None = None
+    upload_url_ttl_seconds: int = Field(default=300, ge=30, le=3600)  # WORKING: "short-lived" is not quantified by the documents
+    upload_max_size_bytes: int | None = Field(default=None, ge=1)
+    upload_content_types: Annotated[tuple[str, ...], BeforeValidator(_split_csv)] = (
+        "application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "text/markdown", "text/plain",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "text/csv")  # MVP file kinds PDF/DOCX/MD/TXT/XLSX/CSV; WORKING allowlist
     policy_timeout_seconds: float = Field(default=2.0, gt=0, le=30)  # WORKING: Policy Engine decision budget; exceeded => fail-closed 503
     trusted_proxy_cidrs: Annotated[tuple[str, ...], BeforeValidator(_split_csv)] = ()  # peers allowed to set X-Forwarded-For (Caddy); empty = ignore XFF
 
@@ -119,6 +131,12 @@ class Settings(BaseModel):
             raise ValueError("session_idle_seconds cannot exceed session_absolute_seconds")
         if self.login_delay_max_seconds < self.login_delay_base_seconds:
             raise ValueError("login_delay_max_seconds cannot be below login_delay_base_seconds")
+        if self.upload_public_endpoint is not None:
+            u = urlsplit(self.upload_public_endpoint)
+            if u.scheme not in ("http", "https") or not u.hostname or u.path not in ("", "/") or u.query or u.fragment or u.username or u.password:
+                raise ValueError("upload_public_endpoint must be scheme://host[:port] without path or credentials")
+            if u.scheme == "http" and self.environment not in ("local", "test"):
+                raise ValueError("an http upload endpoint is allowed only when environment is local or test")
         for cidr in self.trusted_proxy_cidrs:
             try:
                 ipaddress.ip_network(cidr, strict=False)

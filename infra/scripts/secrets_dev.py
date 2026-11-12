@@ -37,9 +37,10 @@ DOMAIN_DB_PASSWORDS = [
     "migrator_db_password", "api_db_password", "outbox_db_password", "consumer_db_password", "auditor_db_password", "backup_db_password",
 ]
 # S07: mfa_encryption_key = base64 of 32 random bytes (AES-256-GCM key for TOTP seeds);
-# bootstrap_secret = one-time first-administrator secret (never mounted into the API)
+# bootstrap_secret = one-time first-administrator secret (never mounted into the API);
+# S09: idempotency_keyring = one line `<key_id> <base64 of 32 bytes>` (HMAC key ring of the API, ADR-024)
 PASSWORDS = ["postgres_superuser_password", "temporal_db_password", "checkpointer_db_password", "minio_root_password", "cursor_hmac_key", *DOMAIN_DB_PASSWORDS,
-             "mfa_encryption_key", "bootstrap_secret"]
+             "mfa_encryption_key", "bootstrap_secret", "idempotency_keyring"]
 TLS = ["postgres_tls_ca_cert", "postgres_tls_server_cert", "postgres_tls_server_key"]
 NAMES = [*PASSWORDS[:3], "minio_root_user", *PASSWORDS[3:], *TLS]
 TLS_DAYS = "825"  # local dev certificate lifetime (WORKING)
@@ -50,6 +51,8 @@ def _generate(name: str) -> str:
         return "aires-" + secrets.token_hex(6)
     if name == "mfa_encryption_key":
         return base64.b64encode(secrets.token_bytes(32)).decode()
+    if name == "idempotency_keyring":
+        return "k1 " + base64.b64encode(secrets.token_bytes(32)).decode()
     return secrets.token_urlsafe(48)  # >= 64 chars, URL-safe: no quoting problems in psql/URLs; cursor key >= 32 bytes (platform.config)
 
 

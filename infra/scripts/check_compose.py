@@ -27,7 +27,7 @@ HEALTHCHECK_EXEMPT = {"otel-collector"}  # distroless image: no shell/HTTP clien
 ADMIN_ONLY = {"temporal-ui"}  # Temporal Web UI / MinIO console: admin network only, never ingress
 # Which Compose secrets each service may mount (Secrets §4: each service gets only what it needs). Unlisted service => no secrets.
 SECRET_ALLOWED: dict[str, set[str]] = {
-    "api": {"cursor_hmac_key", "api_db_password", "postgres_tls_ca_cert", "mfa_encryption_key"},  # S07: runtime DB identity + MFA seed key
+    "api": {"cursor_hmac_key", "api_db_password", "postgres_tls_ca_cert", "mfa_encryption_key", "idempotency_keyring"},  # S07 DB/MFA; S09 idempotency
     "bootstrap": {"api_db_password", "postgres_tls_ca_cert", "bootstrap_secret"},  # S07: profile-gated one-shot; the bootstrap secret never reaches the API
     "postgres": {"postgres_superuser_password", "postgres_tls_server_cert", "postgres_tls_server_key"},
     "postgres-provision": {"postgres_superuser_password", "temporal_db_password", "checkpointer_db_password", "postgres_tls_ca_cert",

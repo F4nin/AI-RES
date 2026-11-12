@@ -63,7 +63,7 @@ class ReadQueries:
         project/org role; privileged roles count only with a verified second factor). A consistency test pins this SQL to the engine decision."""
         ts, pid = parse_ts_keyset(after)
         rows = await self._all(
-            "SELECT p.id, p.organization_id, p.name, p.description, p.project_type, p.status, p.row_version, p.created_at, p.updated_at "
+            "SELECT p.id, p.organization_id, p.name, p.description, p.goal, p.project_type, p.status, p.row_version, p.created_at, p.updated_at "
             "FROM project.projects p JOIN iam.users u ON u.organization_id = p.organization_id AND u.id = :actor AND u.status = 'ACTIVE' "
             "LEFT JOIN organization.memberships m ON m.organization_id = p.organization_id AND m.user_id = u.id "
             "LEFT JOIN project.project_memberships pm ON pm.organization_id = p.organization_id AND pm.project_id = p.id AND pm.user_id = u.id AND pm.status = 'ACTIVE' "
@@ -77,7 +77,7 @@ class ReadQueries:
         return _slice(rows, limit)
 
     async def get_project(self, project_id: UUID) -> Row | None:
-        return await self._one("SELECT id, organization_id, name, description, project_type, status, row_version, created_at, updated_at FROM project.projects WHERE id = :i", {"i": project_id})
+        return await self._one("SELECT id, organization_id, name, description, goal, project_type, status, row_version, created_at, updated_at FROM project.projects WHERE id = :i", {"i": project_id})
 
     # -- work -------------------------------------------------------------------------------------------------------------------------------------
     async def list_epics(self, project_id: UUID, limit: int, after: list[Any] | None) -> Slice:
@@ -108,6 +108,14 @@ class ReadQueries:
             "JOIN requirements.requirement_versions v ON v.id = r.current_version_id WHERE r.project_id = :p "
             "AND (CAST(:n AS bigint) IS NULL OR (r.display_number, r.id) > (CAST(:n AS bigint), CAST(:r AS uuid))) ORDER BY r.display_number, r.id LIMIT :lim",
             {"p": project_id, "n": n, "r": rid, "lim": limit + 1}), limit)
+
+    async def get_requirement(self, requirement_id: UUID) -> Row | None:
+        return await self._one(
+            "SELECT r.id, r.project_id, r.display_number, r.current_version_id, r.row_version, v.status AS lifecycle_status FROM requirements.requirements r "
+            "JOIN requirements.requirement_versions v ON v.id = r.current_version_id WHERE r.id = :i", {"i": requirement_id})
+
+    async def get_requirement_version(self, version_id: UUID) -> Row | None:
+        return await self._one("SELECT id, requirement_id, version_number, statement, change_reason FROM requirements.requirement_versions WHERE id = :i", {"i": version_id})
 
     async def list_requirement_versions(self, requirement_id: UUID, limit: int, after: list[Any] | None) -> Slice:
         n, vid = parse_num_keyset(after)

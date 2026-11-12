@@ -292,7 +292,7 @@ def test_bootstrap_job_may_hold_the_bootstrap_secret_but_the_api_may_not():
 
 
 def test_api_gets_runtime_db_identity_and_mfa_key_but_no_other_identity():
-    ok = [{"source": s} for s in ("cursor_hmac_key", "api_db_password", "postgres_tls_ca_cert", "mfa_encryption_key")]
+    ok = [{"source": s} for s in ("cursor_hmac_key", "api_db_password", "postgres_tls_ca_cert", "mfa_encryption_key", "idempotency_keyring")]
     assert run(mutate(lambda m: m["services"]["api"].update(secrets=ok))) == []
     for other in ("migrator_db_password", "outbox_db_password", "postgres_superuser_password"):
         assert has(run(mutate(lambda m, o=other: m["services"]["api"].update(secrets=[{"source": o}]))), "not allowed to have")

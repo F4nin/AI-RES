@@ -37,6 +37,7 @@ secrets:
   minio_root_password: { file: ./secrets/runtime/minio_root_password }
   cursor_hmac_key: { file: ./secrets/runtime/cursor_hmac_key }
   mfa_encryption_key: { file: ./secrets/runtime/mfa_encryption_key }
+  idempotency_keyring: { file: ./secrets/runtime/idempotency_keyring }
   bootstrap_secret: { file: ./secrets/runtime/bootstrap_secret }
   postgres_tls_ca_cert: { file: ./secrets/runtime/postgres_tls_ca_cert }
   postgres_tls_server_cert: { file: ./secrets/runtime/postgres_tls_server_cert }
@@ -88,9 +89,10 @@ services:
       AI_RES_DB_SSLROOTCERT_FILE: /run/secrets/postgres_tls_ca_cert
       AI_RES_DB_APPLICATION_NAME: ai-res-api
       AI_RES_MFA_ENCRYPTION_KEY_FILE: /run/secrets/mfa_encryption_key
+      AI_RES_IDEMPOTENCY_KEYRING_FILE: /run/secrets/idempotency_keyring
       AI_RES_ALLOWED_ORIGINS: https://localhost:8443  # the Caddy endpoint; exact origins only, CORS stays deny-by-default
       AI_RES_TRUSTED_PROXY_CIDRS: 172.28.20.2/32  # Caddy only; with this unset every client would look like one address
-    secrets: [cursor_hmac_key, api_db_password, postgres_tls_ca_cert, mfa_encryption_key]
+    secrets: [cursor_hmac_key, api_db_password, postgres_tls_ca_cert, mfa_encryption_key, idempotency_keyring]
     tmpfs:
       - /tmp:uid=10001,gid=10001,mode=0700
     depends_on:

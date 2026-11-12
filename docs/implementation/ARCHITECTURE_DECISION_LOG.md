@@ -83,6 +83,12 @@
 | ADR-075 | S08: разрешение проекта для GET по id, видимость списков, отсутствие вложенных соединений | ACCEPTED |
 | ADR-076 | S08: матрица Policy Engine для чтения проектных объектов (OD-15, WORKING) | ACCEPTED |
 | ADR-077 | S08: поля DTO без источника в БД и отличия от OAS | ACCEPTED |
+| ADR-078 | S09: конвейер команд записи и двухфазный createProject | ACCEPTED |
+| ADR-079 | S09: события PROJECT/EPIC/REQUIREMENT, история и расширение outbox-триггера | ACCEPTED |
+| ADR-080 | S09: отображение createEpic/registerRequirementCandidate/proposeRequirementVersion на схему | ACCEPTED |
+| ADR-081 | S09: SigV4-пресайнер и конфигурация объектного хранилища | ACCEPTED |
+| ADR-082 | S09: семантика createUploadIntent | ACCEPTED |
+| ADR-083 | S09: матрица политик записи (WORKING) и первый администратор проекта | ACCEPTED |
 
 ---
 
@@ -1394,3 +1400,105 @@
 | Влияние на компоненты/контракты | api/read_api.py (мапперы). |
 | Риски и компромиссы | Клиенты видят `UNKNOWN`/`null` до решения владельца/этапов S14+. |
 | Затронутые тесты | test_read_api, test_read_api_schemathesis |
+
+## ADR-78 — S09: конвейер команд записи и двухфазный createProject
+
+| Поле | Значение |
+|---|---|
+| Статус | ACCEPTED |
+| Дата | 2026-11-12 |
+| Ответственный | Implementation Lead (делегированные полномочия) |
+| Проблема и контекст | Шесть команд записи должны быть атомарными (проекция + событие + outbox + аудит + идемпотентность), а RLS идемпотентной записи привязана к проекту (`project_id IS NOT DISTINCT FROM app.project_id`), тогда как createProject создаёт сам проект: контекст нового проекта неизвестен до первого запроса, а `UnitOfWork.with_tenant` вызывается ровно один раз. |
+| Связанные требования | API-MVP-003; PROC-MVP; SEC (идемпотентность, ACL, audit fail-closed) |
+| Документы и разделы | Physical Model v1.2 §8 TX-01/TX-02; API Contracts v1.10 §3, §5; Implementation Spec §4 Inc.4; ADR-012, ADR-024 |
+| Альтернативы | (а) Ослабить RLS идемпотентной таблицы (`project_id IS NULL OR …`) — отвергнуто (ослабляет S05); (б) детерминированный UUID проекта из ключа — самодельный генератор идентификаторов запрещён (ADR-027); (в) три транзакции с резервированием id проекта в записи идемпотентности (принято). |
+| Решение | Общий конвейер `run()`: решение Policy (до взятия соединения; для проектных команд сначала `project.read` с утаиванием → 404, затем право записи → честный 403) → одна транзакция: контекст → `IdempotencyService.begin` → (REPLAY: перерисовать ресурс из БД, записать ничего; IN_PROGRESS: 409 `OPERATION_NOT_READY`; иной fingerprint: 409 `IDEMPOTENCY_KEY_REUSED`) → `record_allow` → запись домена + событие + outbox + аудит → `complete`. Ответ при replay строится из БД, а не из сохранённого тела (подписанный URL загрузки не хранится); тело ответа в запись идемпотентности не кладётся. createProject: Tx1 (контекст организации) — запись идемпотентности и резервирование id проекта (`reserve_resource`, статус остаётся IN_PROGRESS); Tx2 (контекст организации+проекта) — проект, членство, ProjectCreated, outbox, аудит; повтор после падения находит проект по зарезервированному id, а гонку арбитрирует первичный ключ; Tx3 — завершение записи. `createTask` в S09 не реализуется: ADR-012 (PREP review) и NCP-08 — перенос в S21; тесты createTask из раздела 9 промпта относятся к S21. Технические пределы длины текстов (20 000 символов, 50 evidence refs) — WORKING. |
+| Обоснование | Сохраняет все инварианты S05/S07 без изменения RLS; повторы безопасны при падении между фазами. |
+| Влияние на компоненты/контракты | api/write_api.py, modules/idempotency (reserve_resource), api/locator.py |
+| Риски и компромиссы | createProject — три транзакции: между Tx2 и Tx3 запись остаётся IN_PROGRESS (повтор довершает её); политика истечения записей по-прежнему G-58. |
+| Затронутые тесты | test_write_api: replay/параллельные повторы/другой body → 409, откат при сбое outbox, fail-closed без key ring и при сбое Policy Engine |
+
+## ADR-79 — S09: события PROJECT/EPIC/REQUIREMENT, история и расширение outbox-триггера
+
+| Поле | Значение |
+|---|---|
+| Статус | ACCEPTED |
+| Дата | 2026-11-12 |
+| Ответственный | Implementation Lead (делегированные полномочия) |
+| Проблема и контекст | AsyncAPI v1.6 содержит сообщения ProjectCreated, EpicCreated, RequirementVersionCreated (старое семейство `aires.<name>.v1`, без Operation). Таблицы истории и outbox-триггер S05/S06 поддерживали только OPERATION/WORKER_RUN (G-70). |
+| Связанные требования | API-MVP; EVT (outbox); PERSIST |
+| Документы и разделы | AsyncAPI v1.6 (канал `projectEvents`, схемы ProjectCreated/EpicCreated/RequirementVersionCreated); Physical Model v1.2 TX-01/TX-02; ADR-054 |
+| Альтернативы | Выдумать события обновления проекта/создания загрузки — запрещено (нет контракта); не писать события — нарушает атомарность «проекция+событие+outbox». |
+| Решение | Ревизия 0014 (expand): `project.projects.goal`, `last_event_sequence` у проектов и эпиков, таблицы `project.project_events`, `work.epic_events` (insert-only, RLS через родителя, контроль непрерывности на COMMIT), типы агрегатов PROJECT/EPIC; `audit.assert_outbox_matches_event` заменена: ветки PROJECT/EPIC/REQUIREMENT проверяют тип `aires.<event>.v1`, отсутствие `operationId`, source/subject/dataschema. Конверт семейства строится в `modules/events/envelope.py` (`DOMAIN_EVENT_TYPES`), идентификаторы лежат прямо в `data`, как требует схема. Назначение outbox — адрес канала AsyncAPI `aires.project.events`. События только там, где есть сообщение: ProjectCreated (createProject), EpicCreated (createEpic), RequirementVersionCreated (register и propose). updateProjectMetadata и createUploadIntent событий не создают — аудит. WORKING (OD-13): `source` (`urn:aires:projects|epics|requirements`) и форма `dataschema`. |
+| Обоснование | Минимальное расширение существующей модели; ничего вне контракта. |
+| Влияние на компоненты/контракты | migrations 0014, schema_snapshot.sql, modules/events/*, modules/projects, modules/epics, modules/requirements |
+| Риски и компромиссы | Два семейства `type` (`com.aires.*` и `aires.*`) в одном AsyncAPI остаются нормативной неоднородностью; оба проверяются триггером; G-84 (Project.goal) закрыт. |
+| Затронутые тесты | test_write_api (конверт против схем AsyncAPI), test_audit_platform_schema, schema drift, rls_coverage/grants audits |
+
+## ADR-80 — S09: отображение createEpic / registerRequirementCandidate / proposeRequirementVersion на схему
+
+| Поле | Значение |
+|---|---|
+| Статус | ACCEPTED |
+| Дата | 2026-11-12 |
+| Ответственный | Implementation Lead (делегированные полномочия) |
+| Проблема и контекст | OAS не задаёт начальный статус Epic, смысл `registrationKind`, источник ETag требования и обработку `evidenceRefs`. |
+| Связанные требования | PROC-MVP (intake/registration); Requirements Lifecycle v2.7 §13, §14, §16 |
+| Документы и разделы | Public API v1.3 (Epic, RegisterRequirementRequest, ProposeRequirementVersionRequest); ADR-056 |
+| Альтернативы | Объявлять версию CONFIRMED/APPROVED по `registrationKind` — запрещено; разрешать `evidenceRefs` по несуществующим таблицам — нельзя; двойной шаг `row_version` на версию (CAS репозитория + CAS события). |
+| Решение | Epic создаётся в статусе `PROPOSED` (WORKING: словарь не зафиксирован), `owner_user_id` не заполняется (не изобретаем бизнес-поле). Любая регистрация даёт версию `CANDIDATE` с автором USER; `registrationKind` фиксируется в аудите. `evidenceRefs` сохраняются как непроверенные ссылки `{type: EVIDENCE_REF, id, verified: false}` в `provenance_refs` (DOC-007 WORKING: существование не проверяется). Тип не указан → `UNKNOWN` с текстом `UNSPECIFIED`; неизвестный тип хранится как текст, не отображается на ближайший. Новая версия переносит тип предыдущей (смена типа — не часть команды). Предложение новой версии запрещено (409 `STATE_TRANSITION_NOT_ALLOWED`), если текущая версия `IN_BASELINE`, `REJECTED` или `SUPERSEDED` (WORKING, OD-18; изменение базовой версии — только через Change Request). Одна команда = один шаг `row_version` требования: версия, указатель и событие — один UPDATE. ETag требования возвращается заголовком ответов register/propose (аддитивно; OAS не называет источник ETag, G-91). |
+| Обоснование | Минимальные предположения; ничего не утверждает. |
+| Влияние на компоненты/контракты | modules/requirements (register, propose_version, current_type), modules/epics, api/write_api.py |
+| Риски и компромиссы | Клиент получает ETag требования только из ответов register/propose (G-91); статус Epic — условный. |
+| Затронутые тесты | test_write_api (register/propose/immutability/конкурентные предложения) |
+
+## ADR-81 — S09: SigV4-пресайнер и конфигурация объектного хранилища
+
+| Поле | Значение |
+|---|---|
+| Статус | ACCEPTED |
+| Дата | 2026-11-12 |
+| Ответственный | Implementation Lead (делегированные полномочия) |
+| Проблема и контекст | createUploadIntent требует короткоживущий URL, привязанный к объекту, типу и размеру. Нужен SigV4 для MinIO; у API нет сервисной учётки MinIO (G-37: root только у init). |
+| Связанные требования | UX-SRC; SEC (6.4 upload) |
+| Документы и разделы | Source & Context v1.3 §5.1, §13; Security Architecture v1.2; G-37 |
+| Альтернативы | SDK (boto3/minio): новая тяжёлая зависимость; использовать root-учётку в API — запрещено; заглушка URL — запрещена. |
+| Решение | Чистые функции `modules/sources/presign.py` (stdlib HMAC-SHA256), проверка по опубликованному вектору AWS и привязке заголовков. PUT подписывает `content-length`, `content-type`, `x-amz-checksum-sha256`: размер, тип и контрольную сумму принуждает хранилище. Конфигурация (`upload_public_endpoint`, `upload_bucket`, ключи — только файлы, `upload_max_size_bytes`) обязательна целиком: иначе 503 (fail-closed); значения по умолчанию для максимального размера НЕТ (WORKING, не изобретаем); `upload_url_ttl_seconds=300` и список MIME (PDF/DOCX/MD/TXT/XLSX/CSV) — WORKING. Сервисная учётка MinIO с ограничением по префиксу и публичный маршрут S3 в Compose — за S27 (G-37), см. G-92. |
+| Обоснование | Без новых зависимостей и без расширения привилегий; проверяемость векторами. |
+| Влияние на компоненты/контракты | modules/sources/presign.py, platform/config.py, api/write_api.py |
+| Риски и компромиссы | Подпись проверена по вектору AWS, но не против живого MinIO (нет учётки/маршрута): приём загрузки хранилищем — IMPLEMENTATION NOT VERIFIED. |
+| Затронутые тесты | tests/unit/test_presign.py, test_write_api (upload intent) |
+
+## ADR-82 — S09: семантика createUploadIntent
+
+| Поле | Значение |
+|---|---|
+| Статус | ACCEPTED |
+| Дата | 2026-11-12 |
+| Ответственный | Implementation Lead (делегированные полномочия) |
+| Проблема и контекст | OAS: `POST /uploads` принимает projectId, fileName, contentType, sizeBytes, sha256 и возвращает uploadUrl/expiresAt/requiredHeaders; Source и Upload связаны в схеме S06. |
+| Связанные требования | UX-SRC; Source & Context v1.3 §5.1 |
+| Документы и разделы | Public API v1.3 createUploadIntent; ADR-057 |
+| Альтернативы | Хранить подписанный URL для replay — секретоподобное значение в БД; имя файла в ключе объекта — риск path traversal. |
+| Решение | Каждый intent создаёт новый Source (FILE, заголовок = очищенное имя файла без путей и управляющих символов) и Upload PENDING; ключ объекта `<org>/<project>/<uploadId>` непрозрачен. Проверки: проект в контексте сессии, право `source.upload_create`, размер ≤ лимита, MIME из allowlist, sha256 — 64 hex. Replay с тем же ключом перерисовывает intent и подписывает URL заново на остаток TTL; для истёкшего или использованного intent — 409 `IDEMPOTENCY_KEY_REUSED` (новый intent — новый ключ). События и outbox не создаются (нет сообщения AsyncAPI), результат — аудит `UPLOAD_INTENT_CREATE`. completeUpload — S12. |
+| Обоснование | Нет секретов в БД/аудите/событиях; ключ объекта не зависит от пользовательского ввода. |
+| Влияние на компоненты/контракты | api/write_api.py, modules/sources/repository.py (get_intent, upload_id) |
+| Риски и компромиссы | Загрузка новой версии существующего Source этим endpoint не выражается (нет sourceId в OAS). |
+| Затронутые тесты | test_write_api (лимиты, ACL/IDOR, replay, истечение, fail-closed без конфигурации) |
+
+## ADR-83 — S09: матрица политик записи (WORKING) и первый администратор проекта
+
+| Поле | Значение |
+|---|---|
+| Статус | ACCEPTED |
+| Дата | 2026-11-12 |
+| Ответственный | Implementation Lead (делегированные полномочия) |
+| Проблема и контекст | Для записей нужны действия в Policy Engine; чтение (S08) доступно только членам проекта и org AUDITOR. Создатель проекта без членства не смог бы прочитать созданное. |
+| Связанные требования | SEC (ACL), IAM v1.5 §4 (матрица — «стартовый словарь») |
+| Документы и разделы | Identity & Access v1.5 §4–§5; OD-15; ADR-017, ADR-076 |
+| Альтернативы | Не создавать членство (проект нечитаем создателем); дать org-админам глобальное чтение — отвергнуто решением S08. |
+| Решение | Версия политики `2026-11-12.2` (WORKING, `humanOnly`): `project.create` — ORGANIZATION_OWNER/ADMIN; `project.update` — PROJECT_ADMIN; `epic.create`, `requirement.register`, `requirement.propose_version`, `source.upload_create` — PROJECT_ADMIN, ANALYST. Привилегированные роли требуют MFA (как раньше). Только USER-сессии браузера; сервисы/Manager/Worker получают отказ движка. Создатель проекта получает членство PROJECT_ADMIN в той же транзакции и аудите (`PROJECT_MEMBERSHIP_INITIAL_GRANT`) — единственная выдача роли в S09: человек над собственным проектом; решение владельца — OD-18. Approval-переходов в S09 нет. |
+| Обоснование | Минимально необходимый набор, fail-closed; ничего не расширяет молча. |
+| Влияние на компоненты/контракты | policy/policy_config.json + .sha256, api/write_api.py (проверка на старте), modules/projects |
+| Риски и компромиссы | Матрица остаётся WORKING (OD-15); автоматическое членство создателя — предложение (OD-18). |
+| Затронутые тесты | test_write_api (ACL по ролям, MFA, IDOR), test_policy_engine |

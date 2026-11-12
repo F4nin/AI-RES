@@ -254,7 +254,7 @@ def test_secret_values_are_not_in_image_layers(image, tmp_path, secret_values):
 
 def test_secrets_mounted_only_into_services_that_need_them():
     expect = {
-        "api": {"cursor_hmac_key", "api_db_password", "postgres_tls_ca_cert", "mfa_encryption_key"},  # never bootstrap_secret (S07)
+        "api": {"cursor_hmac_key", "api_db_password", "postgres_tls_ca_cert", "mfa_encryption_key", "idempotency_keyring"},  # never bootstrap_secret (S07)
         "postgres": {"postgres_superuser_password", "postgres_tls_server_cert", "postgres_tls_server_key"},
         "migrate": {"migrator_db_password", "postgres_tls_ca_cert"},
         "temporal": {"temporal_db_password", "postgres_tls_ca_cert"},
@@ -272,8 +272,10 @@ def test_no_default_credentials_secrets_are_random_and_distinct(secret_values):
     vals = [v for k, v in secret_values.items() if k != "minio_root_user" and not k.startswith("postgres_tls_")]
     assert len(set(vals)) == len(vals)
     # mfa_encryption_key is base64 of exactly 32 random bytes (44 chars): its strength is the key size, not the text length
-    assert all(len(v) >= 48 for k, v in secret_values.items() if k not in ("minio_root_user", "mfa_encryption_key") and not k.startswith("postgres_tls_"))
+    assert all(len(v) >= 48 for k, v in secret_values.items() if k not in ("minio_root_user", "mfa_encryption_key", "idempotency_keyring") and not k.startswith("postgres_tls_"))
     assert len(base64.b64decode(secret_values["mfa_encryption_key"], validate=True)) == 32
+    key_id, key_b64 = secret_values["idempotency_keyring"].split()
+    assert key_id == "k1" and len(base64.b64decode(key_b64, validate=True)) == 32  # `<key_id> <base64 32 bytes>`, the format load_keyring() accepts
     assert all(w not in v.lower() for v in vals for w in ("password", "changeme", "minioadmin", "admin"))
 
 

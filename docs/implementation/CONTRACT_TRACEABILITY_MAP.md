@@ -9,22 +9,22 @@
 |---|---|---|---|---|---|---|
 | getCurrentUser | GET /me | User/Session | `iam.*` (ADR-016) | cookie session | — | S07 — IMPLEMENTED/TESTED (`test_identity_http`, live stack) |
 | listProjects | GET /projects | Project | `project.projects` (ADR-016) | Limit, Cursor | — | S08 — IMPLEMENTED/TESTED (`test_read_api`, `test_read_api_schemathesis`) |
-| createProject | POST /projects | Project | `project.projects` | Idempotency-Key; ETag в 201 | ProjectCreated | S09 |
+| createProject | POST /projects | Project | `project.projects` | Idempotency-Key; ETag в 201 | ProjectCreated | S09 IMPLEMENTED |
 | getProject | GET /projects/{projectId} | Project | `project.projects` | ETag | — | S08 — IMPLEMENTED/TESTED (`test_read_api`, `test_read_api_schemathesis`) |
-| updateProjectMetadata | PATCH /projects/{projectId} | Project | `project.projects` | If-Match | — | S09 |
+| updateProjectMetadata | PATCH /projects/{projectId} | Project | `project.projects` | If-Match | — (нет сообщения AsyncAPI, G-93) | S09 IMPLEMENTED |
 | listEpics | GET /projects/{projectId}/epics | Epic | `work.epics` (ADR-016) | Limit, Cursor | — | S08 — IMPLEMENTED/TESTED (`test_read_api`, `test_read_api_schemathesis`) |
-| createEpic | POST /projects/{projectId}/epics | Epic | `work.epics` | Idempotency-Key | EpicCreated | S09 |
+| createEpic | POST /projects/{projectId}/epics | Epic | `work.epics` | Idempotency-Key | EpicCreated | S09 IMPLEMENTED |
 | getEpic | GET /epics/{epicId} | Epic | `work.epics` | — (ETag в OAS не объявлен) | — | S08 — IMPLEMENTED/TESTED (`test_read_api`, `test_read_api_schemathesis`) |
 | sendManagerMessage | POST /epics/{epicId}/manager-messages | Manager interaction → Operation | `operations.operations` | Idempotency-Key, 202 | ManagerInteractionReceived, Operation* | S20 |
 | listTasks | GET /epics/{epicId}/tasks | Task | `work.tasks` (ADR-011/016) | Limit, Cursor | — | S08 — IMPLEMENTED/TESTED (`test_read_api`, `test_read_api_schemathesis`) |
-| createTask | POST /epics/{epicId}/tasks | Task | `work.tasks` (+ владеющая Operation — ADR-012) | Idempotency-Key; 201 | TaskCreated | S09 |
+| createTask | POST /epics/{epicId}/tasks | Task | `work.tasks` (+ владеющая Operation — ADR-012) | Idempotency-Key; 201 | TaskCreated | S21 (перенос из S09: ADR-012, NCP-08; ADR-078) |
 | getTask | GET /tasks/{taskId} | Task | `work.tasks` | ETag | — | S08 — IMPLEMENTED/TESTED (`test_read_api`, `test_read_api_schemathesis`) |
 | listRequirements | GET /projects/{projectId}/requirements | Requirement | `requirements.requirements` (ADR-016) | Limit, Cursor | — | S08 — IMPLEMENTED/TESTED (`test_read_api`, `test_read_api_schemathesis`) |
-| registerRequirementCandidate | POST /projects/{projectId}/requirements | Requirement | `requirements.*` | Idempotency-Key | RequirementVersionCreated | S09 |
+| registerRequirementCandidate | POST /projects/{projectId}/requirements | Requirement | `requirements.*` | Idempotency-Key | RequirementVersionCreated | S09 IMPLEMENTED |
 | listRequirementVersions | GET /requirements/{id}/versions | RequirementVersion | `requirements.requirement_versions` | — | — | S08 — IMPLEMENTED/TESTED (`test_read_api`, `test_read_api_schemathesis`) |
-| proposeRequirementVersion | POST /requirements/{id}/versions | RequirementVersion | `requirements.requirement_versions` | If-Match, Idempotency-Key | RequirementVersionCreated | S09 |
+| proposeRequirementVersion | POST /requirements/{id}/versions | RequirementVersion | `requirements.requirement_versions` | If-Match, Idempotency-Key | RequirementVersionCreated | S09 IMPLEMENTED |
 | listSources | GET /projects/{projectId}/sources | Source | `sources.*` (ADR-016) | Limit, Cursor | — | S08 — IMPLEMENTED/TESTED (`test_read_api`, `test_read_api_schemathesis`) |
-| createUploadIntent | POST /uploads | Upload | `sources.uploads` (ADR-016) | Idempotency-Key | — | S09 |
+| createUploadIntent | POST /uploads | Upload | `sources.uploads` (ADR-016) | Idempotency-Key | — | S09 IMPLEMENTED (хранилище не проверено, G-92) |
 | completeUpload | POST /uploads/{uploadId}/complete | Upload → Operation → SourceVersion | `operations.operations`, `sources.source_versions` | Idempotency-Key; **202 + Operation** | Operation*, SourceVersionIngested | S12 |
 | listArtifacts | GET /projects/{projectId}/artifacts | Artifact | `artifacts.*` (ADR-016) | Limit, Cursor | — | S08 — IMPLEMENTED/TESTED (`test_read_api`, `test_read_api_schemathesis`) |
 | listArtifactVersions | GET /artifacts/{id}/versions | ArtifactVersion | `artifacts.artifact_versions` | — | — | S08 — IMPLEMENTED/TESTED (`test_read_api`, `test_read_api_schemathesis`) |

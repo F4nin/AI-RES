@@ -6,6 +6,7 @@ pointer in ONE compare-and-swap on the requirement row; the database re-checks c
 UNKNOWN with the declared text and is never mapped to a neighbouring type. Confirmation needs a human user; APPROVED needs an approval fact for exactly
 this version (the database refuses otherwise). Display numbers come from a counter row under lock, never MAX()+1.
 """
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 from uuid import UUID
@@ -14,13 +15,16 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ai_res.db.cas import bind_value
+from ai_res.modules.events.aggregate_events import AggregateKind, EventSpec, append_event
 from ai_res.platform.concurrency import AggregateVersionConflict, StateConflict
 from ai_res.platform.ids import new_id
 from ai_res.platform.problems import ErrorCode, ProblemError
 
+REQUIREMENT_KIND = AggregateKind(aggregate_type="REQUIREMENT", table="requirements.requirements", events_table="requirements.requirement_events", fk_column="requirement_id",
+                                 mutable={"current_version_id": None, "last_version_number": None, "updated_by": None})
 AUTHOR_TYPES = frozenset({"USER", "MANAGER", "WORKER_RUN", "IMPORT"})
 DECISIONS = frozenset({"APPROVED", "REJECTED"})
-
+PROPOSAL_BLOCKED_STATUSES = frozenset({"IN_BASELINE", "REJECTED", "SUPERSEDED"})  # WORKING: no new proposal on a version in these states (ADR-080)
 
 
 @dataclass(frozen=True)
@@ -127,3 +131,41 @@ class RequirementRepository:
     async def mark_approved(self, version_id: UUID) -> None:
         """Allowed only after an APPROVED approval of a human user for exactly this version exists (database guard)."""
         await self._transition(version_id, "APPROVED", ("CONFIRMED",))
+
+    async def register(self, org: UUID, prj: UUID, first: NewRequirementVersion, make_spec: Callable[[UUID, UUID, int], EventSpec], created_by: UUID) -> RequirementRow:
+        """Requirement + immutable first version (CANDIDATE) + RequirementVersionCreated + outbox. `make_spec(requirement_id, version_id, version_number)`."""
+        row = await self.create(org, prj, first, created_by)
+        await append_event(self._s, REQUIREMENT_KIND, aggregate_id=row.id, organization_id=org, project_id=prj, operation_id=None, expected_version=row.row_version,
+                           spec=make_spec(row.id, row.current_version_id, 1))  # type: ignore[arg-type]  # create() always sets the pointer
+        return RequirementRow(row.id, row.display_number, row.current_version_id, 1, row.row_version + 1)
+
+    async def propose_version(self, org: UUID, prj: UUID, requirement_id: UUID, expected_version: int, v: NewRequirementVersion,
+                              make_spec: Callable[[UUID, int], EventSpec], updated_by: UUID) -> tuple[UUID, int, int]:
+        """New immutable CANDIDATE version, pointer switch, event and outbox in ONE compare-and-swap (one `row_version` step per proposal).
+        Returns (version id, version number, new requirement row_version). A stale `expected_version` is the API's 412."""
+        if not v.change_reason:
+            raise ValueError("a new version needs a change reason")
+        if v.author_type not in AUTHOR_TYPES:
+            raise ValueError(f"author type {v.author_type!r} is not one of {sorted(AUTHOR_TYPES)}")
+        locked = (await self._s.execute(text("SELECT last_version_number, row_version FROM requirements.requirements WHERE id = :id FOR UPDATE"), {"id": requirement_id})).first()
+        if locked is None:
+            raise ProblemError(ErrorCode.RESOURCE_NOT_FOUND, "Resource not found.")
+        if int(locked[1]) != expected_version:
+            raise ProblemError(ErrorCode.VERSION_CONFLICT, "The resource was modified; reload and retry.")
+        current_status = (await self._s.execute(text("SELECT v.status FROM requirements.requirements r JOIN requirements.requirement_versions v ON v.id = r.current_version_id "
+                                                     "WHERE r.id = :id"), {"id": requirement_id})).scalar_one_or_none()
+        if current_status in PROPOSAL_BLOCKED_STATUSES:  # a baselined/closed version is changed only through a Change Request (WORKING, ADR-080 / OD-18)
+            raise StateConflict
+        vid, number = new_id(), int(locked[0]) + 1
+        appended = await append_event(self._s, REQUIREMENT_KIND, aggregate_id=requirement_id, organization_id=org, project_id=prj, operation_id=None,
+                                      expected_version=expected_version, spec=make_spec(vid, number),
+                                      changes={"current_version_id": vid, "last_version_number": number, "updated_by": updated_by})
+        await self._insert_version(org, prj, requirement_id, number, v, vid)  # the pointer's FK to the version is deferred to COMMIT
+        return vid, number, appended.row_version
+
+    async def current_type(self, requirement_id: UUID) -> str | None:
+        """The declared type of the current version (UNKNOWN keeps its declared text); None when the requirement is not visible."""
+        row = (await self._s.execute(text(
+            "SELECT v.requirement_type, v.declared_type_text FROM requirements.requirements r JOIN requirements.requirement_versions v ON v.id = r.current_version_id WHERE r.id = :i"),
+            {"i": requirement_id})).first()
+        return None if row is None else str(row[1] or row[0])

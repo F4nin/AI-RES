@@ -32,6 +32,7 @@ class NewUpload:
     declared_sha256: bytes
     expires_at: datetime  # UTC; the lifetime itself is WORKING configuration, decided by the caller
     created_by: UUID | None = None
+    upload_id: UUID | None = None  # chosen by the caller when the object key must embed it
 
 
 @dataclass(frozen=True)
@@ -49,6 +50,16 @@ class UploadRow:
     row_version: int
 
 
+@dataclass(frozen=True)
+class UploadIntentRow:
+    object_key: str
+    media_type: str
+    size_bytes: int
+    sha256: bytes
+    expires_at: datetime
+    status: str
+
+
 class SourceRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._s = session
@@ -60,7 +71,7 @@ class SourceRepository:
         return sid
 
     async def register_upload(self, new: NewUpload) -> UploadRow:
-        uid = new_id()
+        uid = new.upload_id or new_id()
         await self._s.execute(text(
             "INSERT INTO sources.uploads (id, organization_id, project_id, source_id, object_key, declared_media_type, declared_size_bytes, declared_sha256, expires_at, created_by) "
             "VALUES (:id, :o, :p, :s, :k, :mt, :sz, :sha, :exp, :by)"),
@@ -115,3 +126,9 @@ class SourceRepository:
             "SELECT :id, :o, :p, u.source_id, :n, u.id, u.declared_media_type, u.actual_size_bytes, u.verified_sha256, u.object_key, CAST(:pv AS jsonb), :rcv, :by FROM sources.uploads u WHERE u.id = :u"),
             {"id": vid, "o": org, "p": prj, "n": number, "pv": bind_value(provenance, "jsonb"), "rcv": received_at, "by": created_by, "u": upload.id})
         return FinalizedVersion(vid, True, True)
+
+    async def get_intent(self, upload_id: UUID) -> "UploadIntentRow | None":
+        """What an upload intent response is rebuilt from (the signed URL itself is never stored)."""
+        row = (await self._s.execute(text(
+            "SELECT object_key, declared_media_type, declared_size_bytes, declared_sha256, expires_at, status FROM sources.uploads WHERE id = :i"), {"i": upload_id})).first()
+        return None if row is None else UploadIntentRow(str(row[0]), str(row[1]), int(row[2]), bytes(row[3]), row[4], str(row[5]))
