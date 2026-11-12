@@ -8,7 +8,7 @@ the list visibility SQL with the Policy Engine decision.
 import asyncio
 import base64
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid4
@@ -433,3 +433,68 @@ async def test_a_cursor_older_than_retention_gets_a_gap_signal_not_silence(w: Wo
                               filters={"organization": str(w.iam.org_a), "project": str(w.ids["p1"])}, keyset=old.to_keyset(), ttl_seconds=600)
         r = await c.get(f"/api/v1/projects/{w.ids['p1']}/events", headers={"Last-Event-ID": token})
     assert sse_frames(r.text)[0]["event"] == "gap" and '"retention"' in sse_frames(r.text)[0]["data"]
+
+
+def stream_cursor(w: World, *, watermark: datetime, seen: dict[str, int] | None = None, project: UUID | None = None, session_user: UUID | None = None,
+                  ttl: int = 600, now: float | None = None) -> str:
+    session_id = w.sql_one("SELECT id FROM iam.sessions WHERE user_id = %s ORDER BY created_at DESC LIMIT 1", session_user or w.viewer)
+    from ai_res.modules.events.stream import Position
+    return encode_cursor(w.app.state.cursor_key_ring, subject=str(session_id), audience="project-events",
+                         filters={"organization": str(w.iam.org_a), "project": str(project or w.ids["p1"])},
+                         keyset=Position(watermark, seen or {}).to_keyset(), ttl_seconds=ttl, now=now)
+
+
+async def test_an_expired_cursor_token_is_a_gap_signal_not_a_400(w: World) -> None:
+    async with await w.client(w.viewer) as c:
+        token = stream_cursor(w, watermark=datetime.now(UTC) - timedelta(seconds=5), ttl=1, now=1.0)  # token long expired, history still retained
+        ok = await c.get(f"/api/v1/projects/{w.ids['p1']}/events", headers={"Last-Event-ID": token})
+        old = stream_cursor(w, watermark=datetime(2020, 1, 1, tzinfo=UTC), ttl=1, now=1.0)
+        gap = await c.get(f"/api/v1/projects/{w.ids['p1']}/events", headers={"Last-Event-ID": old})
+    assert ok.status_code == 200 and not any(f.get("event") == "gap" for f in sse_frames(ok.text))
+    assert gap.status_code == 200 and sse_frames(gap.text)[0]["event"] == "gap" and '"retention"' in sse_frames(gap.text)[0]["data"]
+
+
+async def test_a_cursor_for_another_project_of_the_same_session_is_refused(w: World) -> None:
+    async with await w.client(w.iam.user_a) as c:  # the auditor reads both projects
+        token = stream_cursor(w, watermark=datetime.now(UTC), project=w.ids["p1"], session_user=w.iam.user_a)
+        r = await c.get(f"/api/v1/projects/{w.ids['p2']}/events", headers={"Last-Event-ID": token})
+    assert r.status_code == 422 and r.json()["errors"][0]["field"] == "Last-Event-ID"
+
+
+async def test_a_cursor_that_would_exceed_the_bound_ends_in_gap_and_resync_without_handing_out_an_oversized_id(w: World) -> None:
+    from ai_res.modules.events.stream import MAX_TRACKED
+    seen = {str(uuid4()): 1 for _ in range(MAX_TRACKED)}
+    async with await w.client(w.viewer) as c:
+        token = stream_cursor(w, watermark=datetime.now(UTC), seen=seen)
+        task = asyncio.create_task(c.get(f"/api/v1/projects/{w.ids['p1']}/events", headers={"Last-Event-ID": token}))
+        await asyncio.sleep(0.4)
+        await cancel_op(w)  # a 25th aggregate
+        r = await task
+    frames = sse_frames(r.text)
+    assert [f["event"] for f in frames if f.get("event") in ("event", "gap", "close")] == ["gap", "close"]
+    assert json.loads(frames[-1]["data"]) == {"reason": "resync"} and all("id" not in f for f in frames)
+
+
+async def test_stream_closes_as_unavailable_when_the_policy_engine_fails_mid_stream(w: World, monkeypatch: pytest.MonkeyPatch) -> None:
+    from ai_res.platform.problems import ErrorCode, ProblemError
+    real = w.services.enforcer.decide
+    calls = {"n": 0}
+
+    async def flaky(request: Any, *, conceal: bool = False) -> Any:
+        calls["n"] += 1
+        if calls["n"] > 1:
+            raise ProblemError(ErrorCode.POLICY_ENGINE_UNAVAILABLE, "down")
+        return await real(request, conceal=conceal)
+    monkeypatch.setattr(w.services.enforcer, "decide", flaky)
+    async with await w.client(w.viewer) as c:
+        r = await c.get(f"/api/v1/projects/{w.ids['p1']}/events")
+    assert sse_frames(r.text)[-1] == {"event": "close", "data": '{"reason":"unavailable"}'}  # an outage is not a revocation: the client keeps reconnecting
+
+
+async def test_stream_closes_as_access_revoked_when_the_role_is_removed_mid_stream(w: World) -> None:
+    async with await w.client(w.viewer) as c:
+        task = asyncio.create_task(c.get(f"/api/v1/projects/{w.ids['p1']}/events"))
+        await asyncio.sleep(0.4)
+        w.sql("DELETE FROM project.project_memberships WHERE user_id = %s", w.viewer)
+        r = await task
+    assert sse_frames(r.text)[-1] == {"event": "close", "data": '{"reason":"access_revoked"}'}

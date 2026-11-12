@@ -29,33 +29,34 @@ ADR-091 (переходы и отмена), ADR-092 (SSE), ADR-093 (completeUplo
 Новых NCP нет. Расхождение словаря initiator DB/OAS — G-112.
 
 ## 8. ECC: фактически использованные agents
-`security-reviewer`, `silent-failure-hunter` (blind-first, read-only) → `reviews/S12_REVIEWS.md`. Context7 — общие вопросы по temporalio. Не запускались: `planner`, `fastapi-reviewer`, `architect`, `code-reviewer`, `pr-test-analyzer`, `type-design-analyzer` — решение исполнителя (§12).
+`security-reviewer`, `silent-failure-hunter` (blind-first, read-only) → `reviews/S12_REVIEWS.md`. Context7 — общие вопросы по temporalio. Второй раунд (по решению владельца): `architect`, `code-reviewer`, `fastapi-reviewer`, `pr-test-analyzer`, `type-design-analyzer`. Не запускался `planner`.
 
 ## 9. Тесты и проверки
 | Gate | Команда | Результат |
 |---|---|---|
 | lint / types | `uv run ruff check .`, `uv run mypy` | All checks passed; no issues in 125 source files |
 | import-linter | `uv run lint-imports` | Contracts: 9 kept, 0 broken (поймал `sqlalchemy` в `api/`, исправлено) |
-| полный backend | `uv run pytest -q -p no:cacheprovider` | **1084 passed**, 535 warnings, 16:40 |
+| полный backend (до исправлений review) | `uv run pytest -q -p no:cacheprovider` | **1084 passed**, 535 warnings, 16:40 |
+| полный backend (после исправлений review) | то же | **1110 passed**, 535 warnings, 17:32; ruff, mypy, lint-imports чистые |
 | contracts | `make contracts-check` | verify-mirror, validate-*, lint-openapi, breaking — [ok] |
 
 ## 10. Security / authorization cases
 IDOR для cancel/completeUpload/SSE — один и тот же 404; viewer на completeUpload — 403; аноним на SSE — 401; подделанный, чужесессионный и «мусорный» Last-Event-ID — 422; отзыв сессии закрывает поток; терминальный исход не отменяется (409); подделанный tenant в confirm — 404; несовпадение размера/суммы и объект без проверенной суммы — отказ; истёкший intent — EXPIRED без обращения к хранилищу; недоступное хранилище — 503 без изменений; идемпотентный повтор не дублирует Operation/версию.
 
 ## 11. Независимое review
-`reviews/S12_REVIEWS.md`: CRITICAL 0, HIGH 1 (G-117, не исправлен), MEDIUM — 8 исправлено, остальные в gaps.
+`reviews/S12_REVIEWS.md`: два раунда; CRITICAL 0, HIGH 1 (G-117, решение владельца: reconciler до S23, ADR-094); MEDIUM — исправлены по сути, остальные в gaps.
 
 ## 12. Не выполненные проверки, ограничения, риски
 - `make pre-pr` и `make infra-test` не запускались; выполнены backend-набор и contracts-check. Linux CI ещё не проходил.
 - completeUpload проверен против HTTP-фейка за реальным `S3ObjectStore`, не против живого MinIO (G-115).
-- Не запускались `architect`, `code-reviewer`, `fastapi-reviewer`, `pr-test-analyzer`, `type-design-analyzer`; промпт предписывает их, остаточный риск принят до решения владельца.
+- Все ревьюеры из промпта отработали (два раунда). Находки второго раунда: исправлены или в gaps (ADR-094, G-121, G-122).
 - Открытые: G-112…G-120, в т.ч. HIGH G-117 (зависшая отмена).
 
 ## 13. Обновлённые документы и статусы
 ADL (ADR-091…093), KNOWN_GAPS (G-112…G-120), ECC_USAGE, IMPLEMENTATION_STATUS, CONTEXT_HANDOFF, `reviews/S12_REVIEWS.md`. REQUIREMENTS_TRACEABILITY (API-MVP-009, -010) и CONTRACT_TRACEABILITY_MAP (4 операции) обновлены.
 
 ## 14. Статус DoD
-✅ переходы и getOperation; ✅ cancel + reconciliation; ✅ completeUpload (проверка хранилищем, идемпотентность, IDOR); ✅ SSE (ACL, курсор, gap, отзыв); ✅ нет Operation Events history API; ⚠ обязательные reviewers выполнены частично; ✅ трассируемость; ❌ Linux CI.
+✅ переходы и getOperation; ✅ cancel + reconciliation; ✅ completeUpload (проверка хранилищем, идемпотентность, IDOR); ✅ SSE (ACL, курсор, gap, отзыв); ✅ нет Operation Events history API; ✅ reviewers выполнены (два раунда); ✅ трассируемость; CI PR #13 зелёный, CI PR с исправлениями — ожидается.
 
 ## 15. Можно ли начинать следующий этап
-Нет, пока: зелёный Linux CI, решение владельца по HIGH G-117 и по неполному составу reviewers.
+Да — S13, после зелёного CI PR с исправлениями review; G-117/G-107 (reconciler) обязательны до S23.

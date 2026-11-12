@@ -99,6 +99,7 @@
 | ADR-091 | S12: типизированные переходы Operation и отмена с reconciliation | ACCEPTED |
 | ADR-092 | S12: SSE проекта из event history — курсор, ACL на каждом опросе, retention gap | ACCEPTED |
 | ADR-093 | S12: completeUpload — проверка объекта хранилищем, Operation SOURCE_INGESTION, роли политики | ACCEPTED |
+| ADR-094 | S12 review follow-up: FAILED побеждает отложенную отмену; истёкший курсор SSE — gap; reconciler до S23 | ACCEPTED |
 
 ---
 
@@ -1682,3 +1683,20 @@
 | Влияние на компоненты/контракты | `modules/sources/object_store.py`, `sources/repository.py`, `write_api.py`, `policy_config.json` (+sha256), `app.py` |
 | Риски и компромиссы | Объект, загруженный без `x-amz-checksum-sha256`, отклоняется (presign требует заголовок); completion policy SOURCE_INGESTION — заглушка `wip-1` до S21/S27; TOCTOU между HEAD и finalize (объект неизменяем по ключу, G-115). |
 | Затронутые тесты | test_write_api (completeUpload: успех, несовпадения, истечение, недоступность, идемпотентность, ACL/IDOR) |
+
+## ADR-094 — S12 review follow-up: FAILED побеждает отложенную отмену; истёкший курсор SSE — gap; reconciler до S23
+
+| Поле | Значение |
+|---|---|
+| Статус | ACCEPTED (решение владельца по рекомендациям `architect`, 2026-11-12) |
+| Дата | 2026-11-12 |
+| Ответственный | Implementation Lead |
+| Проблема и контекст | Второй раунд review (architect, code-reviewer, fastapi, pr-test-analyzer, type-design) выявил три развилки: реальная ошибка во время ожидающей отмены терялась; истёкший курсор SSE давал 400 вместо gap (ADR-033); Operation в CANCEL_REQUESTED без живого workflow никто не разрешал. |
+| Связанные требования | PROC-MVP; API-MVP |
+| Документы и разделы | Operation State Machine v1.2 (CANCEL_REQUESTED → FAILED допустим); ADR-033; ADR-091, ADR-092 |
+| Альтернативы | Всегда CANCELLED при ожидающей отмене (теряется исход); 400 на истёкший курсор (EventSource не переподключается); удерживать отмену внутри workflow (дублирует reconciler G-107). |
+| Решение | (1) `record_failure` из CANCEL_REQUESTED переводит Operation в FAILED с problem_ref; поздняя reconciliation уже не меняет терминальный статус. (2) Срок токена курсора SSE не проверяется; актуальность определяется retention по водяному знаку и даёт `event: gap`. Курсор никогда не выдаётся клиенту, если сам endpoint его отвергнет (>24 агрегатов → `gap` + `close resync` до отправки события). Разбор курсора строгий: запись не отбрасывается молча. (3) Reconciler для CANCEL_REQUESTED без workflow (G-117) вместе с G-107 должен быть выполнен до S23; в S12 не реализуется. |
+| Обоснование | Реальный исход не должен теряться; клиент EventSource обязан восстанавливаться без перезагрузки; дублирование сверки в workflow и в reconciler избыточно. |
+| Влияние на компоненты/контракты | `orchestration_service.record_failure`, `api/events_api.py`, `modules/events/stream.py`, `modules/sources/completion.py` (новый сервис completeUpload), `modules/sources/object_store.py` (клиент на вызов, составной checksum = непроверяемый объект) |
+| Риски и компромиссы | До reconciler зависшая отмена возможна (G-117); `FAILED` при отмене пользователя может удивить — отражено в событии (`from_status=CANCEL_REQUESTED`). |
+| Затронутые тесты | test_operation_cancellation, test_read_api (SSE), test_write_api (completeUpload), unit/test_s12_review_units |

@@ -72,12 +72,13 @@ class OperationOrchestrationService:
         ref = failure.operation
         async with UnitOfWork(self._factory) as uow:
             row = await self._load(uow, ref)
-            if row.status in TERMINAL or row.status == "CANCEL_REQUESTED":
-                return OperationState(ref.operation_id, row.status)  # a terminal fact is never overwritten; a pending cancel is S12's to resolve
-            if row.status != "RUNNING":
+            if row.status in TERMINAL:
+                return OperationState(ref.operation_id, row.status)  # a terminal fact is never overwritten
+            if row.status not in ("RUNNING", "CANCEL_REQUESTED"):
                 raise ProblemError(ErrorCode.VERSION_CONFLICT, "Operation is not running.")  # 412 = PERMANENT (state error); a lost CAS race is 409 = transient
             await OperationRepository(uow.session).transition(
-                row, "FAILED", self._spec("operation.failed", correlation_id, from_status="RUNNING", to_status="FAILED", reason=failure.code),
+                row, "FAILED",  # a real failure wins over a pending cancel
+                self._spec("operation.failed", correlation_id, from_status=row.status, to_status="FAILED", reason=failure.code),
                 problem_ref={"code": failure.code})
             await self._audit(uow, ref, "OPERATION_FAILED_BY_ORCHESTRATION", {"code": failure.code})
         return OperationState(ref.operation_id, "FAILED")
