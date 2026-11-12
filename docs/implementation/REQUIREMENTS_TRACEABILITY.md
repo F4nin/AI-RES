@@ -45,11 +45,11 @@
 |---|---|---|---|---|---|
 | API-MVP-001 | DOC-009 | Contract-first и CI validation | MVP | S01, S02, S08, S09, S12 | NOT_STARTED |
 | API-MVP-002 | DOC-009 | Разделение API planes | MVP | S01, S02, S08, S09, S12 | NOT_STARTED |
-| API-MVP-003 | DOC-009 | REST public API v1 | MVP | S01, S02, S08, S09, S12 | NOT_STARTED |
+| API-MVP-003 | DOC-009 | REST public API v1 | MVP | S01, S02, S08, S09, S12 | PARTIAL (S08: 12 GET реализованы и проверены schemathesis; записи — S09) |
 | API-MVP-004 | DOC-009 | OpenAPI baseline | MVP | S01, S02, S08, S09, S12 | NOT_STARTED |
 | API-MVP-005 | DOC-009 | JSON Schema 2020-12 | MVP | S01, S02, S08, S09, S12 | NOT_STARTED |
 | API-MVP-006 | DOC-009 | RFC 9457 errors | MVP | S01, S02, S08, S09, S12 | NOT_STARTED |
-| API-MVP-007 | DOC-009 | Cursor pagination | MVP | S01, S02, S08, S09, S12 | NOT_STARTED |
+| API-MVP-007 | DOC-009 | Cursor pagination | MVP | S01, S02, S08, S09, S12 | PARTIAL (S08: keyset-курсоры на всех списках, ADR-074; нет offset) |
 | API-MVP-008 | DOC-009 | ETag/If-Match | MVP | S01, S02, S08, S09, S12 | NOT_STARTED |
 | API-MVP-009 | DOC-009 | Idempotency-Key | MVP | S01, S02, S08, S09, S12 | NOT_STARTED |
 | API-MVP-010 | DOC-009 | Async Operation resource | MVP | S01, S02, S08, S09, S12 | NOT_STARTED |
@@ -474,8 +474,8 @@
 | RULE-MVP-12 | DOC-009 | Независимая авторизация | Обязательно | S18 | NOT_STARTED |
 | RULE-MVP-13 | DOC-009 | Simulation/dry run | Желательно для | S18 | NOT_STARTED |
 | RULE-MVP-14 | DOC-009 | Визуальный конструктор правил | Позже | S18 | NOT_STARTED |
-| SEC-001 | DOC-020 | Каждый API endpoint, работающий с объектом, MUST выполнять object-level authorization | P0 | S02–S37 (по области); S37 верификация | PARTIAL (S07: Policy Engine + enforcer + conceal-404 протестированы; применение к доменным endpoint — S08+) |
-| SEC-002 | DOC-020 | ACL MUST применяться до retrieval, graph traversal, cache response, summarization и export | P0 | S02–S37 (по области); S37 верификация | NOT_STARTED |
+| SEC-001 | DOC-020 | Каждый API endpoint, работающий с объектом, MUST выполнять object-level authorization | P0 | S02–S37 (по области); S37 верификация | PARTIAL (S07: Policy Engine + enforcer + conceal-404 протестированы; применение к доменным endpoint — S08+); S08: object-level ACL на всех 12 GET, IDOR → один 404 (ADR-075) |
+| SEC-002 | DOC-020 | ACL MUST применяться до retrieval, graph traversal, cache response, summarization и export | P0 | S02–S37 (по области); S37 верификация | NOT_STARTED; S08: object-level ACL на всех 12 GET, IDOR → один 404 (ADR-075) |
 | SEC-003 | DOC-020 | Каждая Worker Run MUST иметь scoped grants с expiry; права не наследуются автоматически | P0 | S02–S37 (по области); S37 верификация | NOT_STARTED |
 | SEC-004 | DOC-020 | Каждый tool/connector side effect MUST проходить независимую policy authorization перед исполнением | P0 | S02–S37 (по области); S37 верификация | NOT_STARTED |
 | SEC-005 | DOC-020 | Worker/Manager MUST NOT иметь прямой произвольный доступ к provider credentials | P0 | S02–S37 (по области); S37 верификация | NOT_STARTED |

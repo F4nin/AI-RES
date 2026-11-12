@@ -1,6 +1,6 @@
 # CONTEXT_HANDOFF — состояние для продолжения работы (обновлять в конце каждого этапа и сессии)
 
-**Обновлено:** 2026-11-11 (S07 VERIFIED) · Автоподстановка в сессию: `.claude/hooks/session-brief.mjs` (SessionStart: startup/resume/clear/compact). Первые 60 строк файла попадают в контекст — держи файл коротким.
+**Обновлено:** 2026-11-12 (S08 TESTED) · Автоподстановка в сессию: `.claude/hooks/session-brief.mjs` (SessionStart: startup/resume/clear/compact). Первые 60 строк файла попадают в контекст — держи файл коротким.
 
 ## Где мы
 - S00 IMPLEMENTED, **S01–S04 VERIFIED/DONE**. S03 — локальный Compose-стек (TLS Postgres, SOPS/age, CI). **S04 (2026-11-11)** — Alembic env + PDB-0001 (18 схем, роли, USAGE-гранты), provisioning ролей (`infra/config/postgres/provision_roles.sql`), одноразовая служба `migrate`, `db/` (engine, Unit of Work, tenant context), audit SQL + `audit.sh` gate, reviewed `backend/ops/postgres/schema_snapshot.sql`. Тесты: backend 159 (PostgreSQL 16.15 Testcontainers), runtime 95, infra static 77, contracts 19. Отчёт: `increments/S04_persistence_foundation_REPORT.md`; review: `reviews/S04_REVIEWS.md` (0 HIGH/CRITICAL); ADR-046…049.
@@ -11,6 +11,8 @@
 - Правила S05: каждая новая таблица — RLS ENABLE+FORCE + политика + запись в `rls_coverage.sql` `exempt` только с причиной; `make db-snapshot` и разбор diff; sabotage-тест на каждое новое нарушение; PERSIST-002 (previous revision) и PERSIST-005..014 на доменных таблицах.
 
 - **S07 VERIFIED по решению владельца и влит в `main` (PR #6, 2026-11-12):** identity/local auth/MFA/bootstrap/Policy Engine/audit/idempotency/service tokens, миграции 0012–0013, ADR-061…073, OD-16. Два прохода независимого review (`reviews/S07_REVIEWS.md` §5–§6): CRITICAL/HIGH нет; Linux CI зелёный (runs 43111752244, 43111759690). Открыто: NCP-12 (PROPOSED), OD-15 (матрица политик WORKING до проверки на S08+), G-75…G-83, подсеть app 172.28.20.0/24 (WORKING). **Следующий этап: S08**; ветку создать от актуального `main`. Порядок на будущее (решение владельца): реализация → ревью → исправления → ОДИН `make pre-pr` и CI.
+
+- **S08 TESTED (2026-11-12), ветка `feat/s08-read-only-api-slices`, не закоммичена:** 12 GET, ADR-074…077, политика read 2026-11-12.1 (только члены проекта + org AUDITOR, WORKING), `make pre-pr` ok (backend 872). Review: `reviews/S08_REVIEWS.md`. Дальше: коммит/PR по просьбе пользователя → Linux CI → VERIFIED; затем **S09**. Открыто: G-84…G-90, OD-17.
 
 ## Порядок действий в новой сессии
 1. `CLAUDE.md` → `IMPLEMENTATION_CHARTER.md` → этот файл → `IMPLEMENTATION_STATUS.md`.

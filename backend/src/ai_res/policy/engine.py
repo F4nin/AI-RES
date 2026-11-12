@@ -20,6 +20,7 @@ from ai_res.policy.config import PolicyConfig, PolicyConfigError, load_packaged_
 
 _log = logging.getLogger("ai_res.policy")
 INVALID_VERSION = "invalid-config"
+REASON_RESOURCE_NOT_VISIBLE = "resource_not_visible"  # shared with the enforcer: it decides where a denial audit row is anchored
 AUTONOMY_ALLOWED = frozenset({"A0", "A1", "A2"})  # A3/A4 are outside the MVP (project-context.md)
 
 
@@ -84,7 +85,7 @@ class PolicyEngine:
                     "ON pm.organization_id = p.organization_id AND pm.project_id = p.id AND pm.user_id = :u WHERE p.organization_id = :o AND p.id = :p"),
                     {"o": org, "u": actor, "p": project})).mappings().first()
                 if row is None:
-                    return self._deny("resource_not_visible")  # unknown project (or another organization's): same answer as a missing one
+                    return self._deny(REASON_RESOURCE_NOT_VISIBLE)  # unknown project (or another organization's): same answer as a missing one
                 project_role = row["role_code"] if row["status"] == "ACTIVE" else None
         if subject is None:
             return self._deny("subject_not_found")
