@@ -1,0 +1,21 @@
+# S13: scrape model. Application telemetry arrives through the Collector (OTLP -> :8889); infrastructure components are scraped directly.
+# Retention uses the component default (15d, not an AI RES decision; OD-02). Intervals are WORKING.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+rule_files:
+  - /etc/prometheus/rules/*.yml
+alerting:
+  alertmanagers:
+    - static_configs: [ { targets: ["alertmanager:9093"] } ]
+scrape_configs:
+  # label_limit/sample_limit bound a flood from a spoofing producer (WORKING engineering defaults; exceeding them FAILS the scrape, which TargetDown reports)
+  - { job_name: otel-collector-exported, static_configs: [ { targets: ["otel-collector:8889"] } ], honor_labels: true, label_limit: 30, sample_limit: 20000 }
+  - { job_name: otel-collector,          static_configs: [ { targets: ["otel-collector:8888"] } ] }
+  - { job_name: temporal,                static_configs: [ { targets: ["temporal:9090"] } ] }
+  - { job_name: minio,                   static_configs: [ { targets: ["minio:9000"] } ], metrics_path: /minio/v2/metrics/cluster }
+  - { job_name: loki,                    static_configs: [ { targets: ["loki:3100"] } ] }
+  - { job_name: tempo,                   static_configs: [ { targets: ["tempo:3200"] } ] }
+  - { job_name: alertmanager,            static_configs: [ { targets: ["alertmanager:9093"] } ] }
+  - { job_name: grafana,                 static_configs: [ { targets: ["grafana:3000"] } ] }
+  - { job_name: prometheus,              static_configs: [ { targets: ["localhost:9090"] } ] }

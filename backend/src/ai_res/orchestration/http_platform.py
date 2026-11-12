@@ -7,11 +7,14 @@ from collections.abc import Callable
 from datetime import timedelta
 
 import httpx
+from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 
 from ai_res.orchestration.contracts import ContractError, OperationFailure, OperationRef, OperationState
 from ai_res.orchestration.platform_port import PlatformPermanentError, PlatformTransientError
 
 TOKEN_TTL = timedelta(seconds=60)  # WORKING: well under service_token_max_ttl_seconds
+
+_TRACE_CONTEXT = TraceContextTextMapPropagator()
 
 
 def _problem_code(response: httpx.Response) -> str | None:
@@ -28,12 +31,17 @@ class HttpOperationPlatform:
         self._client = httpx.AsyncClient(base_url=base_url, timeout=timeout_seconds, transport=transport, follow_redirects=False)
         self._mint = mint_token
 
+    def _headers(self) -> dict[str, str]:
+        headers = {"Authorization": f"Bearer {self._mint()}"}
+        _TRACE_CONTEXT.inject(headers)  # W3C traceparent only (never baggage): the Platform API span continues the Activity span
+        return headers
+
     async def aclose(self) -> None:
         await self._client.aclose()
 
     async def _post(self, path: str, body: dict[str, str]) -> OperationState:
         try:
-            response = await self._client.post(path, json=body, headers={"Authorization": f"Bearer {self._mint()}"})
+            response = await self._client.post(path, json=body, headers=self._headers())
         except httpx.HTTPError as exc:
             raise PlatformTransientError(type(exc).__name__) from None
         status = response.status_code

@@ -23,6 +23,7 @@ dependencies = [
   "pyyaml>=6",
   "temporalio>=1.20,<2",
   "httpx>=0.28.1",
+  "opentelemetry-exporter-otlp-proto-http>=1.27",
 ]
 
 [dependency-groups]
@@ -112,6 +113,12 @@ name = "Policy engine does not depend on the API layer or the CLI"
 type = "forbidden"
 source_modules = ["ai_res.policy"]
 forbidden_modules = ["ai_res.api", "ai_res.cli", "ai_res.llm"]
+
+[[tool.importlinter.contracts]]
+name = "The audit circuit does not depend on telemetry export (S13, DOC-024 §7.7)"
+type = "forbidden"
+source_modules = ["ai_res.modules.audit"]
+forbidden_modules = ["ai_res.platform.export", "ai_res.platform.telemetry", "opentelemetry"]
 
 [[tool.importlinter.contracts]]
 name = "No application layer depends on the CLI package"

@@ -300,28 +300,28 @@
 | LT-10 | DOC-033 | Temporal outage/restart | — | S38 | NOT_STARTED |
 | LT-11 | DOC-033 | PostgreSQL/MinIO pressure | — | S38 | NOT_STARTED |
 | LT-12 | DOC-033 | Mixed peak + optional component outage | — | S38 | NOT_STARTED |
-| OBS-ALR-001 | DOC-025 | Alert rule содержит name, severity, scope, condition, evaluation window/for, owner, runbook, user impact, auto | — | S13 | NOT_STARTED |
+| OBS-ALR-001 | DOC-025 | Alert rule содержит name, severity, scope, condition, evaluation window/for, owner, runbook, user impact, auto | — | S13 | IMPLEMENTED (promtool) |
 | OBS-ALR-002 | DOC-025 | Alerts дедуплицируются и подавляют flapping; paging только для пользовательского impact, integrity или securit | — | S13 | NOT_STARTED |
 | OBS-ALR-003 | DOC-025 | Alert отделяет обнаруженный факт от гипотезы причины. | — | S13 | NOT_STARTED |
-| OBS-ALR-004 | DOC-025 | Alert не может автоматически approve requirements, publish artifacts, expand permissions, change model/provide | — | S13 | NOT_STARTED |
+| OBS-ALR-004 | DOC-025 | Alert не может автоматически approve requirements, publish artifacts, expand permissions, change model/provide | — | S13 | IMPLEMENTED (auto_action none) |
 | OBS-ALR-005 | DOC-025 | Автоматическое восстановление только заранее разрешёнными, ограниченными, обратимыми действиями с audit/trace. | — | S13 | NOT_STARTED |
-| OBS-ALR-006 | DOC-025 | До production-like запуска назначить owner и escalation route каждому критичному alert. | — | S13 | NOT_STARTED |
+| OBS-ALR-006 | DOC-025 | До production-like запуска назначить owner и escalation route каждому критичному alert. | — | S13 | BLOCKED_BY_OWNER (OD-02; получателей нет) |
 | OBS-ALR-007 | DOC-025 | Низкоуровневые alerts нормализуются для Workspace; не создавать пользователю поток инфраструктурного шума. | — | S13 | NOT_STARTED |
-| OBS-MON-001 | DOC-025 | MUST | Собирать health/availability | S13 | NOT_STARTED |
-| OBS-MON-002 | DOC-025 | MUST | Собирать distributed traces  | S13 | NOT_STARTED |
-| OBS-MON-003 | DOC-025 | MUST | Структурированные логи содер | S13 | NOT_STARTED |
+| OBS-MON-001 | DOC-025 | MUST | Собирать health/availability | S13 | PARTIAL (хост/диск G-127, сервер PostgreSQL G-125) |
+| OBS-MON-002 | DOC-025 | MUST | Собирать distributed traces  | S13 | PARTIAL (trace через Outbox не идёт, G-126) |
+| OBS-MON-003 | DOC-025 | MUST | Структурированные логи содер | S13 | PARTIAL |
 | OBS-MON-004 | DOC-025 | MUST | Измерять длительность, outco | S13 | NOT_STARTED |
 | OBS-MON-005 | DOC-025 | MUST | Измерять latency/errors/time | S13 | NOT_STARTED |
 | OBS-MON-006 | DOC-025 | MUST | Собирать provider/model, LLM | S13 | NOT_STARTED |
 | OBS-MON-007 | DOC-025 | MUST | Отражать Temporal backlog, s | S13 | NOT_STARTED |
 | OBS-MON-008 | DOC-025 | MUST | Отражать Readiness Gate, Man | S13 | NOT_STARTED |
 | OBS-MON-009 | DOC-025 | MUST | Коррелировать события с rele | S13 | NOT_STARTED |
-| OBS-MON-010 | DOC-025 | MUST | Предоставить dashboards Plat | S13 | NOT_STARTED |
+| OBS-MON-010 | DOC-025 | MUST | Предоставить dashboards Plat | S13 | PARTIAL (3 из 6 дашбордов, G-128) |
 | OBS-MON-011 | DOC-025 | MUST | Для критичных отказов иметь  | S13 | NOT_STARTED |
 | OBS-MON-012 | DOC-025 | MUST | Логи, metrics и traces испол | S13 | NOT_STARTED |
 | OBS-MON-013 | DOC-025 | MUST | Обнаруживать деградацию tele | S13 | NOT_STARTED |
-| OBS-MON-014 | DOC-025 | MUST | Недоступность telemetry back | S13 | NOT_STARTED |
-| OBS-MON-015 | DOC-025 | MUST | Буферы и retries telemetry о | S13 | NOT_STARTED |
+| OBS-MON-014 | DOC-025 | MUST | Недоступность telemetry back | S13 | IMPLEMENTED (runtime-тест деградации) |
+| OBS-MON-015 | DOC-025 | MUST | Буферы и retries telemetry о | S13 | IMPLEMENTED (runtime-тест деградации) |
 | OBS-MON-016 | DOC-025 | MUST | Поддерживать P50/P95/P99 для | S13 | NOT_STARTED |
 | OBS-MON-017 | DOC-025 | SHOULD | Сравнивать поведение по верс | S13 | NOT_STARTED |
 | OBS-MON-018 | DOC-025 | SHOULD | Сохранять sanitized producti | S13 | NOT_STARTED |
@@ -336,13 +336,13 @@
 | OBS-MON-034 | DOC-025 | `project_id`, `task_id`, `worker_run_id`, `trace_id` и прочие high-cardinality IDs запрещены в Prometheus labe | — | S13 | NOT_STARTED |
 | OBS-MON-035 | DOC-025 | LLM cost маркировать `estimated`, если расчёт сделан по локальному pricing, а не provider billing. | — | S13 | NOT_STARTED |
 | OBS-MON-036 | DOC-025 | Отсутствующая оценка качества не означает нулевое качество или успешность. | — | S13 | NOT_STARTED |
-| OBS-SEC-001 | DOC-025 | MUST | Запретить в telemetry passwo | S13 | NOT_STARTED |
+| OBS-SEC-001 | DOC-025 | MUST | Запретить в telemetry passwo | S13 | IMPLEMENTED (canary-тесты redaction) |
 | OBS-SEC-002 | DOC-025 | MUST | По умолчанию не записывать f | S13 | NOT_STARTED |
-| OBS-SEC-003 | DOC-025 | MUST | Redaction выполнять до telem | S13 | NOT_STARTED |
+| OBS-SEC-003 | DOC-025 | MUST | Redaction выполнять до telem | S13 | IMPLEMENTED (canary-тесты redaction) |
 | OBS-SEC-004 | DOC-025 | MUST | Scrub stack traces и error m | S13 | NOT_STARTED |
-| OBS-SEC-005 | DOC-025 | MUST | Ограничить dashboards/logs/t | S13 | NOT_STARTED |
+| OBS-SEC-005 | DOC-025 | MUST | Ограничить dashboards/logs/t | S13 | NOT_MET (G-130) |
 | OBS-SEC-006 | DOC-025 | MUST | Отделить Domain/Security Aud | S13 | NOT_STARTED |
-| OBS-SEC-007 | DOC-025 | MUST | Установить отдельные retenti | S13 | NOT_STARTED |
+| OBS-SEC-007 | DOC-025 | MUST | Установить отдельные retenti | S13 | BLOCKED_BY_OWNER (OD-02) |
 | OBS-SEC-008 | DOC-025 | MUST | Ограничить просмотр/экспорт  | S13 | NOT_STARTED |
 | OBS-SEC-009 | DOC-025 | MUST | Temporal Web UI и observabil | S13 | NOT_STARTED |
 | OBS-SEC-010 | DOC-025 | MUST | LLM content capture только п | S13 | NOT_STARTED |

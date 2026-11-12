@@ -11,6 +11,7 @@ from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, Request
+from opentelemetry.sdk.trace import TracerProvider
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
@@ -21,6 +22,7 @@ from ai_res.platform.boundary import ErrorBoundaryMiddleware
 from ai_res.platform.correlation import CorrelationMiddleware, current_request_id
 from ai_res.platform.ports import ServiceIdentity, ServiceIdentityPort, ServiceName
 from ai_res.platform.problems import ErrorCode, ProblemError, install_problem_handlers
+from ai_res.platform.telemetry import SERVICE_NAME, TelemetryMiddleware
 
 CAPABILITIES: dict[str, frozenset[ServiceName]] = {  # WORKING (ADR-088)
     "operation.acknowledge_start": frozenset({ServiceName.MANAGER_RUNTIME}),
@@ -42,9 +44,11 @@ class FailureBody(ScopeBody):
     code: str = Field(min_length=1, max_length=64, pattern=r"^[A-Z][A-Z0-9_]*$")
 
 
-def create_internal_app(service: OperationOrchestrationService, verifier: ServiceIdentityPort) -> FastAPI:
+def create_internal_app(service: OperationOrchestrationService, verifier: ServiceIdentityPort, tracer_provider: TracerProvider | None = None) -> FastAPI:
     app = FastAPI(title="AI RES internal platform API", docs_url=None, redoc_url=None, openapi_url=None)
     install_problem_handlers(app)
+    if tracer_provider is not None:  # S13: spans continue the caller's valid traceparent (Workflow/Activity -> Platform API)
+        app.add_middleware(TelemetryMiddleware, tracer=tracer_provider.get_tracer(SERVICE_NAME))
 
     def caller(capability: str):  # type: ignore[no-untyped-def]
         async def dependency(request: Request) -> ServiceIdentity:

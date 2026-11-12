@@ -93,3 +93,30 @@ async def test_audit_rows_are_append_only_for_the_api_role(iam_world: Any) -> No
             async with uow:
                 await uow.with_tenant(iam_world.org_a)
                 await uow.session.execute(text(sql))
+
+
+async def test_audit_commits_while_the_telemetry_collector_is_unreachable_and_failure_still_blocks(iam_world: Any) -> None:
+    """S13 (DOC-024 §7.7, OBS-SEC-006): the Audit Log is a separate circuit. A dead OTLP endpoint changes nothing for the audit row (it commits with the
+    action), and the fail-closed rule still holds (an audit failure rolls the action back) while telemetry is down."""
+    import socket
+
+    from ai_res.platform.config import Settings
+    from ai_res.platform.export import install_telemetry
+
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        dead = s.getsockname()[1]
+    handle = install_telemetry(Settings(otlp_endpoint=f"http://127.0.0.1:{dead}", otlp_export_timeout_seconds=1, otlp_queue_size=16), "audit-independence")
+    try:
+        uow = UnitOfWork(create_session_factory(iam_world.engine()))
+        async with uow:
+            await uow.with_tenant(iam_world.org_a)
+            await SqlAuditWriter(uow.session).write(rec(iam_world.org_a, actor_id=str(iam_world.user_a), request_id="req-telemetry-down", details={"method": "password"}))
+        with iam_world.pg.connect() as c:
+            assert c.execute("SELECT count(*) FROM audit.audit_events WHERE correlation_id = %s", (correlation_uuid("req-telemetry-down"),)).fetchone()[0] == 1
+        with pytest.raises(ValueError, match="sensitive"):
+            async with UnitOfWork(create_session_factory(iam_world.engine())) as failing:
+                await failing.with_tenant(iam_world.org_a)
+                await SqlAuditWriter(failing.session).write(rec(iam_world.org_a, details={"token": "x"}))
+    finally:
+        handle.shutdown()

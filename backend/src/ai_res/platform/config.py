@@ -36,7 +36,13 @@ class Settings(BaseModel):
     environment: Literal["local", "test", "prod"] = "prod"  # safest default (ADR-022)
     llm_gateway: Literal["unconfigured", "deterministic-test-double"] = "unconfigured"
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
-    otlp_endpoint: str | None = None
+    otlp_endpoint: str | None = None  # OTLP/HTTP base URL of the Collector (S13); unset = no export
+    release_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9._+-]{1,64}$")  # supplied by the release process (infra release manifest); never invented
+    otlp_grpc_endpoint: str | None = None  # OTLP/gRPC URL for the Temporal SDK core metrics (S13)
+    # WORKING defaults of the fail-open export path (ADR-095), not SLOs (OD-02): bounded queue, short timeouts.
+    otlp_export_timeout_seconds: float = Field(default=5.0, gt=0, le=30)
+    otlp_metric_interval_seconds: float = Field(default=15.0, ge=1, le=300)
+    otlp_queue_size: int = Field(default=2048, ge=16, le=65536)
     cursor_hmac_key_id: str = Field(default="k1", pattern=r"^[A-Za-z0-9._-]{1,32}$")
     cursor_hmac_key_file: Path | None = None
     read_lookup_max_projects: int = Field(default=100, ge=1, le=1000)  # WORKING: bound on by-id project probing (ADR-075, G-87)
@@ -119,7 +125,7 @@ class Settings(BaseModel):
     policy_timeout_seconds: float = Field(default=2.0, gt=0, le=30)  # WORKING: Policy Engine decision budget; exceeded => fail-closed 503
     trusted_proxy_cidrs: Annotated[tuple[str, ...], BeforeValidator(_split_csv)] = ()  # peers allowed to set X-Forwarded-For (Caddy); empty = ignore XFF
 
-    @field_validator("otlp_endpoint")
+    @field_validator("otlp_endpoint", "otlp_grpc_endpoint")
     @classmethod
     def _no_credentials_in_url(cls, v: str | None) -> str | None:
         if v is not None:

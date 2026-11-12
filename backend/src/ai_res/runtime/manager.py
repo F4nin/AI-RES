@@ -25,7 +25,7 @@ async def run(settings: Settings) -> None:
 
 
 def main() -> int:
-    return main_of(run)
+    return main_of(run, service="ai-res-manager-runtime")
 
 
 if __name__ == "__main__":

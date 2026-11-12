@@ -25,7 +25,11 @@ RULES = {
     ),
 }
 SKIP_SUFFIX = {".png", ".jpg", ".gif", ".ico", ".pdf", ".lock", ".sum"}
-ALLOW = {"infra/tests/test_scan_secrets.py", "backend/tests/unit/test_platform.py"}  # deliberately fake violations
+ALLOW = {  # deliberately fake violations
+    "infra/tests/test_scan_secrets.py",
+    "backend/tests/unit/test_platform.py",
+    "backend/tests/unit/test_telemetry_export.py",
+}
 
 
 def files(root: Path) -> list[Path]:
