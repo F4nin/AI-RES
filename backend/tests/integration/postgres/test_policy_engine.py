@@ -81,8 +81,22 @@ for a in ADMIN_ACTIONS:
         MATRIX.append((who, a, "NOBODY", mfa, effect, reason))
 
 
+READ_ACTIONS = {"project.read": "PROJECT", "epic.read": "EPIC", "task.read": "TASK", "requirement.read": "REQUIREMENT", "source.read": "SOURCE", "artifact.read": "ARTIFACT",
+                "worker_run.read": "WORKER_RUN"}  # S08: (who, mfa) -> (effect, reason); organization Owner/Admin hold no read grant by decision of the owner (OD-15)
+READ_CASES = [("PADMIN", True, ALLOW, "allowed_role:PROJECT_ADMIN"), ("PADMIN", False, DENY, "mfa_required"), ("ANALYST", False, ALLOW, "allowed_role:ANALYST"),
+              ("AUDITOR", False, ALLOW, "allowed_role:AUDITOR"), ("OWNER", True, DENY, "no_matching_grant"), ("ADMIN", True, DENY, "no_matching_grant"),
+              ("NOBODY", True, DENY, "no_matching_grant")]
+
+
 def test_matrix_covers_every_action_of_the_packaged_policy() -> None:
-    assert {m[1] for m in MATRIX} == set(load_packaged_policy().actions)  # a new action without a matrix row fails here
+    assert {m[1] for m in MATRIX} | set(READ_ACTIONS) == set(load_packaged_policy().actions)  # a new action without a matrix row fails here
+
+
+@pytest.mark.parametrize("action", sorted(READ_ACTIONS))
+@pytest.mark.parametrize(("who", "mfa", "effect", "reason"), READ_CASES)
+async def test_read_actions_follow_the_project_membership_matrix(engine: PolicyEngine, cast: Cast, action: str, who: str, mfa: bool, effect: Effect, reason: str) -> None:
+    d = await engine.decide(req(cast, who, action, mfa=mfa, rtype=READ_ACTIONS[action], project_id=str(cast.project)))
+    assert (d.effect, d.reason_code) == (effect, reason)
 
 
 @pytest.mark.parametrize(("who", "action", "target", "mfa", "effect", "reason"), MATRIX)

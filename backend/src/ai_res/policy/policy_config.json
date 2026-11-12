@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "version": "2026-11-11.1",
+  "version": "2026-11-12.1",
   "status": "WORKING",
   "privilegedRoles": ["ORGANIZATION_OWNER", "ORGANIZATION_ADMIN", "PROJECT_ADMIN"],
   "actions": {
@@ -10,6 +10,13 @@
     "iam.self.mfa_manage":      {"resourceType": "USER", "allow": {"self": true}},
     "iam.user.disable":         {"resourceType": "USER", "allow": {"orgRoles": ["ORGANIZATION_OWNER", "ORGANIZATION_ADMIN"]}, "humanOnly": true},
     "iam.user.mfa_reset":       {"resourceType": "USER", "allow": {"orgRoles": ["ORGANIZATION_OWNER", "ORGANIZATION_ADMIN"]}, "humanOnly": true, "requiresMfa": true},
-    "iam.membership.revoke":    {"resourceType": "USER", "allow": {"orgRoles": ["ORGANIZATION_OWNER", "ORGANIZATION_ADMIN"]}, "humanOnly": true}
+    "iam.membership.revoke":    {"resourceType": "USER", "allow": {"orgRoles": ["ORGANIZATION_OWNER", "ORGANIZATION_ADMIN"]}, "humanOnly": true},
+    "project.read": {"resourceType": "PROJECT", "allow": {"projectRoles": ["PROJECT_ADMIN", "ANALYST", "REVIEWER_APPROVER", "READ_ONLY_VIEWER", "AUDITOR"], "orgRoles": ["AUDITOR"]}},
+    "epic.read": {"resourceType": "EPIC", "allow": {"projectRoles": ["PROJECT_ADMIN", "ANALYST", "REVIEWER_APPROVER", "READ_ONLY_VIEWER", "AUDITOR"], "orgRoles": ["AUDITOR"]}},
+    "task.read": {"resourceType": "TASK", "allow": {"projectRoles": ["PROJECT_ADMIN", "ANALYST", "REVIEWER_APPROVER", "READ_ONLY_VIEWER", "AUDITOR"], "orgRoles": ["AUDITOR"]}},
+    "requirement.read": {"resourceType": "REQUIREMENT", "allow": {"projectRoles": ["PROJECT_ADMIN", "ANALYST", "REVIEWER_APPROVER", "READ_ONLY_VIEWER", "AUDITOR"], "orgRoles": ["AUDITOR"]}},
+    "source.read": {"resourceType": "SOURCE", "allow": {"projectRoles": ["PROJECT_ADMIN", "ANALYST", "REVIEWER_APPROVER", "READ_ONLY_VIEWER", "AUDITOR"], "orgRoles": ["AUDITOR"]}},
+    "artifact.read": {"resourceType": "ARTIFACT", "allow": {"projectRoles": ["PROJECT_ADMIN", "ANALYST", "REVIEWER_APPROVER", "READ_ONLY_VIEWER", "AUDITOR"], "orgRoles": ["AUDITOR"]}},
+    "worker_run.read": {"resourceType": "WORKER_RUN", "allow": {"projectRoles": ["PROJECT_ADMIN", "ANALYST", "REVIEWER_APPROVER", "READ_ONLY_VIEWER", "AUDITOR"], "orgRoles": ["AUDITOR"]}}
   }
 }

@@ -39,6 +39,8 @@ class Settings(BaseModel):
     otlp_endpoint: str | None = None
     cursor_hmac_key_id: str = Field(default="k1", pattern=r"^[A-Za-z0-9._-]{1,32}$")
     cursor_hmac_key_file: Path | None = None
+    read_lookup_max_projects: int = Field(default=100, ge=1, le=1000)  # WORKING: bound on by-id project probing (ADR-075, G-87)
+    cursor_ttl_seconds: int = Field(default=900, ge=60, le=86400)  # WORKING (page-token lifetime is not fixed by a contract); ADR-074
     # PostgreSQL connection (S04). Passwords only via *_file. Numeric defaults are WORKING technical values (ADR-047), not SLOs (OD-02).
     db_host: str | None = None
     db_port: int = Field(default=5432, ge=1, le=65535)

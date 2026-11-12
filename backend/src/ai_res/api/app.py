@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from opentelemetry.sdk.trace import TracerProvider
 
 from ai_res.api.identity import IdentityServices, build_identity_services, register_identity
+from ai_res.api.read_api import register_read_api
 from ai_res.platform.boundary import ErrorBoundaryMiddleware
 from ai_res.platform.config import Settings, cursor_key_ring, load_settings
 from ai_res.platform.correlation import CorrelationMiddleware
@@ -22,6 +23,7 @@ def create_app(settings: Settings, tracer_provider: TracerProvider | None = None
     # add_middleware: last added is outermost. Order outer->inner: correlation, telemetry, error boundary.
     if identity is not None:
         register_identity(app, identity)
+        register_read_api(app, identity)
     app.add_middleware(ErrorBoundaryMiddleware)
     app.add_middleware(TelemetryMiddleware, tracer=provider.get_tracer(SERVICE_NAME))
     app.add_middleware(CorrelationMiddleware)

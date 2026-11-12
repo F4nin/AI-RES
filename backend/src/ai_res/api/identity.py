@@ -38,6 +38,7 @@ class IdentityServices:
     mfa: MfaService
     enforcer: PolicyEnforcer
     trusted_proxies: tuple[Any, ...]
+    current_session: Any = None  # FastAPI dependency set by register_identity; reused by other routers so every endpoint shares one authentication path
 
 
 def build_identity_services(settings: Settings, factory: Any | None = None) -> IdentityServices:
@@ -205,5 +206,6 @@ def register_identity(app: FastAPI, services: IdentityServices) -> None:
         _no_store(response)
         return {"id": str(view.id), "displayName": view.display_name, "organizations": [{"organizationId": str(i), "name": n} for i, n in view.organizations]}
 
+    services.current_session = current_session
     app.include_router(router)
     app.state.identity = services
