@@ -1,6 +1,6 @@
 # S10 — Outbox dispatcher, Inbox и CloudEvents: Increment Report
 
-**Дата:** 2026-11-12 · **Промпт:** `increments/prompts/S10_outbox_dispatcher_inbox_cloudevents.md` · **Итоговый статус:** TESTED (локально, `make pre-pr` ok; Linux CI на PR ещё не запускался — до VERIFIED не заявляется)
+**Дата:** 2026-11-12 · **Промпт:** `increments/prompts/S10_outbox_dispatcher_inbox_cloudevents.md` · **Итоговый статус:** VERIFIED (локально `make pre-pr` ok; GitHub Actions на Linux зелёный (2026-11-12, PR #9, коммит 248cd08: ci 43220712053 и 43220722294, contracts 43220712147 и 43220722299 — backend/infra-static/infra-runtime/contracts success))
 
 ## 1. Что реализовано
 - **OD-13 решён владельцем (2026-11-12) → ADR-084:** `dataschema = urn:aires:schemas:<type>`; `source` — URN по виду агрегата; NCP-09…11 — следовать AsyncAPI (правки нормативных документов остаются NCP).
@@ -53,7 +53,7 @@ NCP-09…11 остаются PROPOSED (решение: следовать AsyncA
 |---|---|---|
 | G1–G9 локально | `make pre-pr` | exit 0: backend **964 passed** (PostgreSQL 16 Testcontainers, 14:13), contracts **22**, infra static **186**, runtime **99**; ruff, mypy strict, import-linter (8 kept) чисто |
 | S10 | `uv run --locked pytest -q tests/unit/test_event_delivery_units.py tests/integration/postgres/test_event_delivery.py` | зелёные в составе полного прогона |
-| Linux CI | — | **не выполнялся** (нет PR); вердикт VERIFIED не заявляется |
+| Linux CI | GitHub Actions, PR #9 | success: ci 43220712053, 43220722294 (backend 11м05с/8м35с, infra-static, infra-runtime), contracts 43220712147, 43220722299 |
 
 Обязательные тесты промпта покрыты: crash after commit-before-publish; PERSIST-015 (crash after publish-before-mark → duplicate → no-op); PERSIST-016 (inbox crash before commit → нет следа); gap → defer; poison не блокирует поток; конкурентные dispatcher'ы; payload privacy (контракт, ключи, логи); dispatcher видит все tenants; рост → алерт, без удаления (у ролей нет DELETE).
 
@@ -64,7 +64,7 @@ Fencing: чужой owner, чужой attempt, тот же owner после ре
 `reviews/S10_REVIEWS.md` (три агента). Дельта после исправлений агентом не пересматривалась; проверена тестами.
 
 ## 12. Не выполненные проверки, ограничения, риски
-Linux CI; dispatcher не развёрнут и не проверен как процесс в стеке (G-98); метрики не проверены на реальном MeterProvider; план запроса claim и `stats()` не измерены на большом backlog (G-102); аудит replay (G-100); WORKING-значения не откалиброваны (OD-02). Exactly-once нигде не заявляется.
+Dispatcher не развёрнут и не проверен как процесс в стеке (G-98); метрики не проверены на реальном MeterProvider; план запроса claim и `stats()` не измерены на большом backlog (G-102); аудит replay (G-100); WORKING-значения не откалиброваны (OD-02). Exactly-once нигде не заявляется.
 
 ## 13. Обновлённые документы и статусы
 STATUS (S10 TESTED), CONTEXT_HANDOFF, ADL, KNOWN_GAPS, DECISIONS_PENDING, NCP, ECC_USAGE, REQUIREMENTS_TRACEABILITY (PERSIST-015/016), runbook.
@@ -74,4 +74,4 @@ STATUS (S10 TESTED), CONTEXT_HANDOFF, ADL, KNOWN_GAPS, DECISIONS_PENDING, NCP, E
 - ⚠️ Observability: инструментировано, экспорт не проверен (G-102). ⚠️ Dispatcher «как процесс» — библиотека и CLI, без Compose (G-98). ❌ VERIFIED: ждёт Linux CI.
 
 ## 15. Можно ли начинать следующий этап
-Технически да (S11 не зависит от Compose-сервиса dispatcher), но по правилам ADR-032 зависимость «S10 DONE» требует VERIFIED/решения владельца: сначала PR и зелёный CI. Первый consumer (S12, SSE) закроет G-98.
+Да, после слияния PR #9 в `main` (ветку S11 создавать от актуального `main`). Первый consumer (S12, SSE) закроет G-98. Дополнительно в PR #10 исправлен нестабильный тест S08.

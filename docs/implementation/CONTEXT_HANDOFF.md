@@ -1,6 +1,6 @@
 # CONTEXT_HANDOFF — состояние для продолжения работы (обновлять в конце каждого этапа и сессии)
 
-**Обновлено:** 2026-11-12 (S10 TESTED) · Автоподстановка в сессию: `.claude/hooks/session-brief.mjs` (SessionStart: startup/resume/clear/compact). Первые 60 строк файла попадают в контекст — держи файл коротким.
+**Обновлено:** 2026-11-12 (S10 VERIFIED) · Автоподстановка в сессию: `.claude/hooks/session-brief.mjs` (SessionStart: startup/resume/clear/compact). Первые 60 строк файла попадают в контекст — держи файл коротким.
 
 ## Где мы
 - S00 IMPLEMENTED, **S01–S04 VERIFIED/DONE**. S03 — локальный Compose-стек (TLS Postgres, SOPS/age, CI). **S04 (2026-11-11)** — Alembic env + PDB-0001 (18 схем, роли, USAGE-гранты), provisioning ролей (`infra/config/postgres/provision_roles.sql`), одноразовая служба `migrate`, `db/` (engine, Unit of Work, tenant context), audit SQL + `audit.sh` gate, reviewed `backend/ops/postgres/schema_snapshot.sql`. Тесты: backend 159 (PostgreSQL 16.15 Testcontainers), runtime 95, infra static 77, contracts 19. Отчёт: `increments/S04_persistence_foundation_REPORT.md`; review: `reviews/S04_REVIEWS.md` (0 HIGH/CRITICAL); ADR-046…049.
@@ -16,7 +16,7 @@
 
 - **S09 VERIFIED (2026-11-12), PR #8, Linux CI зелёный (ci 43203466196/43203684744, contracts 43203466171/43203684738), влит в `main`:** 6 команд записи, миграция 0014, ADR-078…083, G-91…G-97, OD-18, политика 2026-11-12.2 (WORKING), секрет `idempotency_keyring`. `make pre-pr` ok (backend 924, infra 186, runtime 99), review без CRITICAL/HIGH (`reviews/S09_REVIEWS.md`). `createTask` — S21. Следующий этап: S10 (сначала OD-13). Загрузки в стеке отвечают 503 до S27 (G-92).
 
-- **S10 TESTED (2026-11-12), ветка `feat/s10-outbox-dispatcher-inbox-cloudevents` (не закоммичена; PR — по просьбе владельца):** OD-13 решён (ADR-084), миграция 0015, dispatcher/consumer/contract/CLI, ADR-085/086, G-98…G-103, NCP-13, runbook `docs/runbooks/outbox.md`; `make pre-pr` ok (backend 964, infra 186, runtime 99, contracts 22); review без CRITICAL/HIGH. Для VERIFIED нужен зелёный Linux CI. Dispatcher не в Compose (G-98) — закроется первым consumer'ом (S12). Следующий этап: S11 (после VERIFIED/слияния S10). Известный нестабильный тест S08 `test_the_contract_run_reached_real_objects…` (зависит от `hash()`), упал один раз на CI `main`.
+- **S10 VERIFIED (2026-11-12), PR #9 (`feat/s10-outbox-dispatcher-inbox-cloudevents`), Linux CI зелёный (ci 43220712053/43220722294, contracts 43220712147/43220722299); влить в `main` по решению владельца:** OD-13 решён (ADR-084), миграция 0015, dispatcher/consumer/contract/CLI, ADR-085/086, G-98…G-103, NCP-13, runbook `docs/runbooks/outbox.md`; `make pre-pr` ok (backend 964, infra 186, runtime 99, contracts 22); review без CRITICAL/HIGH. Dispatcher не в Compose (G-98) — закроется первым consumer'ом (S12). Следующий этап: S11 (ветку создать от актуального `main` после слияния PR #9). Нестабильный тест S08 исправлен (PR #10, смержен, `derandomize` + `crc32`).
 
 ## Порядок действий в новой сессии
 1. `CLAUDE.md` → `IMPLEMENTATION_CHARTER.md` → этот файл → `IMPLEMENTATION_STATUS.md`.
