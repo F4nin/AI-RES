@@ -204,7 +204,7 @@
 | DEP-MVP-13 | DOC-009 | Аудит переходов | Обязательно | S23, S30 | NOT_STARTED |
 | DEP-MVP-14 | DOC-009 | Замещение | Обязательно | S23, S30 | NOT_STARTED |
 | INF-MVP-001 | DOC-009 | Развёртывать MVP локально через Docker Compose | MVP | S03; S11; S13; S32 | TESTED (S03) |
-| INF-MVP-002 | DOC-009 | Разделить API, Manager Runtime и общий Worker Runtime | MVP | S03; S11; S13; S32 | IN_PROGRESS (S11 TESTED: процессы и очереди разделены, WorkerRun — S23) |
+| INF-MVP-002 | DOC-009 | Разделить API, Manager Runtime и общий Worker Runtime | MVP | S03; S11; S13; S32 | IN_PROGRESS (S11 VERIFIED: процессы и очереди разделены, WorkerRun — S23) |
 | INF-MVP-003 | DOC-009 | Использовать Temporal как durable Workflow Engine, LangGraph — для агентной логики | MVP | S03; S11; S13; S32 | NOT_STARTED |
 | INF-MVP-004 | DOC-009 | Разделить `ai_res_db` и `temporal_db` в одном PostgreSQL instance | MVP | S03; S11; S13; S32 | TESTED (S03; + temporal_visibility_db, G-39) |
 | INF-MVP-005 | DOC-009 | Использовать PostgreSQL Checkpointer LangGraph с отделением от доменных таблиц | MVP | S03; S11; S13; S32 | PARTIAL (S03: schema+роль provisioned, TESTED; брокер — S23) |

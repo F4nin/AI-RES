@@ -1,6 +1,6 @@
 # S11 — Temporal foundation и dispatch Operation: Increment Report
 
-**Дата:** 2026-11-12 · **Промпт:** `increments/prompts/S11_temporal_foundation_operation_dispatch.md` · **Итоговый статус:** TESTED (локально; GitHub Actions на Linux для ветки ещё не запускался — до зелёного CI статус не выше TESTED)
+**Дата:** 2026-11-12 · **Промпт:** `increments/prompts/S11_temporal_foundation_operation_dispatch.md` · **Итоговый статус:** VERIFIED (Linux CI зелёный (PR #11, ci 43233885212/43233901267: backend, infra-runtime, infra-static, contracts — success; contracts 43233885308/43233901331); влит в `main`, b0991a5)
 
 ## 1. Что реализовано
 - Пакеты `ai_res/orchestration` (контракты, `OperationWorkflow`, Activities, порт `OperationPlatform`, HTTP-клиент, воркеры) и `ai_res/runtime` (процессы `manager`, `worker`); очереди `ai-res-manager` / `ai-res-workers`; Manager и Worker не импортируют БД (контракт import-linter) и не имеют DB-секретов/сети `data`.
@@ -68,7 +68,7 @@ NCP-14 (контракт внутреннего API; кто подтвержда
 `reviews/S11_REVIEWS.md`: CRITICAL 0; HIGH сведены в 4 группы — две исправлены (R1–R4), две зафиксированы с решением владельца (G-104/OD-19, G-108). Дельта правок отдельным агентом не пересматривалась.
 
 ## 12. Не выполненные проверки, ограничения, риски
-- Linux CI не запускался; Compose-сервер Temporal 1.29.7 отличается от dev-сервера тестов (G-105).
+- Compose-сервер Temporal 1.29.7 отличается от dev-сервера тестов (G-105).
 - Нет reconciler'а, производителя start-команды и аутентификации Temporal (G-107, G-104): реальные типы Operation на маршрут направлять нельзя.
 - В локальной БД остались тестовые организации/Operation (`s11-smoke`, `s11-runtime-test`).
 
@@ -76,7 +76,7 @@ NCP-14 (контракт внутреннего API; кто подтвержда
 ADL (ADR-087…090), KNOWN_GAPS (G-104…G-111; G-98 PARTIAL, G-99 закрыт для dispatcher), NCP-14, DECISIONS_PENDING (OD-19), ECC_USAGE, IMPLEMENTATION_STATUS, CONTEXT_HANDOFF, runbook, review-файл. Traceability: INF-MVP-002 → IMPLEMENTED (частично, до S13/S32).
 
 ## 14. Статус DoD
-✅ runtimes и очереди; ✅ skeleton + идемпотентный старт; ✅ replay-тесты; ✅ scan истории; ✅ изоляция Manager/Worker (статика + живой стек); ✅ runbook; ✅ reviews; ⚠️ зелёный Linux CI — не получен; ❌ аутентификация Temporal/reconciler — вне этапа, открыто.
+✅ runtimes и очереди; ✅ skeleton + идемпотентный старт; ✅ replay-тесты; ✅ scan истории; ✅ изоляция Manager/Worker (статика + живой стек); ✅ runbook; ✅ reviews; ✅ зелёный Linux CI (ci 43233885212, 43233901267); ❌ аутентификация Temporal/reconciler — вне этапа, открыто.
 
 ## 15. Можно ли начинать следующий этап
-Да — S12 (cancel + первый consumer), с условием: до первого производителя start-команды закрыть G-107 и принять решение по G-104/OD-19. Сначала нужен зелёный CI ветки S11.
+Да — S12 (cancel + первый consumer), с условием: до первого производителя start-команды закрыть G-107 и принять решение по G-104/OD-19. CI S11 зелёный.
