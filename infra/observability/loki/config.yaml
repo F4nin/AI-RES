@@ -1,5 +1,5 @@
-# S13: Loki single-binary, filesystem storage, OTLP ingestion (/otlp). Retention is NOT configured: the period is an owner decision (OD-02, DOC-024 §8);
-# `compactor.retention_enabled` stays false, so nothing is deleted automatically (ADR-030). Disk growth is watched by the storage alerts.
+# S13: Loki single-binary, filesystem storage, OTLP ingestion (/otlp). Logs are kept 30 days: owner decision 2026-11-13 (OD-02, OBS-SEC-007), deletion by the compactor.
+# Telemetry only: the Audit Log (PostgreSQL) has its own retention and is not touched.
 auth_enabled: false
 server: { http_listen_port: 3100, grpc_listen_port: 9096, log_level: warn }
 common:
@@ -17,5 +17,6 @@ limits_config:
   max_label_names_per_series: 15       # WORKING
   ingestion_rate_mb: 4                 # WORKING
   ingestion_burst_size_mb: 6           # WORKING
-compactor: { working_directory: /loki/compactor, retention_enabled: false }
+  retention_period: 720h               # 30 days, owner decision
+compactor: { working_directory: /loki/compactor, retention_enabled: true, delete_request_store: filesystem }
 analytics: { reporting_enabled: false }

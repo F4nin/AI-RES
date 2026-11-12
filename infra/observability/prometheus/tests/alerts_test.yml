@@ -13,7 +13,7 @@ tests:
       - eval_time: 6m
         alertname: TargetDown
         exp_alerts:
-          - exp_labels: { severity: critical, scope: infrastructure, owner: platform-operations, job: loki, instance: "loki:3100" }
+          - exp_labels: { severity: critical, scope: infrastructure, owner: project-owner, job: loki, instance: "loki:3100" }
             exp_annotations:
               summary: "Scrape target loki is not answering"
               description: "Fact: Prometheus cannot scrape job loki (loki:3100). Cause is not determined by this alert."
@@ -40,7 +40,7 @@ tests:
       - eval_time: 8m
         alertname: OutboxOldestUndeliveredTooOld
         exp_alerts:
-          - exp_labels: { severity: warning, scope: events, owner: platform-operations, service_name: ai-res-outbox-dispatcher }
+          - exp_labels: { severity: warning, scope: events, owner: project-owner, service_name: ai-res-outbox-dispatcher }
             exp_annotations:
               summary: "Oldest undelivered outbox row is older than the configured threshold"
               description: "Fact: age of the oldest undelivered row exceeds ai_res:threshold:outbox_oldest_undelivered_age_seconds (WORKING, OD-02)."
@@ -61,7 +61,7 @@ tests:
       - eval_time: 9m
         alertname: OutboxQuarantined
         exp_alerts:
-          - exp_labels: { severity: critical, scope: events, owner: platform-operations, status: QUARANTINED }
+          - exp_labels: { severity: critical, scope: events, owner: project-owner, status: QUARANTINED }
             exp_annotations:
               summary: "Outbox holds quarantined events"
               description: "Fact: 2 outbox rows are QUARANTINED (poison or permanently failing). Replay is a controlled manual step."
@@ -80,7 +80,7 @@ tests:
       - eval_time: 14m
         alertname: ApiServerErrorRatioHigh
         exp_alerts:
-          - exp_labels: { severity: critical, scope: api, owner: platform-operations, service_name: ai-res-api }
+          - exp_labels: { severity: critical, scope: api, owner: project-owner, service_name: ai-res-api }
             exp_annotations:
               summary: "ai-res-api: share of 5xx responses above the configured threshold"
               description: "Fact: 5xx share over 5m exceeds ai_res:threshold:api_5xx_ratio (WORKING, OD-02)."
@@ -97,7 +97,7 @@ tests:
       - eval_time: 12m
         alertname: TelemetryExportFailing
         exp_alerts:
-          - exp_labels: { severity: warning, scope: telemetry, owner: platform-operations, service_name: ai-res-api, operation: traces }
+          - exp_labels: { severity: warning, scope: telemetry, owner: project-owner, service_name: ai-res-api, operation: traces }
             exp_annotations:
               summary: "ai-res-api cannot export traces to the Collector"
               description: "Fact: export batches of traces from ai-res-api failed within 5m; the data was dropped (fail-open)."
@@ -115,7 +115,7 @@ tests:
       - eval_time: 12m
         alertname: CollectorBackendExportFailing
         exp_alerts:
-          - exp_labels: { severity: warning, scope: telemetry, owner: platform-operations, exporter: otlp/tempo }
+          - exp_labels: { severity: warning, scope: telemetry, owner: project-owner, exporter: otlp/tempo }
             exp_annotations:
               summary: "Collector cannot deliver data to otlp/tempo"
               description: "Fact: the Collector failed to send data via exporter otlp/tempo within 5m; queued data is dropped after its bounded retry."
@@ -132,7 +132,7 @@ tests:
       - eval_time: 9m
         alertname: UnknownMajorEventVersion
         exp_alerts:
-          - exp_labels: { severity: critical, scope: events, owner: platform-operations }
+          - exp_labels: { severity: critical, scope: events, owner: project-owner }
             exp_annotations:
               summary: "Events of an unknown type or major version were received"
               description: "Fact: unknown event type/major version within 15m; they were quarantined, not applied (fail closed)."
@@ -156,7 +156,7 @@ tests:
       - eval_time: 14m
         alertname: ApplicationTelemetryMissing
         exp_alerts:
-          - exp_labels: { severity: warning, scope: telemetry, owner: platform-operations, job: ai-res-worker-runtime }
+          - exp_labels: { severity: warning, scope: telemetry, owner: project-owner, job: ai-res-worker-runtime }
             exp_annotations:
               summary: "No telemetry from ai-res-worker-runtime for 10 minutes"
               description: "Fact: no metrics from ai-res-worker-runtime reached Prometheus within 10m. The process may be down, or its export may be broken; this alert does not tell which."

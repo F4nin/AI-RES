@@ -55,3 +55,6 @@ Redaction: канареечные секреты (Bearer, JWT, key=value, DSN, P
 
 ## Следующий безопасный инкремент
 После слияния PR #16 и решения владельца по G-126/OD-02 — S14.
+
+## Дополнение 2026-11-13 — решения владельца по OD-02 (ADR-100)
+Пороги алертов (стартовые, WORKING, пересмотр на S33), retention 30/7/30 дней, получатели только Alertmanager/дашборд и owner `project-owner` реализованы в ветке `feat/s13-owner-decisions`. Проверка: infra static 159 passed (включая promtool `thresholds_test.yml`), `make up` + runtime 148 passed (0 skipped); вживую подтверждены 6 порогов в Prometheus, retention 30d и Loki `retention_period: 30d`. Linux CI для этой дельты не запускался. Остаётся открытым (требует NCP/решения владельца): аутентификация внутренних путей (G-123), NCP-15, `traceparent` через Outbox (G-126).

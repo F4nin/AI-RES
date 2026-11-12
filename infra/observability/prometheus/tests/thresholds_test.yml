@@ -1,0 +1,35 @@
+# Loads the REAL thresholds.yml (owner starting values, status WORKING, OD-02) together with alerts.yml.
+rule_files: [../rules/alerts.yml, ../rules/thresholds.yml]
+evaluation_interval: 1m
+tests:
+  - name: every recorded starting threshold exists with its owner value and the WORKING marker
+    interval: 1m
+    input_series:
+      - { series: 'up{job="loki",instance="loki:3100"}', values: "1x3" }
+    promql_expr_test:
+      - { expr: 'ai_res:threshold:api_5xx_ratio', eval_time: 2m, exp_samples: [ { labels: 'ai_res:threshold:api_5xx_ratio{status="WORKING"}', value: 0.05 } ] }
+      - { expr: 'ai_res:threshold:api_latency_p95_seconds', eval_time: 2m, exp_samples: [ { labels: 'ai_res:threshold:api_latency_p95_seconds{status="WORKING"}', value: 1 } ] }
+      - { expr: 'ai_res:threshold:temporal_schedule_to_start_p95_seconds', eval_time: 2m, exp_samples: [ { labels: 'ai_res:threshold:temporal_schedule_to_start_p95_seconds{status="WORKING"}', value: 5 } ] }
+      - { expr: 'ai_res:threshold:minio_free_ratio', eval_time: 2m, exp_samples: [ { labels: 'ai_res:threshold:minio_free_ratio{status="WORKING"}', value: 0.15 } ] }
+      - { expr: 'ai_res:threshold:outbox_oldest_undelivered_age_seconds', eval_time: 2m, exp_samples: [ { labels: 'ai_res:threshold:outbox_oldest_undelivered_age_seconds{status="WORKING"}', value: 300 } ] }
+      - { expr: 'ai_res:threshold:collector_queue_fill_ratio', eval_time: 2m, exp_samples: [ { labels: 'ai_res:threshold:collector_queue_fill_ratio{status="WORKING"}', value: 0.9 } ] }
+
+  - name: the outbox age alert is live with the recorded threshold (300s) and silent below it
+    interval: 1m
+    input_series:
+      - { series: 'ai_res_outbox_oldest_undelivered_age_seconds{service_name="ai-res-outbox-dispatcher"}', values: "100 100 100 100 100 400 400 400 400 400 400 400" }
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: OutboxOldestUndeliveredTooOld
+        exp_alerts: []
+      - eval_time: 11m
+        alertname: OutboxOldestUndeliveredTooOld
+        exp_alerts:
+          - exp_labels: { severity: warning, scope: events, owner: project-owner, service_name: ai-res-outbox-dispatcher }
+            exp_annotations:
+              summary: "Oldest undelivered outbox row is older than the configured threshold"
+              description: "Fact: age of the oldest undelivered row exceeds ai_res:threshold:outbox_oldest_undelivered_age_seconds (WORKING, OD-02)."
+              runbook: docs/runbooks/outbox.md
+              user_impact: "Operations may start late; REST snapshots stay correct."
+              auto_action: none
+              silence_policy: "Silence allowed while the dispatcher is intentionally stopped."

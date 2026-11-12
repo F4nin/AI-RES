@@ -1,6 +1,6 @@
 # Runbook — Observability stack и мониторинг (S13)
 
-Статус: ненормативный; опирается на DOC-024 §3–§9, DOC-025 (OBS-MON/SEC/ALR), DOC-015 §10. Все числа (окна `for`, пороги, retention, sizing, получатели алертов) — WORKING или открыты (OD-02): не утверждены.
+Статус: ненормативный; опирается на DOC-024 §3–§9, DOC-025 (OBS-MON/SEC/ALR), DOC-015 §10. Числа (окна `for`, стартовые пороги, retention, sizing) — WORKING: стартовые значения заданы владельцем 2026-11-13 (ADR-100) и подлежат калибровке на S33. Получателей кроме Alertmanager нет.
 
 ## Что это и чем не является
 `API / Manager / Worker / dispatcher → OTLP → OTel Collector (redaction) → Prometheus (scrape) / Loki / Tempo → Grafana`; алерты: правила Prometheus → Alertmanager (один путь). Telemetry — диагностическая проекция: она **не источник истины** и **не Audit Log**. Audit пишется доменными сервисами в PostgreSQL независимо от Collector; потеря telemetry не останавливает домен (fail-open), отказ обязательной audit-записи останавливает защищённое действие (fail-closed).
@@ -24,7 +24,7 @@ Grafana доступна только в сети `admin` (порта на хо�
 `make infra-test` (статика: конфиги, алерты, promtool, линтеры), `make infra-test-runtime` (на живом стеке: redaction до Loki/Tempo, остановка backend'ов не ломает API, audit не зависит от telemetry), `cd backend && uv run pytest tests/unit/test_telemetry_export.py`.
 
 ## Алерты
-Каждый алерт содержит severity, scope, owner, `for`, runbook, user_impact, auto_action (всегда `none`), silence_policy. Alertmanager **не имеет получателей**: назначение получателей/дежурных — решение владельца (OD-02, OBS-ALR-006); до него алерты видны в Alertmanager и на дашборде Platform Overview. Числовые пороги **не заданы**: алерты по порогам инертны, пока владелец не запишет значение в `infra/observability/prometheus/rules/thresholds.yml` (имена — в комментарии файла).
+Каждый алерт содержит severity, scope, owner, `for`, runbook, user_impact, auto_action (всегда `none`), silence_policy. Alertmanager **не имеет внешних получателей** (решение владельца 2026-11-13, ADR-100: только Alertmanager и дашборд Platform Overview; `owner` алертов — `project-owner`). Для production-like запуска всё ещё нужна эскалация человеку (OBS-ALR-006). Стартовые пороги записаны в `infra/observability/prometheus/rules/thresholds.yml` (статус WORKING, не SLO); меняются только решением владельца с записью в ADL.
 
 ### TargetDown
 Факт: Prometheus не может снять метрики с job. Причину алерт не определяет. Шаги: `docker compose ps`, логи сервиса, сеть `observability`. Для `otel-collector` проверить `otelcol_*` и порт 8888/8889.
@@ -57,7 +57,7 @@ Grafana доступна только в сети `admin` (порта на хо�
 Факт: от job приложения (api, platform-api, outbox-dispatcher, manager-runtime, worker-runtime) 10 минут нет метрик в Prometheus. Алерт не различает «процесс остановлен» и «экспорт сломан». Шаги: `docker compose ps`, логи сервиса, `TelemetryExportFailing`, состояние `otel-collector`. Пока процесс не работает, алерты по его метрикам (outbox, inbox) сами исчезают через `metric_expiration` (5 мин) — этот алерт закрывает именно такой случай.
 
 ## Retention
-Сроки хранения **не заданы проектом** (OD-02, DOC-024 §8). Применяются умолчания компонентов, не решения AI RES: Prometheus — 15 дней, Tempo — `block_retention` по умолчанию, Loki — удаление выключено. Prometheus и Tempo удаляют данные по этим умолчаниям автоматически (это не решение AI RES); Loki не удаляет ничего. Явные сроки по классам данных — решение владельца (OD-02, OBS-SEC-007). Тома: `prometheus_data`, `loki_data`, `tempo_data`, `grafana_data`, `alertmanager_data` (удаляются только `make reset CONFIRM=yes`).
+Решение владельца 2026-11-13 (ADR-100, OBS-SEC-007): **метрики 30 дней, трейсы 7 дней, логи 30 дней**; явная конфигурация (Prometheus `--storage.tsdb.retention.time`, Tempo `block_retention`, Loki `retention_period` + compactor). Относится только к telemetry; Audit Log в PostgreSQL не затрагивается. Тома: `prometheus_data`, `loki_data`, `tempo_data`, `grafana_data`, `alertmanager_data` (удаляются только `make reset CONFIRM=yes`). Алерта на заполнение диска нет (G-127).
 
 ## Известные ограничения
 См. `docs/implementation/KNOWN_GAPS.md` (G-123…): TLS внутри сети `observability`, контекст трассы не передаётся через Outbox (API → dispatcher разрываются на два trace), нет метрик хоста/диска (node-exporter требует монтирования хоста), дашборды Manager&Workers / LLM&Tools / Product Quality ждут компонентов S15+/S23+.

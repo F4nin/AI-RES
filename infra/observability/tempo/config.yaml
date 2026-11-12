@@ -1,4 +1,4 @@
-# S13: Tempo single-binary, local storage. `compaction.block_retention` is left at the component default (it is NOT an AI RES decision; the period is open: OD-02).
+# S13: Tempo single-binary, local storage. Traces are kept 7 days: owner decision 2026-11-13 (OD-02, OBS-SEC-007). Telemetry only, not an audit record.
 stream_over_http_enabled: true
 server: { http_listen_port: 3200, grpc_listen_port: 9095, log_level: warn }
 distributor:
@@ -10,4 +10,5 @@ storage:
     backend: local
     wal: { path: /var/tempo/wal }
     local: { path: /var/tempo/blocks }
+compactor: { compaction: { block_retention: 168h } }
 usage_report: { reporting_enabled: false }
