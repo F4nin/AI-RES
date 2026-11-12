@@ -100,6 +100,11 @@
 | ADR-092 | S12: SSE проекта из event history — курсор, ACL на каждом опросе, retention gap | ACCEPTED |
 | ADR-093 | S12: completeUpload — проверка объекта хранилищем, Operation SOURCE_INGESTION, роли политики | ACCEPTED |
 | ADR-094 | S12 review follow-up: FAILED побеждает отложенную отмену; истёкший курсор SSE — gap; reconciler до S23 | ACCEPTED |
+| ADR-095 | S13: стек наблюдаемости — единый путь OTLP → Collector (allowlist-redaction) → Prometheus/Loki/Tempo/Grafana | ACCEPTED |
+| ADR-096 | S13: алерты как код — пороги без значений, `for` как WORKING, без получателей | ACCEPTED |
+| ADR-097 | S13: экспорт telemetry из процессов — fail-open, ограниченные очереди, измеряемая потеря, санитизация логов | ACCEPTED |
+| ADR-098 | S13: трассировка и метрики Temporal; контекст через Platform API, но не через Outbox | ACCEPTED |
+| ADR-099 | S13: PostgreSQL — application-side метрики пула; серверные метрики ждут monitoring-роли (NCP-15) | ACCEPTED |
 
 ---
 
@@ -1700,3 +1705,88 @@
 | Влияние на компоненты/контракты | `orchestration_service.record_failure`, `api/events_api.py`, `modules/events/stream.py`, `modules/sources/completion.py` (новый сервис completeUpload), `modules/sources/object_store.py` (клиент на вызов, составной checksum = непроверяемый объект) |
 | Риски и компромиссы | До reconciler зависшая отмена возможна (G-117); `FAILED` при отмене пользователя может удивить — отражено в событии (`from_status=CANCEL_REQUESTED`). |
 | Затронутые тесты | test_operation_cancellation, test_read_api (SSE), test_write_api (completeUpload), unit/test_s12_review_units |
+
+## ADR-095 — S13: стек наблюдаемости — единый путь OTLP → Collector (allowlist-redaction) → Prometheus/Loki/Tempo/Grafana
+
+| Поле | Значение |
+|---|---|
+| Статус | ACCEPTED |
+| Дата | 2026-11-12 |
+| Ответственный | Implementation Lead |
+| Проблема и контекст | Скелет Collector (S03) только печатал счётчики; нужно развернуть MVP-стек DOC-024 §4 так, чтобы redaction выполнялась до backend'ов, высококардинальные ID не попадали в labels, а потеря telemetry не влияла на домен. |
+| Связанные требования | OBS-MON-001/002/003/010/012/013, OBS-SEC-001..003/005/009, DOC-024 §3–§4, §7–§9; ADR-025 |
+| Документы и разделы | Observability Architecture v1.2 §3, §4, §7, §8; Monitoring & Alerting Requirements v1.0; Infrastructure v1.7 §10.1–§10.6 |
+| Альтернативы | Collector core-образ (нет `redaction`/`transform`); redaction только в backend'ах; blocklist вместо allowlist; ELK/SigNoz (запрещено DOC-015 §10.8 без потребности); Grafana Alerting вместе с Alertmanager (два пути); публикация Grafana на хост. |
+| Решение | `otel/opentelemetry-collector-contrib:0.116.1` (закреплён digest; тот же релиз, что и скелет). Конвейеры: traces `memory_limiter → redaction/traces (allow_all_keys=false + allowed_keys + blocked_values) → transform/traces (exception.message/stacktrace и status.message удаляются, остаётся тип) → batch → Tempo`; logs `memory_limiter → transform/logs (keep_keys + маскирование body и атрибутов) → batch → Loki (OTLP)`; metrics `memory_limiter → filter/metrics (только именованные семейства) → transform/metrics (allowlist меток) → batch → prometheus exporter :8889`, Prometheus скрейпит (также Temporal :9090, MinIO, сами компоненты). Новая internal-сеть `observability`; Prometheus/Loki/Tempo/Alertmanager — только в ней, Grafana — `observability` + `admin` (порта на хосте нет, анонимный доступ и регистрация выключены, пароль — Compose secret `grafana_admin_password` через `__FILE`). Одна точка маршрутизации алертов — Alertmanager. Retention не задаётся: действуют умолчания компонентов (не решение AI RES), удаления данных AI RES нет. `infra/config/otel` перенесён в `infra/observability/otel`. |
+| Обоснование | Allowlist безопаснее blocklist (новое поле по умолчанию не уезжает); redaction в Collector — вторая линия после санитайзера процесса; contrib-образ — единственный вариант с нужными процессорами в тот же релиз. |
+| Влияние на компоненты/контракты | `infra/compose.yaml` (+5 сервиса, сеть, тома, секрет), `check_compose.py` (политика сети/секретов), `secrets_dev.py`, `wait_stack.py`, `infra/observability/**`. |
+| Риски и компромиссы | OTLP-приёмник без аутентификации доступен в сетях `app`/`workflow` (G-123); внутри `observability` нет TLS; обновление версии redaction-процессора (в 0.116.1 нет `blocked_key_patterns`) требует пересмотра allowlist; умолчания retention — не решение (OD-02). |
+| Затронутые тесты | test_observability_static, runtime/test_observability (redaction до Loki/Tempo, labels, изоляция, деградация) |
+
+## ADR-096 — S13: алерты как код — пороги без значений, `for` как WORKING, без получателей
+
+| Поле | Значение |
+|---|---|
+| Статус | ACCEPTED |
+| Дата | 2026-11-12 |
+| Ответственный | Implementation Lead |
+| Проблема и контекст | DOC-025 требует алерты с полным набором метаданных, но числовые SLO/пороги, получатели и дежурные — открытые параметры (OD-02); Spec Add. v1.20 п.8 запрещает их изобретать. |
+| Связанные требования | OBS-MON-011, OBS-ALR-001..007; OD-02 |
+| Документы и разделы | Monitoring & Alerting Requirements v1.0 §5–§7; Observability Architecture v1.2 §9, §13 |
+| Альтернативы | Задать «разумные» числа (изобретение WORKING-значений); не писать числовые алерты вовсе (нет проверяемого механизма включения); Grafana-managed alerts. |
+| Решение | Правила Prometheus в `infra/observability/prometheus/rules/alerts.yml`, у каждого: severity, scope, owner, `for`, runbook, user_impact, auto_action=`none`, silence_policy; описание начинается с «Fact:» (факт отделён от гипотезы). Числовые пороги — серии `ai_res:threshold:<name>` в `thresholds.yml`, где **нет ни одного значения**: сравнение с отсутствующей серией не даёт результата, алерт инертен, пока владелец не запишет значение (promtool-тесты показывают оба состояния; значения в тестах — фикстуры). Структурные алерты (TargetDown, quarantine, unknown major, потеря экспорта) порогов не требуют. `for` — WORKING-защита от flapping, не SLO. `owner` — роль-заглушка (`platform-operations`, WORKING). Alertmanager без получателей (`unrouted`); inhibit TargetDown→warning. |
+| Обоснование | Механизм включения порога виден и проверен, но решение о значении остаётся у владельца; алерт не может выполнить действие (OBS-ALR-004). |
+| Влияние на компоненты/контракты | `alerts.yml`, `thresholds.yml`, `alertmanager.yml`, `prometheus/tests/alerts_test.yml`, runbook `docs/runbooks/observability.md`. |
+| Риски и компромиссы | До решения владельца числовые алерты не срабатывают, а страниц/уведомлений нет вообще — виден только Alertmanager/дашборд (OD-02, OBS-ALR-006). |
+| Затронутые тесты | test_observability_static (метаданные, runbook-якоря, promtool test + саботаж, пороги пусты), runtime (правила загружены и здоровы) |
+
+## ADR-097 — S13: экспорт telemetry из процессов — fail-open, ограниченные очереди, измеряемая потеря, санитизация логов
+
+| Поле | Значение |
+|---|---|
+| Статус | ACCEPTED |
+| Дата | 2026-11-12 |
+| Ответственный | Implementation Lead |
+| Проблема и контекст | Процессы (API, Platform API, dispatcher, Manager/Worker Runtime) должны отдавать traces/metrics/logs, не рискуя доступностью и не утекая секретами; потеря должна быть видимой. |
+| Связанные требования | OBS-MON-014/015/003, OBS-SEC-001..004; G-22 |
+| Документы и разделы | Observability Architecture v1.2 §2.5, §7; Infrastructure v1.7 §10.11 |
+| Альтернативы | Синхронный `SimpleSpanProcessor` (блокирует запрос); экспорт логов без санитайзера; docker-логи через docker.sock (запрещено); глобальная auto-instrumentation. |
+| Решение | `platform/export.py::install_telemetry`: `BatchSpanProcessor`/`PeriodicExportingMetricReader`/`BatchLogRecordProcessor` с ограниченной очередью (`otlp_queue_size`) и коротким таймаутом (`otlp_export_timeout_seconds`), OTLP/HTTP; без `otlp_endpoint` экспорта нет (no-op). Экспортёры-наследники считают неудачные батчи в `ai_res.telemetry.export_failures` и раз в минуту пишут одну строку в stderr; шум SDK-логгера ограничен. `_SanitizingLogHandler` экспортирует копию записи (message/extra через `redact`, исключение — только тип), оригинал для stdout не меняется; логгер `ai_res.telemetry` не экспортируется (нет петли). `TelemetryMiddleware` пишет `http.server.request.duration` (метки: method из белого списка, route-шаблон, класс статуса). Числа (очередь 2048, таймаут 5 с, период метрик 15 с) — WORKING, конфигурация. Audit не использует этот модуль (контракт import-linter + интеграционный тест). |
+| Обоснование | Ограниченные фоновые очереди дают «потеряли, а не зависли»; санитизация до экспорта — вторая линия перед Collector. |
+| Влияние на компоненты/контракты | `platform/export.py`, `platform/telemetry.py`, `platform/config.py`, `api/app.py`, `api/serve_internal.py`, `cli/dispatcher.py`, `runtime/lifecycle.py`, `pyproject.toml` (+opentelemetry-exporter-otlp-proto-http), контракт import-linter. |
+| Риски и компромиссы | Переполнение очереди batch-процессора не считается приложением (G-124); `LoggingHandler` SDK помечен deprecated (G-124); первая неудача экспорта видна только после периода метрик. |
+| Затронутые тесты | unit/test_telemetry_export (мёртвый Collector, санитизация, метрики), integration audit-независимость, runtime (остановка всех backend'ов) |
+
+## ADR-098 — S13: трассировка и метрики Temporal; контекст через Platform API, но не через Outbox
+
+| Поле | Значение |
+|---|---|
+| Статус | ACCEPTED |
+| Дата | 2026-11-12 |
+| Ответственный | Implementation Lead |
+| Проблема и контекст | G-108: нет OTel-интерсептора Temporal, trace linkage workflow и метрик очередей. |
+| Связанные требования | OBS-MON-002/004/007; G-108 |
+| Документы и разделы | Agent Observability v1.2 §4; Observability Architecture v1.2 §6 |
+| Альтернативы | Свой интерсептор; Prometheus-эндпоинт в каждом Runtime (Prometheus в сети `workflow`); propagation через событие Outbox (меняет контракт событий — NCP). |
+| Решение | `connect()` подключает `temporalio.contrib.opentelemetry.TracingInterceptor` (spans StartWorkflow/RunWorkflow/RunActivity, контекст — заголовок `_tracer-data` с `traceparent`, без payload) и `Runtime` с OpenTelemetry-метриками ядра SDK по OTLP/gRPC (`temporal_*`, секунды). `HttpOperationPlatform` передаёт `traceparent` (без baggage), Platform API продолжает trace. Серверные метрики Temporal — scrape `:9090` по сети `observability`. |
+| Обоснование | Один trace от запуска workflow через Activity до Platform API при нулевом изменении payload'ов; реплей совместим (тест). |
+| Влияние на компоненты/контракты | `orchestration/client.py`, `orchestration/http_platform.py`, `api/internal_api.py`, Compose (Temporal: `PROMETHEUS_ENDPOINT`, сеть `observability`). |
+| Риски и компромиссы | Контекст запроса API не доходит до dispatcher/workflow (Outbox не несёт `traceparent`): два trace вместо одного (G-126). Имена метрик SDK (schedule-to-start) не проверены реальным workflow в Compose (G-129). |
+| Затронутые тесты | integration/temporal (спаны в одном trace, заголовок содержит только trace-контекст, replay с интерсептором и без), runtime (метрики `temporal_*` в Prometheus) |
+
+## ADR-099 — S13: PostgreSQL — application-side метрики пула; серверные метрики ждут monitoring-роли (NCP-15)
+
+| Поле | Значение |
+|---|---|
+| Статус | ACCEPTED |
+| Дата | 2026-11-12 |
+| Ответственный | Implementation Lead |
+| Проблема и контекст | Дашборд PostgreSQL требует серверных метрик (блокировки, соединения), но baselined набор ролей (DOC-069/Identity v1.5) не содержит monitoring-роли, а postgres-exporter требует учётных данных БД. |
+| Связанные требования | OBS-MON-001; database-and-migrations.md (роли BASELINED) |
+| Документы и разделы | Identity & Access v1.5; PostgreSQL Migration and Access Strategy v1.1; Infrastructure v1.7 §10.4 |
+| Альтернативы | Дать exporter'у `ai_res_auditor`/`ai_res_api` (расширение прав вне baseline); завести `ai_res_monitor` без решения (изменение BASELINED); не делать дашборд. |
+| Решение | Дашборд «PostgreSQL (application view)» строится на метриках пула SQLAlchemy (`db.client.connection.count/max`, `ai_res.db.errors` по классу исключения) и на метриках Temporal persistence (`persistence_sql_*`). Серверные метрики PostgreSQL не собираются; предложение — NCP-15 (роль `ai_res_monitor` с `pg_monitor`, отдельный exporter, отдельный секрет, сеть `data`+`observability`). Новая роль не создаётся. |
+| Обоснование | Не нарушает baseline ролей и не требует DB credentials у observability-стека. |
+| Влияние на компоненты/контракты | `db/metrics.py`, `db/engine.py`, дашборд `postgresql`, алерты DatabasePoolSaturated/DatabaseErrors, `NORMATIVE_CHANGE_PROPOSALS.md`. |
+| Риски и компромиссы | Нет видимости блокировок/репликации/места на диске PostgreSQL до решения NCP-15 (G-125). |
+| Затронутые тесты | test_observability_static (дашборд), runtime (валидность запросов), unit (пул) |

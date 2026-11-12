@@ -24,7 +24,10 @@ DATA_ALLOWED = {"api", "platform-api", "outbox-dispatcher", "postgres", "postgre
 MANAGER_WORKER_PREFIXES = ("manager-runtime", "worker-runtime")  # PERSIST-023: no network path to PostgreSQL
 MANAGER_WORKER_NETWORKS = {"app", "workflow"}  # never data, admin, ingress or egress
 ONE_SHOT = {"postgres-provision", "migrate", "bootstrap", "temporal-schema", "temporal-namespace", "minio-init"}  # may omit healthcheck (restart: "no")
-HEALTHCHECK_EXEMPT = {"otel-collector"}  # distroless image: no shell/HTTP client for an in-container probe; probed externally in S13
+HEALTHCHECK_EXEMPT = {"otel-collector"}  # distroless: no in-container probe; health = `up` series + TargetDown alert (S13)
+OBSERVABILITY_ALLOWED = {"otel-collector", "prometheus", "alertmanager", "loki", "tempo", "grafana",
+                         "temporal", "minio"}  # S13: temporal/minio join only to expose metrics
+OBSERVABILITY_BACKENDS = {"prometheus", "alertmanager", "loki", "tempo"}  # only on `observability`: no producer, human or other network path
 ADMIN_ONLY = {"temporal-ui"}  # Temporal Web UI / MinIO console: admin network only, never ingress
 # Which Compose secrets each service may mount (Secrets §4: each service gets only what it needs). Unlisted service => no secrets.
 SECRET_ALLOWED: dict[str, set[str]] = {
@@ -42,6 +45,7 @@ SECRET_ALLOWED: dict[str, set[str]] = {
     "temporal": {"temporal_db_password", "postgres_tls_ca_cert"},
     "minio": {"minio_root_user", "minio_root_password"},
     "minio-init": {"minio_root_user", "minio_root_password"},
+    "grafana": {"grafana_admin_password"},  # S13: the only credential of the observability stack; no database secret, ever
 }
 SECRET_NAME = re.compile(r"(KEY|SECRET|TOKEN|PASSWORD|PASSWD|PWD|CREDENTIAL)", re.I)
 CREDENTIAL_URL = re.compile(r"^[a-z][a-z0-9+.-]*://[^/\s:@]+:[^/\s@]+@", re.I)
@@ -174,6 +178,12 @@ def check_service(name: str, svc: dict, dockerfiles: dict[str, list[str]], base_
     if "networks" not in svc or not svc["networks"]:
         out.append(f"{w}: must declare networks explicitly")
     nets = _networks_of(svc)
+    if "observability" in nets and name not in OBSERVABILITY_ALLOWED:
+        out.append(f"{w}: not allowlisted for the observability network")
+    if name in OBSERVABILITY_BACKENDS and nets != {"observability"}:
+        out.append(f"{w}: observability backend must be on the observability network only (no producer or human path)")
+    if name == "grafana" and nets != {"observability", "admin"}:
+        out.append(f"{w}: Grafana must be on exactly the observability and admin networks")
     if name in ADMIN_ONLY and nets - {"admin"}:
         out.append(f"{w}: admin-only service must be on the admin network only")
     if "admin" in nets and "ingress" in nets:

@@ -42,7 +42,8 @@ DOMAIN_DB_PASSWORDS = [
 # service_public_keys = `<SERVICE_NAME> <base64 public key>` lines derived from it (public registry of the internal Platform API verifier)
 # S09: idempotency_keyring = one line `<key_id> <base64 of 32 bytes>` (HMAC key ring of the API, ADR-024)
 PASSWORDS = ["postgres_superuser_password", "temporal_db_password", "checkpointer_db_password", "minio_root_password", "cursor_hmac_key", *DOMAIN_DB_PASSWORDS,
-             "mfa_encryption_key", "bootstrap_secret", "idempotency_keyring", "manager_signing_key", "service_public_keys"]
+             "mfa_encryption_key", "bootstrap_secret", "idempotency_keyring", "manager_signing_key", "service_public_keys",
+             "grafana_admin_password"]  # S13: random per machine; mounted only into grafana
 TLS = ["postgres_tls_ca_cert", "postgres_tls_server_cert", "postgres_tls_server_key"]
 NAMES = [*PASSWORDS[:3], "minio_root_user", *PASSWORDS[3:], *TLS]
 TLS_DAYS = "825"  # local dev certificate lifetime (WORKING)

@@ -1,0 +1,194 @@
+# S13: the single telemetry path (DOC-024 §3/§7, ADR-025/095). Producers -> OTLP -> this Collector -> Prometheus (scrape) / Loki / Tempo.
+# Redaction is an ALLOWLIST applied here, before any backend (OBS-SEC-003); the backends are not the only line of defence.
+# Redaction/filter processors use error_mode: propagate: a statement that FAILS drops the batch (counted by the Collector) instead of letting unredacted data through.
+# Fail-open (OBS-MON-014/015): every queue and retry is bounded; when a backend is down data is dropped and counted, never buffered without limit.
+# Numeric limits below are WORKING engineering defaults (OD-02), not SLOs or retention decisions.
+extensions:
+  health_check: { endpoint: 0.0.0.0:13133 }
+
+receivers:
+  otlp:
+    protocols:
+      grpc: { endpoint: 0.0.0.0:4317, max_recv_msg_size_mib: 4 }
+      http: { endpoint: 0.0.0.0:4318, max_request_body_size: 4194304 }
+
+processors:
+  memory_limiter: { check_interval: 1s, limit_mib: 300, spike_limit_mib: 60 }
+  batch: { send_batch_size: 512, timeout: 5s, send_batch_max_size: 1024 }
+
+  # ---- traces ---------------------------------------------------------------------------------------------------------------------------
+  # Span/resource attributes: keys not on the allowlist are removed; values of allowed keys are still masked when they look like secrets.
+  redaction/traces:
+    allow_all_keys: false
+    allowed_keys:
+      - http.request.method
+      - http.response.status_code
+      - http.route
+      - error.type
+      - rpc.system
+      - rpc.service
+      - rpc.method
+      - db.system
+      - db.operation.name
+      - messaging.system
+      - messaging.operation.name
+      - messaging.destination.name
+      - temporal.namespace
+      - temporalWorkflowID
+      - temporalRunID
+      - temporalActivityID
+      - temporal.task_queue
+      - temporal.workflow_type
+      - temporal.activity_type
+      - service.name
+      - service.version
+      - service.namespace
+      - service.instance.id
+      - deployment.environment.name
+      - telemetry.sdk.name
+      - telemetry.sdk.language
+      - telemetry.sdk.version
+      # Correlation model (DOC-024 §6): opaque IDs and versions; high-cardinality IDs are allowed in traces/logs, never in metric labels.
+      - ai_res.request_id
+      - ai_res.organization_id
+      - ai_res.project_id
+      - ai_res.epic_id
+      - ai_res.plan_version_id
+      - ai_res.task_id
+      - ai_res.operation_id
+      - ai_res.worker_run_id
+      - ai_res.temporal_workflow_id
+      - ai_res.context_package_version_id
+      - ai_res.source_version_id
+      - ai_res.artifact_version_id
+      - ai_res.worker_definition_version
+      - ai_res.prompt_version
+      - ai_res.model_provider
+      - ai_res.model_name
+      - ai_res.tool_name
+      - ai_res.tool_version
+      - ai_res.ruleset_version
+      - ai_res.release_id
+    blocked_values: &secret_values
+      - "(?i)\\b(Bearer|Basic)\\s+[A-Za-z0-9._~+/=-]{6,}"
+      - "(?i)\\b(ai_res_session|session)=[^;\\s]+"
+      - "(?i)[A-Za-z0-9_-]{0,32}(password|passwd|secret|token|api[-_]?key|authorization)[A-Za-z0-9_-]{0,32}[\"']?\\s*[=:]\\s*(\"[^\"]*\"|'[^']*'|[^\\s,;]+)"
+      - "\\beyJ[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]*"
+      - "(?i)\\b[a-z][a-z0-9+.-]{0,15}://[^\\s/@:]+:[^\\s/@]+@[^\\s]+"
+      - "(?i)\\b(postgres(ql)?|redis|amqp|mongodb)://[^\\s]+"
+      - "-----BEGIN [A-Z ]{0,20}PRIVATE KEY-----"
+      - "\\b(sk-[A-Za-z0-9]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16})\\b"
+    summary: silent
+
+  # Exception text and stack traces never leave the process boundary (OBS-SEC-004): only the type survives. Status descriptions are dropped too.
+  transform/traces:
+    error_mode: propagate
+    trace_statements:
+      - context: scope
+        statements:
+          - keep_keys(attributes, [])
+      - context: span
+        statements:
+          - set(status.message, "") where status.message != ""
+          - replace_pattern(name, "(?i)[A-Za-z0-9_-]{0,32}(password|passwd|secret|token|api[-_]?key|authorization)[A-Za-z0-9_-]{0,32}[\"']?\\s*[=:]\\s*(\"[^\"]*\"|'[^']*'|[^\\s,;]+)", "[REDACTED]")
+          - replace_pattern(name, "\\beyJ[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]*", "[REDACTED]")
+          - replace_pattern(name, "(?i)\\b(Bearer|Basic)\\s+[A-Za-z0-9._~+/=-]{6,}", "[REDACTED]")
+      - context: spanevent
+        statements:
+          - delete_key(attributes, "exception.message")
+          - delete_key(attributes, "exception.stacktrace")
+          - keep_keys(attributes, ["exception.type", "exception.escaped"])
+
+  # ---- logs -----------------------------------------------------------------------------------------------------------------------------
+  # Allowlist of record attributes + value masking of body and of every remaining string attribute.
+  transform/logs:
+    error_mode: propagate
+    log_statements:
+      - context: resource
+        statements:
+          - keep_keys(attributes, ["service.name", "service.version", "service.namespace", "deployment.environment.name", "ai_res.release_id"])
+      - context: scope
+        statements:
+          - keep_keys(attributes, [])
+      - context: log
+        statements:
+          - set(body, "[REDACTED_NON_STRING]") where body != nil and IsString(body) == false
+          - set(severity_text, "")
+          - keep_keys(attributes, ["ai_res.request_id", "ai_res.organization_id", "ai_res.project_id", "ai_res.epic_id", "ai_res.plan_version_id", "ai_res.task_id", "ai_res.operation_id", "ai_res.worker_run_id", "ai_res.temporal_workflow_id", "ai_res.context_package_version_id", "ai_res.source_version_id", "ai_res.artifact_version_id", "ai_res.release_id", "logger", "exc_type", "code.function", "code.namespace", "error.type", "reason", "attempt", "signal", "outcome", "status", "operation", "task_queue"])
+          - replace_pattern(body, "(?i)\\b(Bearer|Basic)\\s+[A-Za-z0-9._~+/=-]{6,}", "[REDACTED]")
+          - replace_pattern(body, "(?i)\\b(ai_res_session|session)=[^;\\s]+", "[REDACTED]")
+          - replace_pattern(body, "(?i)[A-Za-z0-9_-]{0,32}(password|passwd|secret|token|api[-_]?key|authorization)[A-Za-z0-9_-]{0,32}[\"']?\\s*[=:]\\s*(\"[^\"]*\"|'[^']*'|[^\\s,;]+)", "[REDACTED]")
+          - replace_pattern(body, "\\beyJ[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]*", "[REDACTED]")
+          - replace_pattern(body, "(?i)\\b[a-z][a-z0-9+.-]{0,15}://[^\\s/@:]+:[^\\s/@]+@[^\\s]+", "[REDACTED]")
+          - replace_pattern(body, "(?i)\\b(postgres(ql)?|redis|amqp|mongodb)://[^\\s]+", "[REDACTED]")
+          - replace_pattern(body, "-----BEGIN [A-Z ]{0,20}PRIVATE KEY-----[\\s\\S]*", "[REDACTED]")
+          - replace_pattern(body, "\\b(sk-[A-Za-z0-9]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16})\\b", "[REDACTED]")
+          - replace_all_patterns(attributes, "value", "(?i)\\b(Bearer|Basic)\\s+[A-Za-z0-9._~+/=-]{6,}", "[REDACTED]")
+          - replace_all_patterns(attributes, "value", "\\beyJ[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]*", "[REDACTED]")
+          - replace_all_patterns(attributes, "value", "(?i)\\b[a-z][a-z0-9+.-]{0,15}://[^\\s/@:]+:[^\\s/@]+@[^\\s]+", "[REDACTED]")
+          - replace_all_patterns(attributes, "value", "(?i)\\b(postgres(ql)?|redis|amqp|mongodb)://[^\\s]+", "[REDACTED]")
+          - replace_all_patterns(attributes, "value", "(?i)[A-Za-z0-9_-]{0,32}(password|passwd|secret|token|api[-_]?key|authorization)[A-Za-z0-9_-]{0,32}[\"']?\\s*[=:]\\s*(\"[^\"]*\"|'[^']*'|[^\\s,;]+)", "[REDACTED]")
+          - replace_all_patterns(attributes, "value", "(?i)\\b(ai_res_session|session)=[^;\\s]+", "[REDACTED]")
+          - replace_all_patterns(attributes, "value", "-----BEGIN [A-Z ]{0,20}PRIVATE KEY-----[\\s\\S]*", "[REDACTED]")
+          - replace_all_patterns(attributes, "value", "\\b(sk-[A-Za-z0-9]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16})\\b", "[REDACTED]")
+
+  # ---- metrics --------------------------------------------------------------------------------------------------------------------------
+  # Name allowlist (what may become a Prometheus series) and LABEL allowlist (high-cardinality IDs can never become labels, OBS-MON-034).
+  filter/metrics:
+    error_mode: propagate
+    metrics:
+      metric:
+        - 'not IsMatch(name, "^(ai_res[._]|http[._](server|client)[._]|db[._]client[._]|process[._]|python[._]|temporal_|target_info$)")'
+  transform/metrics:
+    error_mode: propagate
+    metric_statements:
+      - context: datapoint
+        statements:
+          - set(attributes["service_name"], resource.attributes["service.name"]) where resource.attributes["service.name"] != nil
+          - set(attributes["deployment_environment"], resource.attributes["deployment.environment.name"]) where resource.attributes["deployment.environment.name"] != nil
+          - keep_keys(attributes, ["http.request.method", "http.route", "http.response.status_class", "error.type", "reason", "status", "outcome", "operation", "db.client.connection.pool.name", "db.client.connection.state", "namespace", "task_queue", "workflow_type", "activity_type", "worker_type", "service_name", "deployment_environment"])
+      - context: resource
+        statements:
+          - keep_keys(attributes, ["service.name", "service.namespace", "service.instance.id", "deployment.environment.name"])
+      - context: scope
+        statements:
+          - keep_keys(attributes, [])
+
+exporters:
+  otlp/tempo:
+    endpoint: tempo:4317
+    tls: { insecure: true }   # internal `observability` network only (no gateway); mTLS between internal services is a post-MVP hardening step (G-123)
+    timeout: 5s
+    retry_on_failure: { enabled: true, initial_interval: 1s, max_interval: 10s, max_elapsed_time: 30s }
+    sending_queue: { enabled: true, num_consumers: 2, queue_size: 256 }
+  otlphttp/loki:
+    endpoint: http://loki:3100/otlp
+    timeout: 5s
+    retry_on_failure: { enabled: true, initial_interval: 1s, max_interval: 10s, max_elapsed_time: 30s }
+    sending_queue: { enabled: true, num_consumers: 2, queue_size: 256 }
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    metric_expiration: 5m
+    resource_to_telemetry_conversion: { enabled: false }
+
+service:
+  extensions: [health_check]
+  telemetry:
+    logs: { level: warn }
+    metrics:
+      level: normal
+      readers:
+        - pull: { exporter: { prometheus: { host: 0.0.0.0, port: 8888 } } }
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, redaction/traces, transform/traces, batch]
+      exporters: [otlp/tempo]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, transform/logs, batch]
+      exporters: [otlphttp/loki]
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, filter/metrics, transform/metrics, batch]
+      exporters: [prometheus]

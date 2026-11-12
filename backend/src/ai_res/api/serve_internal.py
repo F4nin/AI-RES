@@ -11,14 +11,17 @@ from ai_res.db.session import create_session_factory
 from ai_res.modules.iam.service_tokens import verifier_from_settings
 from ai_res.modules.operations.orchestration_service import OperationOrchestrationService
 from ai_res.platform.config import load_settings
+from ai_res.platform.export import install_telemetry
 from ai_res.platform.redaction import configure_logging
 
 
 def create_internal_app_from_env(env: Mapping[str, str] | None = None) -> FastAPI:
     settings = load_settings(os.environ if env is None else env)
     configure_logging(settings.log_level)
+    telemetry = install_telemetry(settings, "ai-res-platform-api")  # fail-open
     verifier = verifier_from_settings(settings)  # missing public-key registry => refuses to start (fail closed)
-    return create_internal_app(OperationOrchestrationService(create_session_factory(create_runtime_engine(settings))), verifier)
+    return create_internal_app(OperationOrchestrationService(create_session_factory(create_runtime_engine(settings, telemetry_name="platform-api"))), verifier,
+                               tracer_provider=telemetry.tracer_provider)
 
 
 def main() -> None:

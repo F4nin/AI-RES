@@ -358,3 +358,50 @@ def test_dispatcher_and_platform_api_are_data_members_with_their_own_identity_on
     swapped = mutate(lambda m: m["services"].update({"outbox-dispatcher": good_service(networks={"data": None}, secrets=[{"source": "api_db_password"}])}))
     assert has(run(swapped), "not allowed to have")
     assert has(run(mutate(lambda m: m["services"].update({"rogue-dispatcher": good_service(networks={"data": None})}))), "not allowlisted for the data network")
+
+
+# --- S13: observability network policy -------------------------------------------------------------------------------------
+def obs_model():
+    m = good_model()
+    m["networks"]["observability"] = {"internal": True}
+    m["services"]["prometheus"] = good_service(networks={"observability": None})
+    m["services"]["grafana"] = good_service(networks={"observability": None, "admin": None}, secrets=["grafana_admin_password"])
+    return m
+
+
+def test_observability_baseline_is_clean():
+    assert run(obs_model()) == []
+
+
+def test_backend_on_another_network_is_reported():
+    m = obs_model()
+    m["services"]["prometheus"]["networks"] = {"observability": None, "app": None}
+    assert any("observability backend must be on the observability network only" in v for v in run(m))
+
+
+def test_grafana_must_have_exactly_observability_and_admin():
+    for nets in ({"observability": None}, {"observability": None, "admin": None, "app": None}):
+        m = obs_model()
+        m["services"]["grafana"]["networks"] = nets
+        assert any("Grafana must be on exactly" in v for v in run(m))
+
+
+def test_unlisted_service_cannot_join_observability():
+    m = obs_model()
+    m["services"]["api"]["networks"] = {"app": None, "data": None, "observability": None}
+    assert any("not allowlisted for the observability network" in v for v in run(m))
+
+
+def test_database_secret_cannot_reach_the_observability_stack():
+    m = obs_model()
+    m["services"]["grafana"]["secrets"] = ["grafana_admin_password", "api_db_password"]
+    assert any("mounts secrets it is not allowed to have: api_db_password" in v for v in run(m))
+    m = obs_model()
+    m["services"]["prometheus"]["secrets"] = ["api_db_password"]
+    assert any("prometheus" in v and "api_db_password" in v for v in run(m))
+
+
+def test_observability_service_cannot_publish_a_host_port():
+    m = obs_model()
+    m["services"]["grafana"]["ports"] = [{"host_ip": "127.0.0.1", "published": "3000", "target": 3000}]
+    assert any("must not publish host ports" in v for v in run(m))

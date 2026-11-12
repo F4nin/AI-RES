@@ -23,6 +23,7 @@ networks:
   egress: {}                 # controlled egress (LLM Gateway, Connector Platform): no members until S15/S16/S28
   admin: { internal: true }  # Temporal UI, MinIO console: never reachable from ingress
   workflow: { internal: true }  # S11: Temporal frontend <-> Manager/Worker Runtime <-> outbox dispatcher; PostgreSQL is NOT on it
+  observability: { internal: true }  # S13: Collector <-> Prometheus/Loki/Tempo/Alertmanager/Grafana; Temporal and MinIO join only to expose metrics
 
 secrets:
   postgres_superuser_password: { file: ./secrets/runtime/postgres_superuser_password }
@@ -45,6 +46,7 @@ secrets:
   postgres_tls_server_key: { file: ./secrets/runtime/postgres_tls_server_key }
   manager_signing_key: { file: ./secrets/runtime/manager_signing_key }
   service_public_keys: { file: ./secrets/runtime/service_public_keys }
+  grafana_admin_password: { file: ./secrets/runtime/grafana_admin_password }
 
 configs:
   domain_events_contract: { file: ../contracts/asyncapi/AI_RES_Domain_Events_AsyncAPI_v1.6.yaml }  # the dispatcher validates every event against it (G-99)
@@ -52,6 +54,11 @@ configs:
 volumes:
   postgres_data: {}
   minio_data: {}
+  prometheus_data: {}
+  loki_data: {}
+  tempo_data: {}
+  grafana_data: {}
+  alertmanager_data: {}
 
 services:
   reverse-proxy:
@@ -86,6 +93,7 @@ services:
     mem_limit: 512m
     networks: [app, data]
     environment:
+      AI_RES_OTLP_ENDPOINT: http://otel-collector:4318  # S13: fail-open telemetry export; the Collector redacts again
       AI_RES_ENVIRONMENT: prod
       AI_RES_CURSOR_HMAC_KEY_FILE: /run/secrets/cursor_hmac_key
       AI_RES_DB_HOST: postgres
@@ -148,6 +156,7 @@ services:
     networks: [app, data]
     command: ["python", "-m", "ai_res.api.serve_internal"]
     environment:
+      AI_RES_OTLP_ENDPOINT: http://otel-collector:4318  # S13: fail-open telemetry export; the Collector redacts again
       AI_RES_ENVIRONMENT: prod
       AI_RES_DB_HOST: postgres
       AI_RES_DB_USER: ai_res_api
@@ -178,6 +187,8 @@ services:
     networks: [data, workflow]
     command: ["python", "-m", "ai_res.cli.dispatcher"]
     environment:
+      AI_RES_OTLP_ENDPOINT: http://otel-collector:4318  # S13: fail-open telemetry export; the Collector redacts again
+      AI_RES_OTLP_GRPC_ENDPOINT: http://otel-collector:4317  # S13: Temporal SDK core metrics
       AI_RES_ENVIRONMENT: prod
       AI_RES_DB_HOST: postgres
       AI_RES_DB_USER: ai_res_outbox_dispatcher
@@ -213,6 +224,8 @@ services:
     networks: [app, workflow]
     command: ["python", "-m", "ai_res.runtime.manager"]
     environment:
+      AI_RES_OTLP_ENDPOINT: http://otel-collector:4318  # S13: fail-open telemetry export; the Collector redacts again
+      AI_RES_OTLP_GRPC_ENDPOINT: http://otel-collector:4317  # S13: Temporal SDK core metrics
       AI_RES_ENVIRONMENT: prod
       AI_RES_TEMPORAL_ADDRESS: temporal:7233
       AI_RES_PLATFORM_API_URL: http://platform-api:8001
@@ -240,6 +253,8 @@ services:
     networks: [workflow]
     command: ["python", "-m", "ai_res.runtime.worker"]
     environment:
+      AI_RES_OTLP_ENDPOINT: http://otel-collector:4318  # S13: fail-open telemetry export; the Collector redacts again
+      AI_RES_OTLP_GRPC_ENDPOINT: http://otel-collector:4317  # S13: Temporal SDK core metrics
       AI_RES_ENVIRONMENT: prod
       AI_RES_TEMPORAL_ADDRESS: temporal:7233
     tmpfs:
@@ -350,9 +365,10 @@ services:
     image: temporalio/server:1.29.7@sha256:688da708d0daca6ff8083334a4a7fbbdbc7e70d1cca8e2eda8c05b21fdbd601e
     user: "1000:1000"
     mem_limit: 1g
-    networks: [data, admin, workflow]
+    networks: [data, admin, workflow, observability]
     entrypoint: ["/bin/sh", "/temporal/start.sh"]
     environment:
+      PROMETHEUS_ENDPOINT: 0.0.0.0:9090  # S13: server metrics for Prometheus (observability network only)
       DB: postgres12
       DB_PORT: "5432"
       POSTGRES_USER: temporal
@@ -418,9 +434,10 @@ services:
     image: ai-res/minio:RELEASE.2025-10-15T17-29-55Z
     user: "10002:10002"
     mem_limit: 512m
-    networks: [data, admin]
+    networks: [data, admin, observability]
     command: ["server", "/data", "--address", ":9000", "--console-address", ":9001"]
     environment:
+      MINIO_PROMETHEUS_AUTH_TYPE: public  # S13: /minio/v2/metrics/cluster without a token; reachable from every network MinIO is on (data, admin, observability): accepted exposure, G-123
       MINIO_ROOT_USER_FILE: /run/secrets/minio_root_user
       MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_root_password
       MINIO_BROWSER_REDIRECT_URL: ""
@@ -451,12 +468,140 @@ services:
     depends_on:
       minio: { condition: service_healthy }
 
+  # ---- S13 observability stack (DOC-024; ADR-025/095) ----------------------------------------------------------------------------------------------
+  # Telemetry loss never stops the domain (fail-open, bounded queues); the Audit Log (PostgreSQL) does not use any of these services.
   otel-collector:
     <<: *hardened
-    image: otel/opentelemetry-collector:0.116.1@sha256:6260c3c942f6abcb45f255ac67835600cfd2fc6ce8be65e0ee3af6da2dfb98fb
+    image: otel/opentelemetry-collector-contrib:0.116.1@sha256:d0ebf65280da2e1b1491d1b93648281afd353d4b9ea19160090303cec9a233bd
     user: "10001:10001"
-    mem_limit: 256m
-    networks: [app]
+    mem_limit: 384m
+    networks: [app, workflow, observability]
     command: ["--config=/etc/otelcol/config.yaml"]
     volumes:
-      - ./config/otel/config.yaml:/etc/otelcol/config.yaml:ro
+      - ./observability/otel/config.yaml:/etc/otelcol/config.yaml:ro
+
+  prometheus:
+    <<: *hardened
+    image: prom/prometheus:v3.1.0@sha256:6559acbd5d770b15bb3c954629ce190ac3cbbdb2b7f1c30f0385c4e05104e218
+    user: "65534:65534"
+    mem_limit: 512m
+    networks: [observability]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.listen-address=:9090  # lifecycle and admin APIs stay off (Prometheus defaults)
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/prometheus/rules:/etc/prometheus/rules:ro
+      - prometheus_data:/prometheus
+    tmpfs:
+      - /tmp:uid=65534,gid=65534,mode=0700
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:9090/-/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  alertmanager:
+    <<: *hardened
+    image: prom/alertmanager:v0.28.0@sha256:d5155cfac40a6d9250ffc97c19db2c5e190c7bc57c6b67125c94903358f8c7d8
+    user: "65534:65534"
+    mem_limit: 128m
+    networks: [observability]
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+      - --web.listen-address=:9093
+    volumes:
+      - ./observability/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    tmpfs:
+      - /tmp:uid=65534,gid=65534,mode=0700
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:9093/-/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  loki:
+    <<: *hardened
+    image: grafana/loki:3.3.2@sha256:8af2de1abbdd7aa92b27c9bcc96f0f4140c9096b507c77921ffddf1c6ad6c48f
+    user: "10001:10001"
+    mem_limit: 512m
+    networks: [observability]
+    command: ["-config.file=/etc/loki/config.yaml"]
+    volumes:
+      - ./observability/loki/config.yaml:/etc/loki/config.yaml:ro
+      - loki_data:/loki
+    tmpfs:
+      - /tmp:uid=10001,gid=10001,mode=0700
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3100/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 20s
+
+  tempo:
+    <<: *hardened
+    image: grafana/tempo:2.7.0@sha256:12e904cc509a8e0bd87815e0bc719b6167933bc3f2532716a85811af967780f6
+    user: "10001:10001"
+    mem_limit: 512m
+    networks: [observability]
+    command: ["-config.file=/etc/tempo/config.yaml"]
+    volumes:
+      - ./observability/tempo/config.yaml:/etc/tempo/config.yaml:ro
+      - tempo_data:/var/tempo
+    tmpfs:
+      - /tmp:uid=10001,gid=10001,mode=0700
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3200/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 20s
+
+  # Grafana: admin network only for humans (like Temporal UI); no host port, no anonymous access, no sign-up, no outbound analytics.
+  grafana:
+    <<: *hardened
+    image: grafana/grafana:11.4.0@sha256:d8ea37798ccc41061a62ab080f2676dda6bf7815558499f901bdb0f533a456fb
+    user: "472:472"
+    mem_limit: 384m
+    networks: [observability, admin]
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/grafana_admin_password
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_AUTH_BASIC_ENABLED: "true"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+      GF_PLUGINS_PLUGIN_ADMIN_ENABLED: "false"
+      GF_SNAPSHOTS_EXTERNAL_ENABLED: "false"
+      GF_ALERTING_ENABLED: "false"             # one alert path: Prometheus rules -> Alertmanager (DOC-024 §4)
+      GF_UNIFIED_ALERTING_ENABLED: "false"
+      GF_METRICS_ENABLED: "true"
+      GF_SECURITY_DATA_SOURCE_PROXY_WHITELIST: prometheus:9090 loki:3100 tempo:3200 alertmanager:9093  # a Grafana admin cannot point a datasource at Temporal UI / MinIO console (SSRF)
+      GF_PATHS_PROVISIONING: /etc/grafana/provisioning
+    secrets: [grafana_admin_password]
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards-ai-res:ro
+      - grafana_data:/var/lib/grafana
+    tmpfs:
+      - /tmp:uid=472,gid=472,mode=0700
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 20s
+    depends_on:
+      prometheus: { condition: service_healthy }
+      loki: { condition: service_healthy }
+      tempo: { condition: service_healthy }
+      alertmanager: { condition: service_healthy }

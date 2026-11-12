@@ -1,0 +1,218 @@
+# S13: alert rules as code (OBS-MON-011, OBS-ALR-001..007). Every rule carries: name, severity, scope, condition + `for`, owner, runbook, user_impact,
+# auto_action, silence_policy (enforced by infra/tests/test_observability_static.py). No rule may trigger an automatic action (auto_action: none, OBS-ALR-004).
+# `for:` windows are WORKING engineering defaults against flapping (OBS-ALR-002), NOT SLOs. `owner` values are role placeholders (WORKING) until the owner assigns
+# real owners and a destination (OBS-ALR-006, OD-02). Each description states the OBSERVED FACT; causes are hypotheses (OBS-ALR-003).
+groups:
+  - name: ai-res-platform
+    rules:
+      - alert: TargetDown
+        expr: up == 0
+        for: 2m
+        labels: { severity: critical, scope: infrastructure, owner: platform-operations }
+        annotations:
+          summary: "Scrape target {{ $labels.job }} is not answering"
+          description: "Fact: Prometheus cannot scrape job {{ $labels.job }} ({{ $labels.instance }}). Cause is not determined by this alert."
+          runbook: docs/runbooks/observability.md#targetdown
+          user_impact: "Signals of the component are missing; the component itself may be healthy or down."
+          auto_action: none
+          silence_policy: "Silence only during a planned restart of the component."
+      - alert: ApiServerErrorRatioHigh
+        expr: |
+          sum by (service_name) (rate(http_server_request_duration_seconds_count{http_response_status_class="5xx"}[5m]))
+            / sum by (service_name) (rate(http_server_request_duration_seconds_count[5m]))
+          > on() group_left() ai_res:threshold:api_5xx_ratio
+        for: 5m
+        labels: { severity: critical, scope: api, owner: platform-operations }
+        annotations:
+          summary: "{{ $labels.service_name }}: share of 5xx responses above the configured threshold"
+          description: "Fact: 5xx share over 5m exceeds ai_res:threshold:api_5xx_ratio (WORKING, OD-02)."
+          runbook: docs/runbooks/observability.md#apiservererrorratiohigh
+          user_impact: "Users receive errors on a share of requests."
+          auto_action: none
+          silence_policy: "No silence without an incident record."
+      - alert: ApiLatencyP95High
+        expr: |
+          histogram_quantile(0.95, sum by (le, service_name) (rate(http_server_request_duration_seconds_bucket[5m])))
+          > on() group_left() ai_res:threshold:api_latency_p95_seconds
+        for: 10m
+        labels: { severity: warning, scope: api, owner: platform-operations }
+        annotations:
+          summary: "{{ $labels.service_name }}: p95 latency above the configured threshold"
+          description: "Fact: p95 of request duration over 5m exceeds ai_res:threshold:api_latency_p95_seconds (WORKING, OD-02). Check the sample count on the API dashboard."
+          runbook: docs/runbooks/observability.md#apilatencyp95high
+          user_impact: "Requests are slow for part of the users."
+          auto_action: none
+          silence_policy: "Silence allowed during load tests."
+      - alert: DatabasePoolSaturated
+        expr: |
+          sum by (db_client_connection_pool_name) (db_client_connection_count{db_client_connection_state="used"})
+            / sum by (db_client_connection_pool_name) (db_client_connection_max)
+          >= 1
+        for: 5m
+        labels: { severity: warning, scope: postgresql, owner: platform-operations }
+        annotations:
+          summary: "Connection pool {{ $labels.db_client_connection_pool_name }} is fully used"
+          description: "Fact: every pooled connection of {{ $labels.db_client_connection_pool_name }} has been checked out for 5m."
+          runbook: docs/runbooks/observability.md#databasepoolsaturated
+          user_impact: "Requests wait for a database connection and may time out."
+          auto_action: none
+          silence_policy: "No silence without an incident record."
+      - alert: DatabaseErrors
+        expr: |
+          (sum by (db_client_connection_pool_name, error_type) (increase(ai_res_db_errors_total[5m])) > 0)
+          or (sum by (db_client_connection_pool_name, error_type) (ai_res_db_errors_total unless ai_res_db_errors_total offset 5m) > 0)
+        for: 5m
+        labels: { severity: warning, scope: postgresql, owner: platform-operations }
+        annotations:
+          summary: "Database errors in {{ $labels.db_client_connection_pool_name }} ({{ $labels.error_type }})"
+          description: "Fact: the application saw database errors of class {{ $labels.error_type }} within 5m."
+          runbook: docs/runbooks/observability.md#databaseerrors
+          user_impact: "Some requests fail or are retried."
+          auto_action: none
+          silence_policy: "No silence without an incident record."
+      - alert: ObjectStorageLowFreeSpace
+        expr: |
+          minio_cluster_capacity_usable_free_bytes / minio_cluster_capacity_usable_total_bytes
+          < on() group_left() ai_res:threshold:minio_free_ratio
+        for: 15m
+        labels: { severity: warning, scope: storage, owner: platform-operations }
+        annotations:
+          summary: "Object storage free space below the configured ratio"
+          description: "Fact: usable free / usable total of MinIO is below ai_res:threshold:minio_free_ratio (WORKING, OD-02)."
+          runbook: docs/runbooks/observability.md#objectstoragelowfreespace
+          user_impact: "Uploads and artifact storage will fail when the space is exhausted."
+          auto_action: none
+          silence_policy: "No silence; data is never deleted automatically (ADR-030)."
+  - name: ai-res-events
+    rules:
+      - alert: OutboxQuarantined
+        expr: ai_res_outbox_backlog{status="QUARANTINED"} > 0
+        for: 5m
+        labels: { severity: critical, scope: events, owner: platform-operations }
+        annotations:
+          summary: "Outbox holds quarantined events"
+          description: "Fact: {{ $value }} outbox rows are QUARANTINED (poison or permanently failing). Replay is a controlled manual step."
+          runbook: docs/runbooks/outbox.md
+          user_impact: "Downstream state (operation start, cancellation, notifications) is not updated for these events."
+          auto_action: none
+          silence_policy: "No silence until the rows are replayed or accepted by the owner."
+      - alert: OutboxOldestUndeliveredTooOld
+        expr: ai_res_outbox_oldest_undelivered_age_seconds > on() group_left() ai_res:threshold:outbox_oldest_undelivered_age_seconds
+        for: 5m
+        labels: { severity: warning, scope: events, owner: platform-operations }
+        annotations:
+          summary: "Oldest undelivered outbox row is older than the configured threshold"
+          description: "Fact: age of the oldest undelivered row exceeds ai_res:threshold:outbox_oldest_undelivered_age_seconds (WORKING, OD-02)."
+          runbook: docs/runbooks/outbox.md
+          user_impact: "Operations may start late; REST snapshots stay correct."
+          auto_action: none
+          silence_policy: "Silence allowed while the dispatcher is intentionally stopped."
+      - alert: InboxQuarantined
+        expr: ai_res_inbox_backlog{status="QUARANTINED"} > 0
+        for: 5m
+        labels: { severity: warning, scope: events, owner: platform-operations }
+        annotations:
+          summary: "Inbox holds quarantined events"
+          description: "Fact: {{ $value }} inbox rows are QUARANTINED."
+          runbook: docs/runbooks/outbox.md
+          user_impact: "A consumer did not apply some events."
+          auto_action: none
+          silence_policy: "No silence until reviewed."
+      - alert: UnknownMajorEventVersion
+        expr: |
+          (sum(increase(ai_res_events_unknown_major_event_total[15m])) > 0)
+          or (sum(ai_res_events_unknown_major_event_total unless ai_res_events_unknown_major_event_total offset 15m) > 0)
+        labels: { severity: critical, scope: events, owner: platform-operations }
+        annotations:
+          summary: "Events of an unknown type or major version were received"
+          description: "Fact: unknown event type/major version within 15m; they were quarantined, not applied (fail closed)."
+          runbook: docs/runbooks/outbox.md
+          user_impact: "Producer and consumer contracts diverge; affected events are not processed."
+          auto_action: none
+          silence_policy: "No silence."
+      - alert: OperationCancelWithoutWorkflow
+        expr: |
+          (sum(increase(ai_res_events_cancel_without_workflow_total[15m])) > 0)
+          or (sum(ai_res_events_cancel_without_workflow_total unless ai_res_events_cancel_without_workflow_total offset 15m) > 0)
+        labels: { severity: warning, scope: workflow, owner: platform-operations }
+        annotations:
+          summary: "Cancellation requested but no running workflow was found"
+          description: "Fact: cancellation reached a closed or unknown workflow. The domain reconciler (G-107) is not implemented yet."
+          runbook: docs/runbooks/temporal.md
+          user_impact: "An Operation may stay in CANCEL_REQUESTED until reconciled."
+          auto_action: none
+          silence_policy: "No silence while G-107 is open."
+  - name: ai-res-workflow
+    rules:
+      - alert: TemporalScheduleToStartHigh
+        expr: |
+          histogram_quantile(0.95, sum by (le, task_queue) (rate(temporal_workflow_task_schedule_to_start_latency_seconds_bucket[5m])))
+          > on() group_left() ai_res:threshold:temporal_schedule_to_start_p95_seconds
+        for: 10m
+        labels: { severity: warning, scope: workflow, owner: platform-operations }
+        annotations:
+          summary: "Task queue {{ $labels.task_queue }}: schedule-to-start p95 above the configured threshold"
+          description: "Fact: workflow-task schedule-to-start p95 over 5m exceeds ai_res:threshold:temporal_schedule_to_start_p95_seconds (WORKING, OD-02)."
+          runbook: docs/runbooks/temporal.md
+          user_impact: "Work waits for a free poller."
+          auto_action: none
+          silence_policy: "Silence allowed during a planned runtime restart."
+  - name: ai-res-telemetry-pipeline
+    rules:
+      - alert: ApplicationTelemetryMissing
+        expr: |
+          absent_over_time(target_info{job="ai-res-api"}[10m])
+            or absent_over_time(target_info{job="ai-res-platform-api"}[10m])
+            or absent_over_time(target_info{job="ai-res-outbox-dispatcher"}[10m])
+            or absent_over_time(target_info{job="ai-res-manager-runtime"}[10m])
+            or absent_over_time(target_info{job="ai-res-worker-runtime"}[10m])
+        labels: { severity: warning, scope: telemetry, owner: platform-operations }
+        annotations:
+          summary: "No telemetry from {{ $labels.job }} for 10 minutes"
+          description: "Fact: no metrics from {{ $labels.job }} reached Prometheus within 10m. The process may be down, or its export may be broken; this alert does not tell which."
+          runbook: docs/runbooks/observability.md#applicationtelemetrymissing
+          user_impact: "Unknown: if the process is down, its function is unavailable; if only export is broken there is no user impact."
+          auto_action: none
+          silence_policy: "Silence while the service is intentionally stopped."
+      - alert: TelemetryExportFailing
+        expr: |
+          (sum by (service_name, operation) (increase(ai_res_telemetry_export_failures_total[5m])) > 0)
+          or (sum by (service_name, operation) (ai_res_telemetry_export_failures_total unless ai_res_telemetry_export_failures_total offset 5m) > 0)
+        for: 5m
+        labels: { severity: warning, scope: telemetry, owner: platform-operations }
+        annotations:
+          summary: "{{ $labels.service_name }} cannot export {{ $labels.operation }} to the Collector"
+          description: "Fact: export batches of {{ $labels.operation }} from {{ $labels.service_name }} failed within 5m; the data was dropped (fail-open)."
+          runbook: docs/runbooks/observability.md#telemetryexportfailing
+          user_impact: "No user impact; telemetry for this service has gaps. Domain actions and the Audit Log are unaffected."
+          auto_action: none
+          silence_policy: "Silence allowed while the Collector is intentionally stopped."
+      - alert: CollectorBackendExportFailing
+        expr: |
+          (
+            sum by (exporter) (increase(otelcol_exporter_send_failed_spans[5m]))
+              or sum by (exporter) (increase(otelcol_exporter_send_failed_log_records[5m]))
+              or sum by (exporter) (increase(otelcol_exporter_send_failed_metric_points[5m]))
+          ) > 0
+        for: 5m
+        labels: { severity: warning, scope: telemetry, owner: platform-operations }
+        annotations:
+          summary: "Collector cannot deliver data to {{ $labels.exporter }}"
+          description: "Fact: the Collector failed to send data via exporter {{ $labels.exporter }} within 5m; queued data is dropped after its bounded retry."
+          runbook: docs/runbooks/observability.md#collectorbackendexportfailing
+          user_impact: "No user impact; dashboards, logs or traces have gaps."
+          auto_action: none
+          silence_policy: "Silence allowed while the backend is intentionally stopped."
+      - alert: CollectorQueueNearFull
+        expr: |
+          otelcol_exporter_queue_size / otelcol_exporter_queue_capacity
+          >= on() group_left() ai_res:threshold:collector_queue_fill_ratio
+        for: 5m
+        labels: { severity: warning, scope: telemetry, owner: platform-operations }
+        annotations:
+          summary: "Collector exporter queue for {{ $labels.exporter }} is above the configured fill ratio"
+          description: "Fact: queue fill of exporter {{ $labels.exporter }} stayed at or above ai_res:threshold:collector_queue_fill_ratio (WORKING, OD-02) for 5m; the next data is dropped when it is full."
+          runbook: docs/runbooks/observability.md#collectorqueuenearfull
+          user_impact: "No user impact; imminent telemetry loss."
+          auto_action: none
+          silence_policy: "No silence."

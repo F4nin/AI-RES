@@ -267,6 +267,8 @@ def test_secrets_mounted_only_into_services_that_need_them():
         "reverse-proxy": set(),
         "temporal-ui": set(),
         "otel-collector": set(),
+        "prometheus": set(), "alertmanager": set(), "loki": set(), "tempo": set(),  # S13: no credentials at all
+        "grafana": {"grafana_admin_password"},  # S13: the only credential of the observability stack
     }
     for svc, names in expect.items():
         mounted = {m["Destination"].rsplit("/", 1)[-1] for m in inspect(svc)["Mounts"] if m["Destination"].startswith("/run/secrets/")}

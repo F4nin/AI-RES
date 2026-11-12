@@ -2,6 +2,7 @@
 from sqlalchemy import URL
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
+from ai_res.db.metrics import register_pool_metrics
 from ai_res.platform.config import ConfigError, Settings, read_secret_file
 
 
@@ -29,9 +30,10 @@ def build_url(settings: Settings, *, driver: str = "postgresql+psycopg") -> URL:
     return URL.create(driver, username=settings.db_user, password=password, host=settings.db_host, port=settings.db_port, database=settings.db_name)
 
 
-def create_runtime_engine(settings: Settings) -> AsyncEngine:
-    """Async engine for API-side Application Services. Pool resets connections with ROLLBACK on return; pre-ping detects dead ones."""
-    return create_async_engine(
+def create_runtime_engine(settings: Settings, telemetry_name: str | None = None) -> AsyncEngine:
+    """Async engine for API-side Application Services. Pool resets connections with ROLLBACK on return; pre-ping detects dead ones.
+    `telemetry_name` (a fixed per-process label such as `api`) registers pool gauges: the only PostgreSQL signal available without a monitoring role (G-125)."""
+    engine = create_async_engine(
         build_url(settings),
         connect_args=connect_args(settings),
         pool_size=settings.db_pool_size,
@@ -40,3 +42,6 @@ def create_runtime_engine(settings: Settings) -> AsyncEngine:
         pool_reset_on_return="rollback",
         hide_parameters=True,  # DBAPIError text would otherwise embed bound parameters (digests, fingerprints, event/result payloads)
     )
+    if telemetry_name:
+        register_pool_metrics(engine, telemetry_name)
+    return engine

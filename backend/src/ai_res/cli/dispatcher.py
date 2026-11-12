@@ -20,6 +20,7 @@ from ai_res.modules.events.temporal_start import TemporalCancelPublisher, Tempor
 from ai_res.orchestration.client import OperationCanceller, OperationStarter, connect
 from ai_res.orchestration.contracts import CANCEL_DESTINATION, START_DESTINATION
 from ai_res.platform.config import ConfigError, load_settings
+from ai_res.platform.export import install_telemetry
 from ai_res.platform.redaction import configure_logging
 
 log = logging.getLogger("ai_res.dispatcher")
@@ -28,13 +29,14 @@ log = logging.getLogger("ai_res.dispatcher")
 async def _run(env: Mapping[str, str]) -> None:
     settings = load_settings(env)
     configure_logging(settings.log_level)
+    telemetry = install_telemetry(settings, "ai-res-outbox-dispatcher")  # fail-open
     if settings.asyncapi_contract_file is None:
         raise ConfigError("asyncapi_contract_file is required (the dispatcher validates every event against the contract)")
     contract = EventContract.from_file(settings.asyncapi_contract_file)
     client = await connect(settings)
     starter, canceller = TemporalStartPublisher(OperationStarter(client)), TemporalCancelPublisher(OperationCanceller(client))
     publisher = InternalFanoutPublisher({START_DESTINATION: [starter.publish], CANCEL_DESTINATION: [canceller.publish]})
-    engine = create_runtime_engine(settings)
+    engine = create_runtime_engine(settings, telemetry_name="outbox-dispatcher")
     stop = asyncio.Event()
     for sig in (signal.SIGTERM, signal.SIGINT):
         with contextlib.suppress(NotImplementedError):
@@ -44,6 +46,7 @@ async def _run(env: Mapping[str, str]) -> None:
         await Dispatcher(create_session_factory(engine), publisher, contract, config).run_forever(stop)
     finally:
         await engine.dispose()
+        telemetry.shutdown()
 
 
 def main(env: Mapping[str, str] | None = None) -> int:

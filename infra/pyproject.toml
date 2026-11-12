@@ -9,6 +9,7 @@ dependencies = []
 dev = [
     "jsonschema>=4.26.0",
     "pytest>=8",
+    "pyyaml>=6.0.3",
     "ruff>=0.7",
 ]
 
@@ -28,3 +29,4 @@ ignore = ["S101"]
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S603", "S404", "S607", "E501"]
 "scripts/**" = ["S603", "S404", "S607"]
+"observability/grafana/generate_dashboards.py" = ["E501"]  # PromQL query strings are data, not prose

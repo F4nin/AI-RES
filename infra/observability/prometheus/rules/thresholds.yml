@@ -1,0 +1,13 @@
+# S13: numeric alert thresholds are an OWNER decision (OD-02, DOC-025 §6: "numeric SLOs are not approved before a prototype/pilot baseline").
+# This file therefore defines NO values. A threshold-based alert in alerts.yml compares against the series `ai_res:threshold:<name>`; while the series is absent
+# the comparison yields nothing and the alert cannot fire (inert by design, proven in tests/alerts_test.yml). To enable one, the owner records a value here:
+#
+#   - record: ai_res:threshold:outbox_oldest_undelivered_age_seconds
+#     expr: vector(<value>)            # WORKING until approved; record the decision in DECISIONS_PENDING/ADL
+#     labels: { status: WORKING }
+#
+# Known names: outbox_oldest_undelivered_age_seconds, api_5xx_ratio, api_latency_p95_seconds, temporal_schedule_to_start_p95_seconds,
+#              minio_free_ratio, collector_queue_fill_ratio.
+groups:
+  - name: ai-res-thresholds
+    rules: []

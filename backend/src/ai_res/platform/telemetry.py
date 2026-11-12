@@ -1,5 +1,9 @@
 """OpenTelemetry setup and ASGI span middleware (ADR-025). Spans carry an allowlist of attributes only."""
+import asyncio
+import time
+
 from opentelemetry import context as otel_context
+from opentelemetry import metrics
 from opentelemetry.propagators.textmap import DefaultGetter
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
@@ -12,6 +16,7 @@ from ai_res.platform.correlation import current_request_id, valid_traceparent
 
 SERVICE_NAME = "ai-res-backend"
 _PROPAGATOR = TraceContextTextMapPropagator()
+_METHODS = frozenset({"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"})  # anything else is one bucket: an attacker-chosen method is not a label
 
 
 def build_tracer_provider(exporter: SpanExporter | None = None) -> TracerProvider:
@@ -27,6 +32,9 @@ class TelemetryMiddleware:
 
     def __init__(self, app: ASGIApp, tracer: Tracer) -> None:
         self.app, self.tracer = app, tracer
+        # RED metric of the service (OBS-MON-004). Labels are method, route TEMPLATE and status class only: bounded, never ids or raw paths (OBS-MON-034).
+        self.duration = metrics.get_meter("ai_res.http").create_histogram(
+            "http.server.request.duration", unit="s", description="Duration of inbound HTTP requests")
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
@@ -35,9 +43,11 @@ class TelemetryMiddleware:
         raw = next((v.decode("latin-1") for k, v in scope["headers"] if k.lower() == b"traceparent"), None)
         carrier = {"traceparent": tp} if (tp := valid_traceparent(raw)) else {}
         parent = _PROPAGATOR.extract(carrier, otel_context.get_current(), getter=DefaultGetter())
+        cancelled = False
+        started, status_seen = time.perf_counter(), [500]  # a failure before the response starts is a 500
         with self.tracer.start_as_current_span("http.request", context=parent, kind=SpanKind.SERVER,
                                                record_exception=False, set_status_on_exception=False) as span:
-            span.set_attribute("http.request.method", scope["method"])
+            span.set_attribute("http.request.method", scope["method"] if scope["method"] in _METHODS else "OTHER")  # attacker-chosen value is not an attribute
             if (rid := current_request_id()):
                 span.set_attribute("ai_res.request_id", rid)
             ctx = span.get_span_context()
@@ -46,6 +56,7 @@ class TelemetryMiddleware:
             async def send_wrapper(message: Message) -> None:
                 if message["type"] == "http.response.start":
                     status = message["status"]
+                    status_seen[0] = status
                     span.set_attribute("http.response.status_code", status)
                     span.set_attribute("http.route", getattr(scope.get("route"), "path", "unmatched"))
                     if status >= 500:
@@ -59,3 +70,11 @@ class TelemetryMiddleware:
             except Exception:
                 span.set_status(Status(StatusCode.ERROR))  # e.g. failure after the response started; no exception text recorded
                 raise
+            except asyncio.CancelledError:
+                cancelled = True  # client disconnect before a response: not a server error, not recorded as 5xx
+                raise
+            finally:
+                if not cancelled:
+                    self.duration.record(time.perf_counter() - started, {
+                        "http.request.method": scope["method"] if scope["method"] in _METHODS else "OTHER",
+                        "http.route": getattr(scope.get("route"), "path", "unmatched"), "http.response.status_class": f"{status_seen[0] // 100}xx"})

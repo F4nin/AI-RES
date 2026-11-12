@@ -44,7 +44,7 @@ class IdentityServices:
 
 def build_identity_services(settings: Settings, factory: Any | None = None) -> IdentityServices:
     """Composition root for the identity services. `factory` is injectable for tests; production builds the runtime engine (least-privilege `ai_res_api`)."""
-    factory = factory or create_session_factory(create_runtime_engine(settings))
+    factory = factory or create_session_factory(create_runtime_engine(settings, telemetry_name="api"))
     sessions = SessionService(factory, idle=timedelta(seconds=settings.session_idle_seconds), absolute=timedelta(seconds=settings.session_absolute_seconds),
                               touch_interval=timedelta(seconds=settings.session_touch_interval_seconds))
     hasher = PasswordHasherService(time_cost=settings.argon2_time_cost, memory_kib=settings.argon2_memory_kib, parallelism=settings.argon2_parallelism)

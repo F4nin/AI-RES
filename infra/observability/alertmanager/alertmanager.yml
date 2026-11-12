@@ -1,0 +1,12 @@
+# S13: the ONE alert routing path (DOC-024 §4). No destination is configured: destinations / on-call / paging are an owner decision (OD-02, OBS-ALR-006);
+# until then alerts are visible in Alertmanager and Grafana only. Alertmanager cannot execute actions: nothing here can approve, publish, change
+# permissions/models or delete data (OBS-ALR-004).
+route:
+  receiver: unrouted
+  group_by: [alertname, scope]
+  group_wait: 30s        # WORKING
+  group_interval: 5m     # WORKING
+  repeat_interval: 4h    # WORKING
+receivers:
+  - name: unrouted
+# No inhibit rules: none has been shown to match the real label sets yet (OBS-ALR-002 de-duplication is by grouping). Add with evidence.

@@ -10,6 +10,7 @@ from collections.abc import Callable, Coroutine, Mapping
 from temporalio.worker import Worker
 
 from ai_res.platform.config import ConfigError, Settings, load_settings
+from ai_res.platform.export import install_telemetry
 from ai_res.platform.redaction import configure_logging
 
 log = logging.getLogger("ai_res.runtime")
@@ -37,12 +38,17 @@ async def run_worker_until_stopped(worker: Worker) -> None:
     log.info("worker stopped")
 
 
-def main_of(run: Callable[[Settings], Coroutine[None, None, None]], env: Mapping[str, str] | None = None) -> int:
+def main_of(run: Callable[[Settings], Coroutine[None, None, None]], env: Mapping[str, str] | None = None, *, service: str = "ai-res-runtime") -> int:
+    telemetry = None
     try:
         settings = load_settings(os.environ if env is None else env)
         configure_logging(settings.log_level)
+        telemetry = install_telemetry(settings, service)  # fail-open: never raises because of the Collector
         asyncio.run(run(settings))
     except ConfigError as exc:
         print(f"configuration error: {exc}", file=sys.stderr)
         return 1
+    finally:
+        if telemetry is not None:
+            telemetry.shutdown()
     return 0

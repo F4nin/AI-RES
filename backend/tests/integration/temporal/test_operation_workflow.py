@@ -184,3 +184,39 @@ async def test_cancel_signal_reaches_a_running_workflow_and_a_missing_one_is_rep
         result = await handle_of(client, req).result()
     # the domain never entered CANCEL_REQUESTED: the signal is a hint it does not back, so it is ignored and the Operation still ends terminal
     assert (result.outcome, result.status) == ("SKELETON_FAILED_CLOSED", "FAILED")
+
+
+# --- S13 (G-108): Temporal tracing — spans link start -> workflow -> activities, histories stay compact and replayable ---------------------------------
+async def test_tracing_interceptor_links_spans_and_keeps_history_clean_and_replayable(client: Client, temporal_address: str):
+    from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+    from temporalio.contrib.opentelemetry import TracingInterceptor
+
+    from ai_res.orchestration.client import connect
+    from ai_res.platform.config import Settings
+    from ai_res.platform.telemetry import build_tracer_provider
+
+    exporter = InMemorySpanExporter()
+    provider = build_tracer_provider(exporter)
+    traced = await connect(Settings(temporal_address=temporal_address, temporal_namespace="default"), provider.get_tracer("t"))  # the production code path
+    platform, req = FakePlatform(), request()
+    async with running(traced, platform):
+        await OperationStarter(traced).start(req)
+        handle = handle_of(traced, req)
+        await handle.result()
+        history = await handle.fetch_history()
+    names = [s.name for s in exporter.get_finished_spans()]
+    assert any(n.startswith("StartWorkflow:") for n in names) and any(n.startswith("RunWorkflow:") for n in names), names
+    assert any(n.startswith("RunActivity:") for n in names), names
+    spans = exporter.get_finished_spans()
+    assert len({s.context.trace_id for s in spans}) == 1, "start, workflow and activities belong to ONE trace"
+    allowed = {"temporalWorkflowID", "temporalRunID", "temporalActivityID"}
+    assert all(set(s.attributes or {}) <= allowed for s in spans), "spans carry ids only, never payloads"
+    text = history.to_json()
+    assert not re.search(r"password|secret|authorization|bearer|api[_-]?key|BEGIN [A-Z ]*PRIVATE|prompt", text, re.I)
+    import base64
+    headers = re.findall(r'"_tracer-data":\s*\{.*?"data":\s*"([^"]+)"', text, re.S)
+    assert headers, "positive control: the trace context travels in Temporal headers"
+    for raw in headers:  # the header carries W3C trace context and nothing else
+        assert set(json.loads(base64.b64decode(raw))) <= {"traceparent", "tracestate"}
+    await Replayer(workflows=[OperationWorkflow]).replay_workflow(history)  # a plain (non-tracing) replayer accepts a traced history
+    await Replayer(workflows=[OperationWorkflow], interceptors=[TracingInterceptor(provider.get_tracer("t"))]).replay_workflow(history)
