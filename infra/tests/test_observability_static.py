@@ -142,7 +142,24 @@ def test_threshold_alerts_reference_a_threshold_series_and_no_literal_threshold(
         if "threshold" in rule["annotations"]["description"]:
             assert "ai_res:threshold:" in rule["expr"], rule["alert"]
     thresholds = yaml.safe_load((OBS / "prometheus" / "rules" / "thresholds.yml").read_text())
-    assert [r for g in thresholds["groups"] for r in g["rules"]] == [], "numeric thresholds are an owner decision (OD-02): none are invented here"
+    recorded = {r["record"]: r for g in thresholds["groups"] for r in g["rules"]}
+    used = {m for rule in ALERTS for m in re.findall(r"ai_res:threshold:\w+", rule["expr"])}
+    assert used == set(recorded), "every threshold an alert uses is recorded by the owner (OD-02), and none is recorded without a user"
+    assert all(r["labels"] == {"status": "WORKING"} for r in recorded.values()), "owner starting values stay WORKING until calibrated (S33)"
+
+
+def test_retention_is_explicit_per_signal_class():
+    """Owner decision 2026-11-13 (OD-02, OBS-SEC-007): metrics 30d, traces 7d, logs 30d; no silent component defaults."""
+    compose = yaml.safe_load((OBS.parent / "compose.yaml").read_text())
+    assert "--storage.tsdb.retention.time=30d" in compose["services"]["prometheus"]["command"]
+    loki = yaml.safe_load((OBS / "loki" / "config.yaml").read_text())
+    assert loki["limits_config"]["retention_period"] == "720h" and loki["compactor"]["retention_enabled"] is True
+    tempo = yaml.safe_load((OBS / "tempo" / "config.yaml").read_text())
+    assert tempo["compactor"]["compaction"]["block_retention"] == "168h"
+
+
+def test_alert_owner_is_the_project_owner_role_not_a_placeholder():
+    assert {r["labels"]["owner"] for r in ALERTS} == {"project-owner"}
 
 
 def test_no_alert_expression_uses_a_forbidden_label():
@@ -174,7 +191,7 @@ def test_promtool_accepts_rules_and_config():
 
 
 def test_promtool_unit_tests_of_the_rules_pass():
-    res = _promtool("test", "rules", "/p/tests/alerts_test.yml")
+    res = _promtool("test", "rules", "/p/tests/alerts_test.yml", "/p/tests/thresholds_test.yml")
     assert res.returncode == 0, res.stdout + res.stderr
 
 

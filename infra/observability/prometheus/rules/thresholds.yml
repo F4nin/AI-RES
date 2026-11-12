@@ -1,13 +1,13 @@
-# S13: numeric alert thresholds are an OWNER decision (OD-02, DOC-025 §6: "numeric SLOs are not approved before a prototype/pilot baseline").
-# This file therefore defines NO values. A threshold-based alert in alerts.yml compares against the series `ai_res:threshold:<name>`; while the series is absent
-# the comparison yields nothing and the alert cannot fire (inert by design, proven in tests/alerts_test.yml). To enable one, the owner records a value here:
-#
-#   - record: ai_res:threshold:outbox_oldest_undelivered_age_seconds
-#     expr: vector(<value>)            # WORKING until approved; record the decision in DECISIONS_PENDING/ADL
-#     labels: { status: WORKING }
-#
-# Known names: outbox_oldest_undelivered_age_seconds, api_5xx_ratio, api_latency_p95_seconds, temporal_schedule_to_start_p95_seconds,
-#              minio_free_ratio, collector_queue_fill_ratio.
+# S13 owner decision (2026-11-13, OD-02): STARTING values for alert thresholds, recorded by the project owner BEFORE any measured baseline exists.
+# Status WORKING: they are not SLOs. Recalibrate from measurements at S33 (evaluation/load baseline) and record the change in DECISIONS_PENDING/ADL.
+# A threshold alert in alerts.yml compares against the series `ai_res:threshold:<name>`; if a series is ever removed the alert becomes inert again
+# (proven by tests/alerts_test.yml, which supplies its own fixture values and does NOT load this file).
 groups:
   - name: ai-res-thresholds
-    rules: []
+    rules:
+      - { record: "ai_res:threshold:api_5xx_ratio", expr: "vector(0.05)", labels: { status: WORKING } }                          # share of 5xx responses over 5m
+      - { record: "ai_res:threshold:api_latency_p95_seconds", expr: "vector(1)", labels: { status: WORKING } }                  # p95 request duration over 5m
+      - { record: "ai_res:threshold:temporal_schedule_to_start_p95_seconds", expr: "vector(5)", labels: { status: WORKING } }   # workflow-task queue wait p95
+      - { record: "ai_res:threshold:minio_free_ratio", expr: "vector(0.15)", labels: { status: WORKING } }                      # alert BELOW this free share
+      - { record: "ai_res:threshold:outbox_oldest_undelivered_age_seconds", expr: "vector(300)", labels: { status: WORKING } }   # oldest undelivered outbox row
+      - { record: "ai_res:threshold:collector_queue_fill_ratio", expr: "vector(0.9)", labels: { status: WORKING } }              # Collector exporter queue fill

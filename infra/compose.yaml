@@ -489,6 +489,7 @@ services:
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=30d  # owner decision 2026-11-13 (OD-02)
       - --web.listen-address=:9090  # lifecycle and admin APIs stay off (Prometheus defaults)
     volumes:
       - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro

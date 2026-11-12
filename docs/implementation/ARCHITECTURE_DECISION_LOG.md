@@ -105,6 +105,7 @@
 | ADR-097 | S13: экспорт telemetry из процессов — fail-open, ограниченные очереди, измеряемая потеря, санитизация логов | ACCEPTED |
 | ADR-098 | S13: трассировка и метрики Temporal; контекст через Platform API, но не через Outbox | ACCEPTED |
 | ADR-099 | S13: PostgreSQL — application-side метрики пула; серверные метрики ждут monitoring-роли (NCP-15) | ACCEPTED |
+| ADR-100 | S13: решения владельца по OD-02 — стартовые пороги алертов, retention 30/7/30 дней, получатели и owner | ACCEPTED |
 
 ---
 
@@ -1790,3 +1791,20 @@
 | Влияние на компоненты/контракты | `db/metrics.py`, `db/engine.py`, дашборд `postgresql`, алерты DatabasePoolSaturated/DatabaseErrors, `NORMATIVE_CHANGE_PROPOSALS.md`. |
 | Риски и компромиссы | Нет видимости блокировок/репликации/места на диске PostgreSQL до решения NCP-15 (G-125). |
 | Затронутые тесты | test_observability_static (дашборд), runtime (валидность запросов), unit (пул) |
+
+## ADR-100 — S13: решения владельца по OD-02 — стартовые пороги алертов, retention 30/7/30 дней, получатели и owner
+
+| Поле | Значение |
+|---|---|
+| Статус | ACCEPTED |
+| Дата | 2026-11-13 |
+| Ответственный | Владелец проекта (решение дано в сессии 2026-11-13); реализация — Implementation Lead |
+| Проблема и контекст | После S13 числовые пороги алертов, сроки хранения telemetry и получатели были открыты (OD-02, OBS-SEC-007, OBS-ALR-006): алерты по порогам инертны, retention — умолчания компонентов, owner алертов — заглушка |
+| Связанные требования | OBS-MON-011, OBS-SEC-007, OBS-ALR-001/006; OD-02 |
+| Документы и разделы | Monitoring & Alerting Requirements v1.0 §5–§7; Observability Architecture v1.2 §8, §9 |
+| Альтернативы | Оставить пороги пустыми до S33 (алерты инертны); задать значения владельцем вручную; email-получатель (внешний сервис, SMTP-секрет); умолчания компонентов для retention |
+| Решение | 1) Пороги — **стартовые значения, статус WORKING**, не SLO, записаны в `thresholds.yml`: доля 5xx 0.05; p95 запроса 1 с; schedule-to-start p95 5 с; свободное место MinIO < 0.15; возраст старейшей недоставленной строки outbox 300 с; заполнение очереди Collector 0.9. Пересмотр по измерениям на S33. 2) Retention: метрики 30 дней, трейсы 7 дней, логи 30 дней; явная конфигурация (Prometheus `--storage.tsdb.retention.time=30d`, Tempo `block_retention: 168h`, Loki `retention_period: 720h` + compactor). Относится только к telemetry; Audit Log (PostgreSQL) не затрагивается. 3) Получатели: только Alertmanager и дашборд, внешних получателей нет (PagerDuty вне MVP); `owner` алертов — `project-owner` (роль владельца проекта) вместо заглушки `platform-operations` |
+| Обоснование | Включить механизм оповещения сейчас лучше, чем держать его выключенным без измерений; значения консервативны и помечены как подлежащие калибровке; retention соответствует OBS-SEC-007 (явные сроки по классам); внешние сервисы и их секреты не добавляются |
+| Влияние на компоненты/контракты | `thresholds.yml`, `compose.yaml` (Prometheus), `loki/tempo` конфиги, `alerts.yml`/тесты (owner), runbook; публичные контракты и `docs/architecture/` не менялись |
+| Риски и компромиссы | Стартовые числа могут давать ложные срабатывания или пропуски до калибровки; без получателей алерт виден только в Alertmanager/дашборде (OBS-ALR-006 для production-like запуска остаётся: нужна эскалация человеку); диск Loki/Tempo/Prometheus по-прежнему без алерта (G-127) |
+| Затронутые тесты | test_observability_static (пороги записаны и WORKING, retention, owner), promtool `thresholds_test.yml`, runtime-набор |
