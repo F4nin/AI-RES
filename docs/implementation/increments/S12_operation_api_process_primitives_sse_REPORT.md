@@ -1,6 +1,6 @@
 # S12 — Operation API, process primitives, cancellation, SSE: Increment Report
 
-**Дата:** 2026-11-12 · **Промпт:** `increments/prompts/S12_operation_api_process_primitives_sse.md` · **Итоговый статус:** IMPLEMENTED/TESTED локально; VERIFIED — после зелёного Linux CI. `make pre-pr` целиком не запускался (см. §12).
+**Дата:** 2026-11-12 · **Промпт:** `increments/prompts/S12_operation_api_process_primitives_sse.md` · **Итоговый статус:** VERIFIED (Linux CI зелёный: PR #13 и PR #14, см. IMPLEMENTATION_STATUS). `make pre-pr` целиком не запускался (см. §12).
 
 ## 1. Что реализовано
 - Типизированные переходы Operation (`state_machine.py`, равна baselined JSON; применяется в `OperationRepository.transition`).
@@ -47,7 +47,7 @@ IDOR для cancel/completeUpload/SSE — один и тот же 404; viewer н
 `reviews/S12_REVIEWS.md`: два раунда; CRITICAL 0, HIGH 1 (G-117, решение владельца: reconciler до S23, ADR-094); MEDIUM — исправлены по сути, остальные в gaps.
 
 ## 12. Не выполненные проверки, ограничения, риски
-- `make pre-pr` и `make infra-test` не запускались; выполнены backend-набор и contracts-check. Linux CI ещё не проходил.
+- `make pre-pr` и `make infra-test` локально не запускались; backend-набор и contracts-check выполнены локально, весь набор (backend, infra-static, infra-runtime, contracts) прошёл на Linux CI.
 - completeUpload проверен против HTTP-фейка за реальным `S3ObjectStore`, не против живого MinIO (G-115).
 - Все ревьюеры из промпта отработали (два раунда). Находки второго раунда: исправлены или в gaps (ADR-094, G-121, G-122).
 - Открытые: G-112…G-120, в т.ч. HIGH G-117 (зависшая отмена).
@@ -56,7 +56,7 @@ IDOR для cancel/completeUpload/SSE — один и тот же 404; viewer н
 ADL (ADR-091…093), KNOWN_GAPS (G-112…G-120), ECC_USAGE, IMPLEMENTATION_STATUS, CONTEXT_HANDOFF, `reviews/S12_REVIEWS.md`. REQUIREMENTS_TRACEABILITY (API-MVP-009, -010) и CONTRACT_TRACEABILITY_MAP (4 операции) обновлены.
 
 ## 14. Статус DoD
-✅ переходы и getOperation; ✅ cancel + reconciliation; ✅ completeUpload (проверка хранилищем, идемпотентность, IDOR); ✅ SSE (ACL, курсор, gap, отзыв); ✅ нет Operation Events history API; ✅ reviewers выполнены (два раунда); ✅ трассируемость; CI PR #13 зелёный, CI PR с исправлениями — ожидается.
+✅ переходы и getOperation; ✅ cancel + reconciliation; ✅ completeUpload (проверка хранилищем, идемпотентность, IDOR); ✅ SSE (ACL, курсор, gap, отзыв); ✅ нет Operation Events history API; ✅ reviewers выполнены (два раунда); ✅ трассируемость; Linux CI зелёный (PR #13, PR #14).
 
 ## 15. Можно ли начинать следующий этап
 Да — S13, после зелёного CI PR с исправлениями review; G-117/G-107 (reconciler) обязательны до S23.
