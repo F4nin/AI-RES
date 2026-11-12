@@ -88,8 +88,22 @@ READ_CASES = [("PADMIN", True, ALLOW, "allowed_role:PROJECT_ADMIN"), ("PADMIN", 
               ("NOBODY", True, DENY, "no_matching_grant")]
 
 
+# S09 (ADR-083): action -> (resource type, project roles | None for org roles); organization roles apply to project.create only
+WRITE_ACTIONS = {"project.create": "PROJECT", "project.update": "PROJECT", "epic.create": "EPIC", "requirement.register": "REQUIREMENT",
+                 "requirement.propose_version": "REQUIREMENT", "source.upload_create": "SOURCE"}
+WRITE_CASES = {
+    "project.create": [("OWNER", True, ALLOW, "allowed_role:ORGANIZATION_OWNER"), ("ADMIN", True, ALLOW, "allowed_role:ORGANIZATION_ADMIN"), ("OWNER", False, DENY, "mfa_required"),
+                       ("ANALYST", True, DENY, "no_matching_grant"), ("PADMIN", True, DENY, "no_matching_grant"), ("AUDITOR", True, DENY, "no_matching_grant")],
+    "project.update": [("PADMIN", True, ALLOW, "allowed_role:PROJECT_ADMIN"), ("PADMIN", False, DENY, "mfa_required"), ("ANALYST", True, DENY, "no_matching_grant"),
+                       ("OWNER", True, DENY, "no_matching_grant"), ("NOBODY", True, DENY, "no_matching_grant")],
+}
+for _a in ("epic.create", "requirement.register", "requirement.propose_version", "source.upload_create"):
+    WRITE_CASES[_a] = [("ANALYST", False, ALLOW, "allowed_role:ANALYST"), ("PADMIN", True, ALLOW, "allowed_role:PROJECT_ADMIN"), ("PADMIN", False, DENY, "mfa_required"),
+                       ("AUDITOR", True, DENY, "no_matching_grant"), ("OWNER", True, DENY, "no_matching_grant"), ("NOBODY", True, DENY, "no_matching_grant")]
+
+
 def test_matrix_covers_every_action_of_the_packaged_policy() -> None:
-    assert {m[1] for m in MATRIX} | set(READ_ACTIONS) == set(load_packaged_policy().actions)  # a new action without a matrix row fails here
+    assert {m[1] for m in MATRIX} | set(READ_ACTIONS) | set(WRITE_ACTIONS) == set(load_packaged_policy().actions)  # a new action without a matrix row fails here
 
 
 @pytest.mark.parametrize("action", sorted(READ_ACTIONS))
@@ -315,3 +329,11 @@ async def test_a_revoked_organization_membership_closes_project_and_self_grants_
     for action, project in (("iam.self.read", None), ("iam.user.disable", cast.project)):
         d = await engine.decide(req(cast, "PADMIN", action, project_id=None if project is None else str(project), mfa=True))
         assert d.effect.value == "DENY" and d.reason_code == "membership_inactive", action
+
+
+@pytest.mark.parametrize("action", sorted(WRITE_ACTIONS))
+async def test_write_actions_follow_the_role_matrix_and_are_human_only(engine: PolicyEngine, cast: Cast, action: str) -> None:
+    for who, mfa, effect, reason in WRITE_CASES[action]:
+        extra = {} if action == "project.create" else {"project_id": str(cast.project)}
+        d = await engine.decide(req(cast, who, action, mfa=mfa, rtype=WRITE_ACTIONS[action], **extra))
+        assert (d.effect, d.reason_code) == (effect, reason), (who, mfa)

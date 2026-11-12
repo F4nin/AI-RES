@@ -16,6 +16,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, FastAPI, Query, Request, Response
 
 from ai_res.api.identity import IdentityServices
+from ai_res.api.locator import ObjectLocator
 from ai_res.db.session import UnitOfWork
 from ai_res.modules.iam.sessions import AuthenticatedSession
 from ai_res.modules.readmodel.queries import ReadQueries, Row, Slice, parse_num_keyset, parse_ts_keyset
@@ -46,8 +47,7 @@ def _opt(value: Any) -> str | None:
 
 # -- DTO mappers (explicit; nothing from a row is passed through unnamed) ---------------------------------------------------------------------------
 def project_dto(r: Row) -> dict[str, Any]:
-    # `goal` is part of the OAS Project but has no column yet (G-84): null, never invented.
-    return {"id": str(r["id"]), "organizationId": str(r["organization_id"]), "name": r["name"], "description": r["description"], "goal": None,
+    return {"id": str(r["id"]), "organizationId": str(r["organization_id"]), "name": r["name"], "description": r["description"], "goal": r["goal"],
             "projectType": r["project_type"], "status": r["status"], "createdAt": _iso(r["created_at"]), "updatedAt": _iso(r["updated_at"])}
 
 
@@ -154,34 +154,16 @@ def register_read_api(app: FastAPI, services: IdentityServices) -> None:
             await enforcer.record_allow(policy_request, decision, session=uow.session)  # fail-closed: no audit row, no data
             return await fn(ReadQueries(uow.session))
 
-    async def readable_projects(s: AuthenticatedSession) -> list[UUID]:
-        out: list[UUID] = []
-        after: list[Any] | None = None
-        cap = settings.read_lookup_max_projects
-        while True:
-            async with UnitOfWork(factory) as uow:
-                await uow.with_tenant(s.organization_id)
-                page = await ReadQueries(uow.session).visible_projects(s.organization_id, s.user_id, plain_roles=plain, privileged_roles=priv, org_roles=org_roles,
-                                                                       mfa_verified=s.mfa_verified_at is not None, limit=OAS_MAX_LIMIT, after=after)
-            out += [r["id"] for r in page.items]
-            if len(out) > cap:
-                _log.warning("by-id lookup refused: caller can read more than %d projects", cap)  # WORKING cap; ADR-075 / G-87
-                raise ProblemError(ErrorCode.DEPENDENCY_UNAVAILABLE, "Lookup is unavailable for this account; use the project-scoped listing.")
-            if not page.has_more:
-                return out
-            after = [page.items[-1]["created_at"].isoformat(), str(page.items[-1]["id"])]
+    locator = ObjectLocator(services, plain=plain, priv=priv, org_roles=org_roles)
 
     async def by_id(s: AuthenticatedSession, table: str, object_id: UUID, action: str, rtype: str,
                     fn: Callable[[ReadQueries, UUID], Awaitable[T]]) -> T:
         """Find the object among projects the caller can read, authorize against the owning project, then run `fn`."""
-        for project_id in await readable_projects(s):
-            async with UnitOfWork(factory) as uow:
-                await uow.with_tenant(s.organization_id, project_id)
-                found = await ReadQueries(uow.session).exists_in_project(table, object_id, project_id)
-            if found:
-                async def run(q: ReadQueries, pid: UUID = project_id) -> T:
-                    return await fn(q, pid)
-                return await in_project(s, project_id, action, rtype, object_id, run)
+        project_id = await locator.locate(s, table, object_id)
+        if project_id is not None:
+            async def run(q: ReadQueries) -> T:
+                return await fn(q, project_id)
+            return await in_project(s, project_id, action, rtype, object_id, run)
         raise _not_found()
 
     def paged(request: Request, s: AuthenticatedSession, audience: str, scope: UUID, data: Slice, dto: Callable[[Row], dict[str, Any]],

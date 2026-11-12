@@ -7,9 +7,13 @@ from types import TracebackType
 from typing import Self
 from uuid import UUID
 
+from sqlalchemy.exc import IntegrityError as IntegrityViolation  # re-exported: the API layer may not import sqlalchemy itself
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, AsyncSessionTransaction, async_sessionmaker
 
 from ai_res.db.tenant_context import set_tenant_context
+
+DbSession = AsyncSession  # type used by API-layer command code that receives `uow.session`
+__all__ = ["DbSession", "IntegrityViolation", "UnitOfWork", "create_session_factory"]
 
 
 def create_session_factory(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:

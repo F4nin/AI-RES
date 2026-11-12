@@ -30,13 +30,19 @@ WORKER_RUN_EVENT_TYPES = frozenset({
     "worker_run.result_submitted", "worker_run.validation_completed", "worker_run.review_requested", "worker_run.qa_requested",
     "worker_run.completed", "worker_run.rework_required", "worker_run.rejected", "worker_run.unverified", "worker_run.cancel_requested",
     "worker_run.cancelled", "worker_run.failed", "worker_run.timed_out", "worker_run.derived"})
-EVENT_TYPES_BY_AGGREGATE: Mapping[str, frozenset[str]] = {"OPERATION": OPERATION_EVENT_TYPES, "WORKER_RUN": WORKER_RUN_EVENT_TYPES}
+# S09 write commands: the three AsyncAPI v1.6 messages of the OLDER family (`aires.<name>.v1`, channel `aires.project.events`). They carry no Operation.
+DOMAIN_EVENT_TYPES: Mapping[str, frozenset[str]] = {
+    "PROJECT": frozenset({"project.created"}), "EPIC": frozenset({"epic.created"}), "REQUIREMENT": frozenset({"requirement.version.created"})}
+DOMAIN_DESTINATION = "aires.project.events"  # AsyncAPI v1.6 channel address
+EVENT_TYPES_BY_AGGREGATE: Mapping[str, frozenset[str]] = {"OPERATION": OPERATION_EVENT_TYPES, "WORKER_RUN": WORKER_RUN_EVENT_TYPES, **DOMAIN_EVENT_TYPES}
 
 ACTOR_TYPES = frozenset({"SYSTEM", "USER", "MANAGER", "WORKER", "SERVICE"})  # AsyncAPI OperationWorkerRunEventData.actor.type
 SUPPORTED_SCHEMA_VERSIONS = frozenset({1})  # an unknown major version fails closed, never a silent downgrade
 
-SOURCES: Mapping[str, str] = {"OPERATION": "urn:aires:operations", "WORKER_RUN": "urn:aires:worker-runs"}  # WORKING for WORKER_RUN
-SUBJECT_PREFIX: Mapping[str, str] = {"OPERATION": "operations", "WORKER_RUN": "worker-runs"}  # Event Model v1.4 §4
+SOURCES: Mapping[str, str] = {"OPERATION": "urn:aires:operations", "WORKER_RUN": "urn:aires:worker-runs", "PROJECT": "urn:aires:projects",
+                              "EPIC": "urn:aires:epics", "REQUIREMENT": "urn:aires:requirements"}  # WORKING except OPERATION (OD-13)
+SUBJECT_PREFIX: Mapping[str, str] = {"OPERATION": "operations", "WORKER_RUN": "worker-runs", "PROJECT": "projects", "EPIC": "epics",
+                                     "REQUIREMENT": "requirements"}  # Event Model v1.4 §4 (OPERATION, WORKER_RUN); the rest follow the same rule
 DATASCHEMA_PREFIX = "urn:aires:schemas:"  # WORKING: dataschema = prefix + CloudEvents type (unique per event type and major version)
 
 
@@ -48,8 +54,9 @@ class EventRef:
     version_id: UUID | None = None
 
 
-def event_type_name(short_name: str, schema_version: int) -> str:
-    return f"com.aires.{short_name}.v{schema_version}"
+def event_type_name(short_name: str, schema_version: int, aggregate_type: str | None = None) -> str:
+    prefix = "aires" if aggregate_type in DOMAIN_EVENT_TYPES else "com.aires"
+    return f"{prefix}.{short_name}.v{schema_version}"
 
 
 def subject_for(aggregate_type: str, aggregate_id: UUID) -> str:
@@ -69,12 +76,15 @@ def validate_event_identity(aggregate_type: str, event_type: str, schema_version
 
 
 def build_envelope(*, aggregate_type: str, aggregate_id: UUID, event_id: UUID, sequence: int, version: int, occurred_at: datetime, organization_id: UUID,
-                   project_id: UUID, operation_id: UUID, event_type: str, schema_version: int, actor_type: str, actor_id: UUID | None, correlation_id: UUID,
-                   causation_id: UUID | None, reason_code: str | None, from_status: str | None, to_status: str | None, details: Mapping[str, Any],
-                   refs: Sequence[EventRef]) -> dict[str, Any]:
+                   project_id: UUID, operation_id: UUID | None, event_type: str, schema_version: int, actor_type: str, actor_id: UUID | None,
+                   correlation_id: UUID, causation_id: UUID | None, reason_code: str | None, from_status: str | None, to_status: str | None,
+                   details: Mapping[str, Any], refs: Sequence[EventRef]) -> dict[str, Any]:
     """Optional attributes are omitted, never null (CloudEvents); `data.eventType` is deliberately absent (AsyncAPI forbids it)."""
     validate_event_identity(aggregate_type, event_type, schema_version, actor_type)
-    type_name = event_type_name(event_type, schema_version)
+    domain = aggregate_type in DOMAIN_EVENT_TYPES
+    if domain == (operation_id is not None):
+        raise ValueError("Operation/WorkerRun events need an operation id; the domain family carries none")
+    type_name = event_type_name(event_type, schema_version, aggregate_type)
     occurred = to_rfc3339(occurred_at)
     actor: dict[str, Any] = {"type": actor_type}
     if actor_id is not None:
@@ -82,7 +92,9 @@ def build_envelope(*, aggregate_type: str, aggregate_id: UUID, event_id: UUID, s
     data: dict[str, Any] = {
         "eventId": str(event_id), "schemaVersion": schema_version, "aggregateType": aggregate_type, "aggregateId": str(aggregate_id),
         "aggregateSequence": sequence, "aggregateVersion": version, "organizationId": str(organization_id), "projectId": str(project_id),
-        "operationId": str(operation_id), "occurredAt": occurred, "actor": actor, "correlationId": str(correlation_id)}
+        "occurredAt": occurred, "actor": actor, "correlationId": str(correlation_id)}
+    if operation_id is not None:
+        data["operationId"] = str(operation_id)
     if causation_id is not None:
         data["causationId"] = str(causation_id)
     if reason_code is not None:
@@ -93,7 +105,13 @@ def build_envelope(*, aggregate_type: str, aggregate_id: UUID, event_id: UUID, s
         data["refs"] = [
             {"resourceType": r.resource_type, "resourceId": str(r.resource_id), **({"versionId": str(r.version_id)} if r.version_id else {})} for r in refs]
     if details:
-        data["details"] = dict(details)
+        if domain:  # the older message family defines its identifiers directly under `data` (AsyncAPI v1.6), never nested
+            clash = set(details) & set(data)
+            if clash:
+                raise ValueError(f"event details may not redefine envelope fields: {sorted(clash)}")
+            data.update(details)
+        else:
+            data["details"] = dict(details)
     return {
         "specversion": "1.0", "id": str(event_id), "source": SOURCES[aggregate_type], "type": type_name, "subject": subject_for(aggregate_type, aggregate_id),
         "time": occurred, "datacontenttype": "application/json", "dataschema": DATASCHEMA_PREFIX + type_name, "data": data}

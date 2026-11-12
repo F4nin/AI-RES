@@ -93,7 +93,7 @@ _INSERT_OUTBOX = text(
     "schema_version, envelope) VALUES (:id, :org, :prj, :event_id, :destination, :atype, :aid, :seq, :etype, :schema_version, CAST(:envelope AS jsonb))")
 
 
-async def append_event(session: AsyncSession, kind: AggregateKind, *, aggregate_id: UUID, organization_id: UUID, project_id: UUID, operation_id: UUID,
+async def append_event(session: AsyncSession, kind: AggregateKind, *, aggregate_id: UUID, organization_id: UUID, project_id: UUID, operation_id: UUID | None,
                        expected_version: int, spec: EventSpec, changes: Mapping[str, Any] | None = None) -> AppendedEvent:
     _validate(kind, spec)
     event_id, occurred = new_id(), require_utc(spec.occurred_at) if spec.occurred_at else utc_now()  # every ValueError is raised before the counter moves

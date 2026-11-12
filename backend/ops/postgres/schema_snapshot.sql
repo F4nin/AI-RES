@@ -195,16 +195,33 @@ ALTER FUNCTION artifacts.guard_publication_insert() OWNER TO ai_res_owner;
 CREATE FUNCTION audit.assert_outbox_matches_event() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
-DECLARE found boolean; op_id uuid;
+DECLARE found boolean; op_id uuid; domain boolean := false; expected_source text; expected_subject text;
 BEGIN  -- deferred to COMMIT: an outbox row without its event (or for another aggregate/sequence) is an orphan and rolls the whole transaction back
   IF NEW.aggregate_type = 'OPERATION' THEN
     SELECT EXISTS (SELECT 1 FROM operations.operation_events e WHERE e.event_id = NEW.event_id AND e.operation_id = NEW.aggregate_id
                     AND e.aggregate_sequence = NEW.aggregate_sequence AND e.event_type = NEW.event_type AND e.schema_version = NEW.schema_version) INTO found;
     op_id := NEW.aggregate_id;
+    expected_source := 'urn:aires:operations'; expected_subject := 'operations/' || NEW.aggregate_id::text;
   ELSIF NEW.aggregate_type = 'WORKER_RUN' THEN
     SELECT EXISTS (SELECT 1 FROM agents.worker_run_events e WHERE e.event_id = NEW.event_id AND e.worker_run_id = NEW.aggregate_id
                     AND e.aggregate_sequence = NEW.aggregate_sequence AND e.event_type = NEW.event_type AND e.schema_version = NEW.schema_version) INTO found;
     SELECT r.operation_id INTO op_id FROM agents.worker_runs r WHERE r.id = NEW.aggregate_id;
+    expected_source := 'urn:aires:worker-runs'; expected_subject := 'worker-runs/' || NEW.aggregate_id::text;
+  ELSIF NEW.aggregate_type = 'PROJECT' THEN
+    domain := true;
+    SELECT EXISTS (SELECT 1 FROM project.project_events e WHERE e.event_id = NEW.event_id AND e.project_id = NEW.aggregate_id
+                    AND e.aggregate_sequence = NEW.aggregate_sequence AND e.event_type = NEW.event_type AND e.schema_version = NEW.schema_version) INTO found;
+    expected_source := 'urn:aires:projects'; expected_subject := 'projects/' || NEW.aggregate_id::text;
+  ELSIF NEW.aggregate_type = 'EPIC' THEN
+    domain := true;
+    SELECT EXISTS (SELECT 1 FROM work.epic_events e WHERE e.event_id = NEW.event_id AND e.epic_id = NEW.aggregate_id
+                    AND e.aggregate_sequence = NEW.aggregate_sequence AND e.event_type = NEW.event_type AND e.schema_version = NEW.schema_version) INTO found;
+    expected_source := 'urn:aires:epics'; expected_subject := 'epics/' || NEW.aggregate_id::text;
+  ELSIF NEW.aggregate_type = 'REQUIREMENT' THEN
+    domain := true;
+    SELECT EXISTS (SELECT 1 FROM requirements.requirement_events e WHERE e.event_id = NEW.event_id AND e.requirement_id = NEW.aggregate_id
+                    AND e.aggregate_sequence = NEW.aggregate_sequence AND e.event_type = NEW.event_type AND e.schema_version = NEW.schema_version) INTO found;
+    expected_source := 'urn:aires:requirements'; expected_subject := 'requirements/' || NEW.aggregate_id::text;
   ELSE
     RAISE EXCEPTION 'outbox row % has aggregate_type % without an event-table mapping: extend audit.assert_outbox_matches_event in the revision that adds it', NEW.id, NEW.aggregate_type
       USING ERRCODE = 'integrity_constraint_violation';
@@ -215,17 +232,17 @@ BEGIN  -- deferred to COMMIT: an outbox row without its event (or for another ag
   END IF;
   -- the envelope is routed on by consumers and SSE: it must describe exactly this row's event and tenant (a forged envelope would be accepted otherwise)
   IF NEW.envelope ->> 'id' IS DISTINCT FROM NEW.event_id::text
-     OR NEW.envelope ->> 'type' IS DISTINCT FROM 'com.aires.' || NEW.event_type || '.v' || NEW.schema_version
+     OR NEW.envelope ->> 'type' IS DISTINCT FROM (CASE WHEN domain THEN 'aires.' ELSE 'com.aires.' END) || NEW.event_type || '.v' || NEW.schema_version
      OR NEW.envelope #>> '{data,eventId}' IS DISTINCT FROM NEW.event_id::text
      OR NEW.envelope #>> '{data,organizationId}' IS DISTINCT FROM NEW.organization_id::text
      OR NEW.envelope #>> '{data,projectId}' IS DISTINCT FROM NEW.project_id::text
      OR NEW.envelope #>> '{data,aggregateType}' IS DISTINCT FROM NEW.aggregate_type
      OR NEW.envelope #>> '{data,aggregateId}' IS DISTINCT FROM NEW.aggregate_id::text
      OR NEW.envelope #>> '{data,aggregateSequence}' IS DISTINCT FROM NEW.aggregate_sequence::text
-     OR NEW.envelope #>> '{data,operationId}' IS DISTINCT FROM op_id::text
-     OR NEW.envelope ->> 'subject' IS DISTINCT FROM (CASE NEW.aggregate_type WHEN 'OPERATION' THEN 'operations' ELSE 'worker-runs' END) || '/' || NEW.aggregate_id::text
-     OR NEW.envelope ->> 'source' IS DISTINCT FROM (CASE NEW.aggregate_type WHEN 'OPERATION' THEN 'urn:aires:operations' ELSE 'urn:aires:worker-runs' END)
-     OR NEW.envelope ->> 'dataschema' IS DISTINCT FROM 'urn:aires:schemas:com.aires.' || NEW.event_type || '.v' || NEW.schema_version THEN
+     OR NEW.envelope #>> '{data,operationId}' IS DISTINCT FROM op_id::text   -- NULL for the domain family: such an envelope carries no operationId
+     OR NEW.envelope ->> 'subject' IS DISTINCT FROM expected_subject
+     OR NEW.envelope ->> 'source' IS DISTINCT FROM expected_source
+     OR NEW.envelope ->> 'dataschema' IS DISTINCT FROM 'urn:aires:schemas:' || (CASE WHEN domain THEN 'aires.' ELSE 'com.aires.' END) || NEW.event_type || '.v' || NEW.schema_version THEN
     RAISE EXCEPTION 'outbox row % has an envelope that does not match its event/tenant columns', NEW.id USING ERRCODE = 'integrity_constraint_violation';
   END IF;
   RETURN NULL;
@@ -1894,6 +1911,35 @@ ALTER TABLE ONLY platform.idempotency_records FORCE ROW LEVEL SECURITY;
 
 ALTER TABLE platform.idempotency_records OWNER TO ai_res_owner;
 
+CREATE TABLE project.project_events (
+    event_id uuid NOT NULL,
+    project_id uuid NOT NULL,
+    aggregate_sequence bigint NOT NULL,
+    aggregate_version bigint NOT NULL,
+    event_type text NOT NULL,
+    schema_version integer NOT NULL,
+    source text NOT NULL,
+    subject text NOT NULL,
+    occurred_at timestamp with time zone NOT NULL,
+    correlation_id uuid NOT NULL,
+    causation_id uuid,
+    actor_type text NOT NULL,
+    actor_id uuid,
+    reason_code text,
+    from_status text,
+    to_status text,
+    data jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ck_project_events_actor_type CHECK ((actor_type = ANY (ARRAY['SYSTEM'::text, 'USER'::text, 'MANAGER'::text, 'WORKER'::text, 'SERVICE'::text]))),
+    CONSTRAINT ck_project_events_aggregate_sequence CHECK ((aggregate_sequence > 0)),
+    CONSTRAINT ck_project_events_aggregate_version CHECK ((aggregate_version > 0)),
+    CONSTRAINT ck_project_events_schema_version CHECK ((schema_version > 0))
+);
+
+ALTER TABLE ONLY project.project_events FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE project.project_events OWNER TO ai_res_owner;
+
 CREATE TABLE project.project_memberships (
     id uuid NOT NULL,
     organization_id uuid NOT NULL,
@@ -1924,6 +1970,9 @@ CREATE TABLE project.projects (
     row_version bigint DEFAULT 1 NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    goal text,
+    last_event_sequence bigint DEFAULT 0 NOT NULL,
+    CONSTRAINT ck_projects_last_event_sequence CHECK ((last_event_sequence >= 0)),
     CONSTRAINT ck_projects_name CHECK (((length(btrim(name)) >= 1) AND (length(btrim(name)) <= 200))),
     CONSTRAINT ck_projects_project_type CHECK ((project_type = ANY (ARRAY['GREENFIELD'::text, 'BROWNFIELD'::text, 'HYBRID'::text, 'UNKNOWN'::text]))),
     CONSTRAINT ck_projects_row_version CHECK ((row_version > 0)),
@@ -2227,6 +2276,35 @@ ALTER TABLE ONLY traceability.traceability_links FORCE ROW LEVEL SECURITY;
 
 ALTER TABLE traceability.traceability_links OWNER TO ai_res_owner;
 
+CREATE TABLE work.epic_events (
+    event_id uuid NOT NULL,
+    epic_id uuid NOT NULL,
+    aggregate_sequence bigint NOT NULL,
+    aggregate_version bigint NOT NULL,
+    event_type text NOT NULL,
+    schema_version integer NOT NULL,
+    source text NOT NULL,
+    subject text NOT NULL,
+    occurred_at timestamp with time zone NOT NULL,
+    correlation_id uuid NOT NULL,
+    causation_id uuid,
+    actor_type text NOT NULL,
+    actor_id uuid,
+    reason_code text,
+    from_status text,
+    to_status text,
+    data jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ck_epic_events_actor_type CHECK ((actor_type = ANY (ARRAY['SYSTEM'::text, 'USER'::text, 'MANAGER'::text, 'WORKER'::text, 'SERVICE'::text]))),
+    CONSTRAINT ck_epic_events_aggregate_sequence CHECK ((aggregate_sequence > 0)),
+    CONSTRAINT ck_epic_events_aggregate_version CHECK ((aggregate_version > 0)),
+    CONSTRAINT ck_epic_events_schema_version CHECK ((schema_version > 0))
+);
+
+ALTER TABLE ONLY work.epic_events FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE work.epic_events OWNER TO ai_res_owner;
+
 CREATE TABLE work.epics (
     id uuid NOT NULL,
     organization_id uuid NOT NULL,
@@ -2243,6 +2321,8 @@ CREATE TABLE work.epics (
     row_version bigint DEFAULT 1 NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    last_event_sequence bigint DEFAULT 0 NOT NULL,
+    CONSTRAINT ck_epics_last_event_sequence CHECK ((last_event_sequence >= 0)),
     CONSTRAINT ck_epics_row_version CHECK ((row_version > 0)),
     CONSTRAINT ck_epics_status CHECK ((status ~ '^[A-Z][A-Z_]*$'::text)),
     CONSTRAINT ck_epics_title CHECK (((length(btrim(title)) >= 1) AND (length(btrim(title)) <= 240)))
@@ -2623,11 +2703,17 @@ ALTER TABLE ONLY platform.idempotency_records
 ALTER TABLE ONLY platform.idempotency_records
     ADD CONSTRAINT uq_idempotency_records_organization_id_scope_type_scope_id_key_ UNIQUE (organization_id, scope_type, scope_id, key_digest);
 
+ALTER TABLE ONLY project.project_events
+    ADD CONSTRAINT pk_project_events PRIMARY KEY (event_id);
+
 ALTER TABLE ONLY project.project_memberships
     ADD CONSTRAINT pk_project_memberships PRIMARY KEY (id);
 
 ALTER TABLE ONLY project.projects
     ADD CONSTRAINT pk_projects PRIMARY KEY (id);
+
+ALTER TABLE ONLY project.project_events
+    ADD CONSTRAINT uq_project_events_project_id_aggregate_sequence UNIQUE (project_id, aggregate_sequence);
 
 ALTER TABLE ONLY project.project_memberships
     ADD CONSTRAINT uq_project_memberships_project_id_user_id UNIQUE (project_id, user_id);
@@ -2719,6 +2805,9 @@ ALTER TABLE ONLY traceability.object_types
 ALTER TABLE ONLY traceability.traceability_links
     ADD CONSTRAINT pk_traceability_links PRIMARY KEY (id);
 
+ALTER TABLE ONLY work.epic_events
+    ADD CONSTRAINT pk_epic_events PRIMARY KEY (event_id);
+
 ALTER TABLE ONLY work.epics
     ADD CONSTRAINT pk_epics PRIMARY KEY (id);
 
@@ -2730,6 +2819,9 @@ ALTER TABLE ONLY work.task_requirements
 
 ALTER TABLE ONLY work.tasks
     ADD CONSTRAINT pk_tasks PRIMARY KEY (id);
+
+ALTER TABLE ONLY work.epic_events
+    ADD CONSTRAINT uq_epic_events_epic_id_aggregate_sequence UNIQUE (epic_id, aggregate_sequence);
 
 ALTER TABLE ONLY work.epics
     ADD CONSTRAINT uq_epics_organization_id_project_id_id UNIQUE (organization_id, project_id, id);
@@ -2894,6 +2986,8 @@ CREATE INDEX ix_bootstrap_state_organization_id ON platform.bootstrap_state USIN
 
 CREATE INDEX ix_idempotency_records_expires_at ON platform.idempotency_records USING btree (expires_at);
 
+CREATE INDEX ix_project_events_project_id_occurred_at ON project.project_events USING btree (project_id, occurred_at DESC);
+
 CREATE INDEX ix_requirement_epics_epic_id ON requirements.requirement_epics USING btree (epic_id);
 
 CREATE INDEX ix_requirement_events_requirement_id_occurred_at ON requirements.requirement_events USING btree (requirement_id, occurred_at DESC);
@@ -2915,6 +3009,8 @@ CREATE INDEX ix_traceability_links_source ON traceability.traceability_links USI
 CREATE INDEX ix_traceability_links_target ON traceability.traceability_links USING btree (target_object_type, target_object_id);
 
 CREATE UNIQUE INDEX uq_traceability_links_live ON traceability.traceability_links USING btree (project_id, source_object_type, source_object_id, target_object_type, target_object_id, link_type) WHERE (status = ANY (ARRAY['PROPOSED'::text, 'CONFIRMED'::text]));
+
+CREATE INDEX ix_epic_events_epic_id_occurred_at ON work.epic_events USING btree (epic_id, occurred_at DESC);
 
 CREATE INDEX ix_task_dependencies_depends_on_task_id ON work.task_dependencies USING btree (depends_on_task_id);
 
@@ -3200,6 +3296,12 @@ CREATE TRIGGER trg_idempotency_records_freeze_finished BEFORE UPDATE ON platform
 
 CREATE TRIGGER trg_idempotency_records_immutable_columns BEFORE UPDATE ON platform.idempotency_records FOR EACH ROW EXECUTE FUNCTION platform.keep_columns_immutable('id', 'organization_id', 'project_id', 'scope_type', 'scope_id', 'key_digest', 'key_id', 'request_fingerprint', 'created_at', 'expires_at');
 
+CREATE TRIGGER trg_project_events_append_only BEFORE DELETE OR UPDATE ON project.project_events FOR EACH ROW EXECUTE FUNCTION platform.reject_modification();
+
+CREATE TRIGGER trg_project_events_no_truncate BEFORE TRUNCATE ON project.project_events FOR EACH STATEMENT EXECUTE FUNCTION platform.reject_modification();
+
+CREATE CONSTRAINT TRIGGER trg_project_events_sequence AFTER INSERT ON project.project_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION platform.assert_event_sequence_contiguous('project_id', 'project.projects', 'project.project_events', 'project_id');
+
 CREATE TRIGGER trg_project_memberships_immutable_columns BEFORE UPDATE ON project.project_memberships FOR EACH ROW EXECUTE FUNCTION platform.keep_columns_immutable('id', 'organization_id', 'project_id', 'user_id');
 
 CREATE TRIGGER trg_project_memberships_revoked_terminal BEFORE UPDATE ON project.project_memberships FOR EACH ROW EXECUTE FUNCTION platform.keep_terminal_status('REVOKED');
@@ -3207,6 +3309,8 @@ CREATE TRIGGER trg_project_memberships_revoked_terminal BEFORE UPDATE ON project
 CREATE TRIGGER trg_project_memberships_touch BEFORE UPDATE ON project.project_memberships FOR EACH ROW EXECUTE FUNCTION platform.touch_row();
 
 CREATE TRIGGER trg_projects_immutable_columns BEFORE UPDATE ON project.projects FOR EACH ROW EXECUTE FUNCTION platform.keep_columns_immutable('id', 'organization_id');
+
+CREATE CONSTRAINT TRIGGER trg_projects_sequence AFTER INSERT OR UPDATE OF last_event_sequence ON project.projects DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION platform.assert_event_sequence_contiguous('id', 'project.projects', 'project.project_events', 'project_id');
 
 CREATE TRIGGER trg_projects_touch BEFORE UPDATE ON project.projects FOR EACH ROW EXECUTE FUNCTION platform.touch_row();
 
@@ -3286,7 +3390,15 @@ CREATE TRIGGER trg_traceability_links_touch BEFORE UPDATE ON traceability.tracea
 
 CREATE TRIGGER trg_traceability_links_write_once BEFORE UPDATE ON traceability.traceability_links FOR EACH ROW EXECUTE FUNCTION platform.forbid_unset('confirmed_by', 'confirmed_at', 'superseded_at');
 
+CREATE TRIGGER trg_epic_events_append_only BEFORE DELETE OR UPDATE ON work.epic_events FOR EACH ROW EXECUTE FUNCTION platform.reject_modification();
+
+CREATE TRIGGER trg_epic_events_no_truncate BEFORE TRUNCATE ON work.epic_events FOR EACH STATEMENT EXECUTE FUNCTION platform.reject_modification();
+
+CREATE CONSTRAINT TRIGGER trg_epic_events_sequence AFTER INSERT ON work.epic_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION platform.assert_event_sequence_contiguous('epic_id', 'work.epics', 'work.epic_events', 'epic_id');
+
 CREATE TRIGGER trg_epics_immutable_columns BEFORE UPDATE ON work.epics FOR EACH ROW EXECUTE FUNCTION platform.keep_columns_immutable('id', 'organization_id', 'project_id', 'created_at');
+
+CREATE CONSTRAINT TRIGGER trg_epics_sequence AFTER INSERT OR UPDATE OF last_event_sequence ON work.epics DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION platform.assert_event_sequence_contiguous('id', 'work.epics', 'work.epic_events', 'epic_id');
 
 CREATE TRIGGER trg_epics_touch BEFORE UPDATE ON work.epics FOR EACH ROW EXECUTE FUNCTION platform.touch_row();
 
@@ -3611,6 +3723,9 @@ ALTER TABLE ONLY platform.idempotency_records
 ALTER TABLE ONLY platform.idempotency_records
     ADD CONSTRAINT fk_idempotency_records_organization_id_project_id_projects FOREIGN KEY (organization_id, project_id) REFERENCES project.projects(organization_id, id) ON DELETE RESTRICT;
 
+ALTER TABLE ONLY project.project_events
+    ADD CONSTRAINT fk_project_events_project_id_projects FOREIGN KEY (project_id) REFERENCES project.projects(id) ON DELETE RESTRICT;
+
 ALTER TABLE ONLY project.project_memberships
     ADD CONSTRAINT fk_project_memberships_organization_id_project_id_projects FOREIGN KEY (organization_id, project_id) REFERENCES project.projects(organization_id, id) ON DELETE RESTRICT;
 
@@ -3685,6 +3800,9 @@ ALTER TABLE ONLY traceability.traceability_links
 
 ALTER TABLE ONLY traceability.traceability_links
     ADD CONSTRAINT fk_traceability_links_organization_id_project_id_projects FOREIGN KEY (organization_id, project_id) REFERENCES project.projects(organization_id, id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY work.epic_events
+    ADD CONSTRAINT fk_epic_events_epic_id_epics FOREIGN KEY (epic_id) REFERENCES work.epics(id) ON DELETE RESTRICT;
 
 ALTER TABLE ONLY work.epics
     ADD CONSTRAINT fk_epics_organization_id_owner_user_id_users FOREIGN KEY (organization_id, owner_user_id) REFERENCES iam.users(organization_id, id) ON DELETE RESTRICT;
@@ -4037,6 +4155,14 @@ CREATE POLICY p_idempotency_records_owner_migration ON platform.idempotency_reco
 
 CREATE POLICY p_idempotency_records_tenant_scope ON platform.idempotency_records TO ai_res_api_group USING (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (NOT (project_id IS DISTINCT FROM (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid)))) WITH CHECK (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (NOT (project_id IS DISTINCT FROM (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid))));
 
+CREATE POLICY p_project_events_owner_migration ON project.project_events TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
+
+CREATE POLICY p_project_events_tenant_scope ON project.project_events TO ai_res_api_group USING ((EXISTS ( SELECT 1
+   FROM project.projects p
+  WHERE ((p.id = project_events.project_id) AND (p.organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (p.id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid))))) WITH CHECK ((EXISTS ( SELECT 1
+   FROM project.projects p
+  WHERE ((p.id = project_events.project_id) AND (p.organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (p.id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid)))));
+
 CREATE POLICY p_project_memberships_owner_migration ON project.project_memberships TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
 
 CREATE POLICY p_project_memberships_tenant_scope ON project.project_memberships TO ai_res_api_group USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
@@ -4044,6 +4170,8 @@ CREATE POLICY p_project_memberships_tenant_scope ON project.project_memberships 
 CREATE POLICY p_projects_owner_migration ON project.projects TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
 
 CREATE POLICY p_projects_tenant_scope ON project.projects TO ai_res_api_group USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
+
+ALTER TABLE project.project_events ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE project.project_memberships ENABLE ROW LEVEL SECURITY;
 
@@ -4111,7 +4239,17 @@ CREATE POLICY p_traceability_links_tenant_scope ON traceability.traceability_lin
 
 ALTER TABLE traceability.traceability_links ENABLE ROW LEVEL SECURITY;
 
+ALTER TABLE work.epic_events ENABLE ROW LEVEL SECURITY;
+
 ALTER TABLE work.epics ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY p_epic_events_owner_migration ON work.epic_events TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
+
+CREATE POLICY p_epic_events_tenant_scope ON work.epic_events TO ai_res_api_group USING ((EXISTS ( SELECT 1
+   FROM work.epics p
+  WHERE ((p.id = epic_events.epic_id) AND (p.organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (p.project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid))))) WITH CHECK ((EXISTS ( SELECT 1
+   FROM work.epics p
+  WHERE ((p.id = epic_events.epic_id) AND (p.organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (p.project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid)))));
 
 CREATE POLICY p_epics_owner_migration ON work.epics TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
 
@@ -4365,6 +4503,8 @@ GRANT SELECT,INSERT,UPDATE ON TABLE platform.display_number_counters TO ai_res_a
 
 GRANT SELECT,INSERT,UPDATE ON TABLE platform.idempotency_records TO ai_res_api_group;
 
+GRANT SELECT,INSERT ON TABLE project.project_events TO ai_res_api_group;
+
 GRANT SELECT,INSERT,UPDATE ON TABLE project.project_memberships TO ai_res_api_group;
 
 GRANT SELECT,INSERT,UPDATE ON TABLE project.projects TO ai_res_api_group;
@@ -4394,6 +4534,8 @@ GRANT SELECT ON TABLE traceability.link_types TO ai_res_api_group;
 GRANT SELECT ON TABLE traceability.object_types TO ai_res_api_group;
 
 GRANT SELECT,INSERT,UPDATE ON TABLE traceability.traceability_links TO ai_res_api_group;
+
+GRANT SELECT,INSERT ON TABLE work.epic_events TO ai_res_api_group;
 
 GRANT SELECT,INSERT,UPDATE ON TABLE work.epics TO ai_res_api_group;
 

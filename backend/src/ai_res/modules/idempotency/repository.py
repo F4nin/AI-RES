@@ -76,3 +76,11 @@ class IdempotencyRepository:
              "body": None if response_body_ref is None else canonical_json(response_body_ref)})
         if affected(r) != 1:
             raise ProblemError(ErrorCode.AGGREGATE_VERSION_CONFLICT, "Idempotency record is not in progress.")
+
+    async def reserve_resource(self, record_id: UUID, resource_type: str, resource_id: UUID) -> None:
+        """Pins the id of the resource a still-running command will create (createProject: the project id fixes the tenant context of the creating
+        transaction). Only an IN_PROGRESS record can be annotated; the record stays IN_PROGRESS."""
+        r = await self._s.execute(text("UPDATE platform.idempotency_records SET resource_type = :t, resource_id = :r WHERE id = :i AND status = 'IN_PROGRESS' AND resource_id IS NULL"),
+                                  {"t": resource_type, "r": resource_id, "i": record_id})
+        if affected(r) != 1:
+            raise ProblemError(ErrorCode.AGGREGATE_VERSION_CONFLICT, "Idempotency record is not in progress.")
