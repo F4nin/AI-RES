@@ -51,8 +51,8 @@
 | API-MVP-006 | DOC-009 | RFC 9457 errors | MVP | S01, S02, S08, S09, S12 | NOT_STARTED |
 | API-MVP-007 | DOC-009 | Cursor pagination | MVP | S01, S02, S08, S09, S12 | PARTIAL (S08: keyset-курсоры на всех списках, ADR-074; нет offset) |
 | API-MVP-008 | DOC-009 | ETag/If-Match | MVP | S01, S02, S08, S09, S12 | NOT_STARTED |
-| API-MVP-009 | DOC-009 | Idempotency-Key | MVP | S01, S02, S08, S09, S12 | NOT_STARTED |
-| API-MVP-010 | DOC-009 | Async Operation resource | MVP | S01, S02, S08, S09, S12 | NOT_STARTED |
+| API-MVP-009 | DOC-009 | Idempotency-Key | MVP | S01, S02, S08, S09, S12 | PARTIAL (S09/S12: write-команды, включая cancel и completeUpload; TESTED локально) |
+| API-MVP-010 | DOC-009 | Async Operation resource | MVP | S01, S02, S08, S09, S12 | PARTIAL (S12 TESTED локально: getOperation, cancel 202, completeUpload 202 + Location; Linux CI ожидается) |
 | API-MVP-011 | DOC-009 | SSE events | MVP | S01, S02, S08, S09, S12 | NOT_STARTED |
 | API-MVP-012 | DOC-009 | Lifecycle transition validation | MVP | S01, S02, S08, S09, S12 | NOT_STARTED |
 | API-MVP-013 | DOC-009 | Local Authentication + pluggable IdentityProvider; OIDC Code+PKCE adapter is future extension | MVP | S01, S02, S08, S09, S12 | NOT_STARTED |

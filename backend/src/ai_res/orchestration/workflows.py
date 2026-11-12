@@ -15,8 +15,9 @@ from temporalio.common import RetryPolicy
 from temporalio.exceptions import ApplicationError
 
 with workflow.unsafe.imports_passed_through():  # no module side effect (logging setup etc.) is re-executed inside the deterministic sandbox
-    from ai_res.orchestration.activities import ACK_ACTIVITY, FAIL_ACTIVITY, PERMANENT
+    from ai_res.orchestration.activities import ACK_ACTIVITY, CANCEL_ACTIVITY, FAIL_ACTIVITY, PERMANENT
     from ai_res.orchestration.contracts import (
+        CANCEL_SIGNAL,
         MANAGER_TASK_QUEUE,
         OPERATION_WORKFLOW_TYPE,
         SKELETON_FAILURE_CODE,
@@ -36,6 +37,25 @@ ACTIVITY_BUDGET = timedelta(minutes=15)  # WORKING: total time one Activity (all
 
 @workflow.defn(name=OPERATION_WORKFLOW_TYPE)
 class OperationWorkflow:
+    def __init__(self) -> None:
+        self._cancel_requested = False
+
+    @workflow.signal(name=CANCEL_SIGNAL)
+    def request_cancel(self) -> None:
+        """Only a flag: the domain already holds CANCEL_REQUESTED; the Workflow stops at its next checkpoint and asks the domain to reconcile."""
+        self._cancel_requested = True
+
+    async def _reconcile_cancellation(self, request: OperationWorkflowInput) -> OperationWorkflowResult | None:
+        """The domain is the authority, the signal is only a hint: reconciliation (idempotent) answers CANCELLED, CANCEL_REQUESTED (cleanup pending) or the
+        status it already had. A flag the domain does not back (premature or forged signal) changes nothing: None = carry on as if it never arrived."""
+        state = await workflow.execute_activity(CANCEL_ACTIVITY, request.operation, result_type=OperationState, task_queue=MANAGER_TASK_QUEUE,
+                                                start_to_close_timeout=ACTIVITY_TIMEOUT, schedule_to_close_timeout=ACTIVITY_BUDGET, retry_policy=ACTIVITY_RETRY)
+        if state.status == "CANCELLED":
+            return OperationWorkflowResult("CANCELLED_CONFIRMED", state.status)
+        if state.status == "CANCEL_REQUESTED":
+            return OperationWorkflowResult("CANCEL_PENDING", state.status)
+        return None
+
     @workflow.run
     async def run(self, request: OperationWorkflowInput) -> OperationWorkflowResult:
         try:
@@ -45,9 +65,17 @@ class OperationWorkflow:
         state = await workflow.execute_activity(ACK_ACTIVITY, request.operation, result_type=OperationState, task_queue=MANAGER_TASK_QUEUE,
                                                 start_to_close_timeout=ACTIVITY_TIMEOUT, schedule_to_close_timeout=ACTIVITY_BUDGET,
                                                 retry_policy=ACTIVITY_RETRY)
-        if state.status != "RUNNING":  # terminal, cancel requested or otherwise not ours to drive: nothing to orchestrate
+        if state.status == "CANCEL_REQUESTED" or self._cancel_requested:  # checkpoint 1: nothing was started, so a real cancellation is reconciled at once
+            cancelled = await self._reconcile_cancellation(request)
+            if cancelled is not None:
+                return cancelled
+        if state.status != "RUNNING":  # terminal or otherwise not ours to drive: nothing to orchestrate
             return OperationWorkflowResult("NOT_RUNNING", state.status)
         final = await workflow.execute_activity(FAIL_ACTIVITY, OperationFailure(request.operation, SKELETON_FAILURE_CODE), result_type=OperationState,
                                                 task_queue=MANAGER_TASK_QUEUE, start_to_close_timeout=ACTIVITY_TIMEOUT,
                                                 schedule_to_close_timeout=ACTIVITY_BUDGET, retry_policy=ACTIVITY_RETRY)
+        if final.status == "CANCEL_REQUESTED":  # the cancel won the race against the skeleton failure: reconcile instead of leaving it pending (closes S11 L7)
+            cancelled = await self._reconcile_cancellation(request)
+            if cancelled is not None:
+                return cancelled
         return OperationWorkflowResult("SKELETON_FAILED_CLOSED", final.status)

@@ -25,9 +25,13 @@ from ai_res.api.identity import build_identity_services
 from ai_res.api.write_api import StorageConfig
 from ai_res.db.session import UnitOfWork, create_session_factory
 from ai_res.modules.events import aggregate_events
+from ai_res.modules.events.contract import EventContract
+from ai_res.modules.sources.object_store import S3ObjectStore
 from ai_res.modules.sources.presign import StorageCredentials
 from ai_res.platform.config import load_settings
 from ai_res.platform.pagination import KeyRing
+
+from .test_operations_work_schema import new_op
 
 pytestmark = pytest.mark.postgres
 CONTRACTS = Path(__file__).resolve().parents[4] / "contracts"
@@ -42,7 +46,7 @@ STORAGE = StorageConfig("https://files.example.test", "ai-res-sources", "us-east
 class World:
     """Org A with project P1 (padmin PROJECT_ADMIN, analyst ANALYST, viewer READ_ONLY_VIEWER, outsider no role) and project P2 (nobody); org admin `oadmin`."""
 
-    def __init__(self, iam: Any, tmp_path: Path, storage: StorageConfig | None = STORAGE) -> None:
+    def __init__(self, iam: Any, tmp_path: Path, storage: StorageConfig | None = STORAGE, object_store: Any = None) -> None:
         self.iam = iam
         self.u = {n: uuid4() for n in ("padmin", "analyst", "viewer", "outsider", "oadmin")}
         self.p1, self.p2, self.pb = uuid4(), uuid4(), uuid4()
@@ -62,7 +66,7 @@ class World:
                                        "AI_RES_ARGON2_MEMORY_KIB": "8", "AI_RES_DEFAULT_ORGANIZATION_ID": str(iam.org_a), "AI_RES_ALLOWED_ORIGINS": ORIGIN,
                                        "AI_RES_IDEMPOTENCY_KEYRING_FILE": str(key)})
         self.services = build_identity_services(self.settings, create_session_factory(iam.engine()))
-        self.app = create_app(self.settings, identity=self.services, storage=storage)
+        self.app = create_app(self.settings, identity=self.services, storage=storage, object_store=object_store)
         self.app.state.cursor_key_ring = KeyRing("k1", {"k1": bytes(range(32, 64))})
 
     async def client(self, who: str | UUID | None, *, mfa: bool = False, csrf: bool = True, origin: bool = True, org: UUID | None = None) -> httpx.AsyncClient:
@@ -518,3 +522,223 @@ async def test_successful_commands_close_their_idempotency_records(w: World) -> 
     async with await w.client("analyst") as c:
         epic = await c.post(f"/api/v1/projects/{w.p1}/epics", json={"title": "E"}, headers=key())
     assert w.rows("SELECT status, resource_type, resource_id = %s FROM platform.idempotency_records WHERE resource_type = 'EPIC'", UUID(epic.json()["id"])) == [("COMPLETED", "EPIC", True)]
+
+
+# ---------------------------------------------------------------- S12: requestOperationCancellation (202 = the request is recorded, not that it is cancelled)
+def seed_operation(w: World, status: str, project: UUID | None = None, org: UUID | None = None) -> UUID:
+    with w.iam.pg.connect() as c:
+        return new_op(c, org or w.iam.org_a, project or w.p1, status)
+
+
+async def cancel(c: httpx.AsyncClient, op: UUID, headers: dict[str, str] | None = None) -> httpx.Response:
+    return await c.post(f"/api/v1/operations/{op}/cancel", headers=headers if headers is not None else key())
+
+
+async def test_analyst_cancels_a_running_operation_the_answer_is_202_with_location_and_only_a_request_is_recorded(w: World) -> None:
+    op = seed_operation(w, "RUNNING")
+    async with await w.client("analyst") as c:
+        r = await cancel(c, op)
+    assert r.status_code == 202 and r.headers["location"] == f"/api/v1/operations/{op}" and r.headers["etag"]
+    conforms(r.json(), "Operation")
+    assert r.json()["status"] == "CANCEL_REQUESTED" and r.json()["completedAt"] is None  # not cancelled: that comes after reconciliation
+    assert w.count("operations.operations", "id = %s AND status = 'CANCEL_REQUESTED' AND cancel_requested_at IS NOT NULL", op) == 1
+    assert w.count("audit.outbox_events", "aggregate_id = %s AND destination = 'orchestration.operation-cancel'", op) == 1
+    assert w.count("audit.audit_events", "action = 'OPERATION_CANCEL_REQUESTED' AND object_id = %s", op) == 1
+    EventContract.from_file(CONTRACTS / "asyncapi/AI_RES_Domain_Events_AsyncAPI_v1.6.yaml").check(next(e for e in outbox(w, op) if e["type"].endswith("cancel_requested.v1")))
+
+
+async def test_cancel_of_an_accepted_operation_is_cancelled_at_once_and_queues_no_orchestrator_command(w: World) -> None:
+    op = seed_operation(w, "ACCEPTED")
+    async with await w.client("padmin", mfa=True) as c:
+        r = await cancel(c, op)
+    assert r.status_code == 202 and r.json()["status"] == "CANCELLED" and r.json()["completedAt"]
+    assert w.count("audit.outbox_events", "aggregate_id = %s AND destination = 'orchestration.operation-cancel'", op) == 0
+
+
+async def test_cancel_idempotent_retry_returns_the_same_answer_and_writes_nothing_more(w: World) -> None:
+    op, k = seed_operation(w, "RUNNING"), key()
+    async with await w.client("analyst") as c:
+        first, second = await cancel(c, op, k), await cancel(c, op, k)
+        other_key = await cancel(c, op)  # a NEW key on a request that is already recorded: still the same state, no new event
+    assert first.status_code == second.status_code == other_key.status_code == 202
+    assert stripped(first) == stripped(second)
+    assert w.count("operations.operation_events", "operation_id = %s AND event_type = 'operation.cancel_requested'", op) == 1
+
+
+async def test_cancel_needs_an_idempotency_key_and_the_same_key_for_another_operation_is_reused(w: World) -> None:
+    op, other, k = seed_operation(w, "RUNNING"), seed_operation(w, "RUNNING"), key()
+    async with await w.client("analyst") as c:
+        assert (await cancel(c, op, {})).status_code == 422  # the same answer as every other command without a key
+        assert (await cancel(c, op, k)).status_code == 202
+        reused = await cancel(c, other, k)
+    assert reused.status_code == 409 and reused.json()["code"] == "IDEMPOTENCY_KEY_REUSED"
+    assert w.count("operations.operations", "id = %s AND status = 'RUNNING'", other) == 1
+
+
+async def test_a_finished_operation_cannot_be_cancelled_and_stays_untouched(w: World) -> None:
+    op = seed_operation(w, "SUCCEEDED")
+    async with await w.client("analyst") as c:
+        r = await cancel(c, op)
+    assert r.status_code == 409 and r.json()["code"] == "STATE_TRANSITION_NOT_ALLOWED"
+    assert w.count("operations.operations", "id = %s AND status = 'SUCCEEDED'", op) == 1
+
+
+async def test_cancel_acl_viewer_is_403_and_foreign_missing_and_unreadable_are_one_identical_404(w: World) -> None:
+    mine, in_p2, in_org_b = seed_operation(w, "RUNNING"), seed_operation(w, "RUNNING", w.p2), seed_operation(w, "RUNNING", w.pb, w.iam.org_b)
+    async with await w.client("viewer") as c:
+        denied = await cancel(c, mine)
+    async with await w.client("analyst") as c:
+        answers = [await cancel(c, in_p2), await cancel(c, in_org_b), await cancel(c, uuid4())]
+    assert denied.status_code == 403  # the viewer sees the operation, so an honest refusal
+    assert [a.status_code for a in answers] == [404, 404, 404] and stripped(answers[0]) == stripped(answers[1]) == stripped(answers[2])
+    assert w.count("operations.operations", "id = ANY(%s) AND status = 'RUNNING'", [mine, in_p2, in_org_b]) == 3  # nothing changed anywhere
+
+
+async def test_cancel_requires_a_session_csrf_and_a_known_origin(w: World) -> None:
+    op = seed_operation(w, "RUNNING")
+    async with await w.client(None) as c:
+        assert (await cancel(c, op)).status_code == 401
+    async with await w.client("analyst", csrf=False) as c:
+        assert (await cancel(c, op)).status_code == 403
+    async with await w.client("analyst", origin=False) as c:
+        assert (await cancel(c, op)).status_code == 403
+    assert w.count("operations.operations", "id = %s AND status = 'RUNNING'", op) == 1
+
+
+async def test_parallel_cancels_with_different_keys_record_exactly_one_request(w: World) -> None:
+    op = seed_operation(w, "RUNNING")
+    async with await w.client("analyst") as c:
+        results = await asyncio.gather(*(cancel(c, op) for _ in range(5)))
+    assert all(r.status_code in (202, 409) for r in results) and any(r.status_code == 202 for r in results)
+    assert w.count("operations.operation_events", "operation_id = %s AND event_type = 'operation.cancel_requested'", op) == 1
+
+
+# ---------------------------------------------------------------- S12: completeUpload (the object store's view decides; the pipeline itself is S27)
+class FakeS3:
+    """An in-process S3 responder behind the REAL `S3ObjectStore` (HTTP + presigned HEAD): only the network hop is replaced. Keys map to (size, sha256-hex | None)."""
+
+    def __init__(self) -> None:
+        self.objects: dict[str, tuple[int, str | None]] = {}
+        self.down = False
+        self.heads: list[str] = []
+
+    def transport(self) -> httpx.MockTransport:
+        def handler(request: httpx.Request) -> httpx.Response:
+            if self.down:
+                return httpx.Response(503)
+            assert request.method == "HEAD" and "X-Amz-Signature" in str(request.url) and request.headers.get("x-amz-checksum-mode") == "ENABLED"
+            key = request.url.path.removeprefix("/ai-res-sources/")
+            self.heads.append(key)
+            if key not in self.objects:
+                return httpx.Response(404)
+            size, digest = self.objects[key]
+            headers = {"content-length": str(size)}
+            if digest is not None:
+                headers["x-amz-checksum-sha256"] = base64.b64encode(bytes.fromhex(digest)).decode()
+            return httpx.Response(200, headers=headers)
+        return httpx.MockTransport(handler)
+
+
+@pytest.fixture
+def s3() -> FakeS3:
+    return FakeS3()
+
+
+@pytest.fixture
+def wu(iam_world: Any, tmp_path: Path, s3: FakeS3) -> World:
+    store = S3ObjectStore(STORAGE.endpoint, STORAGE.bucket, STORAGE.region, STORAGE.credentials, transport=s3.transport())
+    return World(iam_world, tmp_path, object_store=store)
+
+
+async def new_intent(w: World, who: str = "analyst", **over: Any) -> tuple[UUID, str]:
+    async with await w.client(who) as c:
+        r = await c.post("/api/v1/uploads", json=upload_body(w.p1, **over), headers=key())
+    assert r.status_code == 201, r.text
+    upload_id = UUID(r.json()["uploadId"])
+    return upload_id, w.rows("SELECT object_key FROM sources.uploads WHERE id = %s", upload_id)[0][0]
+
+
+async def complete(c: httpx.AsyncClient, upload: UUID, sha: str = SHA, headers: dict[str, str] | None = None) -> httpx.Response:
+    return await c.post(f"/api/v1/uploads/{upload}/complete", json={"sha256": sha}, headers=headers if headers is not None else key())
+
+
+def upload_state(w: World, upload: UUID) -> tuple[Any, ...]:
+    return w.rows("SELECT status, rejection_code FROM sources.uploads WHERE id = %s", upload)[0]
+
+
+async def test_complete_upload_verifies_the_stored_object_creates_the_version_and_a_source_ingestion_operation(wu: World, s3: FakeS3) -> None:
+    upload, object_key = await new_intent(wu)
+    s3.objects[object_key] = (1234, SHA)
+    async with await wu.client("analyst") as c:
+        r = await complete(c, upload)
+    assert r.status_code == 202, r.text
+    conforms(r.json(), "Operation")
+    op = UUID(r.json()["id"])
+    assert r.headers["location"] == f"/api/v1/operations/{op}" and r.json()["operationType"] == "SOURCE_INGESTION" and r.json()["status"] == "ACCEPTED"
+    assert upload_state(wu, upload) == ("VERIFIED", None)
+    assert wu.rows("SELECT version_number, encode(checksum_sha256,'hex'), size_bytes FROM sources.source_versions WHERE upload_id = %s", upload) == [(1, SHA, 1234)]
+    assert wu.count("audit.outbox_events", "aggregate_id = %s AND destination = 'orchestration.operation-start'", op) == 0  # no start command before G-107 is closed
+    assert wu.count("audit.audit_events", "action = 'UPLOAD_COMPLETE' AND object_id IS NOT NULL") == 1
+
+
+@pytest.mark.parametrize(("stored", "code"), [((1234, "cd" * 32), "CHECKSUM_MISMATCH"), ((1233, SHA), "SIZE_MISMATCH"), ((1234, None), "CHECKSUM_MISMATCH")],
+                         ids=["other-checksum", "other-size", "store-reports-no-verified-checksum"])
+async def test_a_bad_object_is_rejected_persistently_and_never_becomes_a_version(wu: World, s3: FakeS3, stored: tuple[int, str | None], code: str) -> None:
+    upload, object_key = await new_intent(wu)
+    s3.objects[object_key] = stored
+    async with await wu.client("analyst") as c:
+        r = await complete(c, upload)
+    assert r.status_code == 422 and r.json()["errors"][0]["field"] == "object"
+    assert upload_state(wu, upload) == ("REJECTED", code)  # the verdict outlived the failed request
+    assert wu.count("sources.source_versions", "upload_id = %s", upload) == 0 and wu.count("operations.operations", "operation_type = 'SOURCE_INGESTION'") == 0
+    async with await wu.client("analyst") as c:
+        assert (await complete(c, upload)).status_code == 409  # a rejected upload cannot be completed later
+
+
+async def test_object_not_uploaded_yet_store_outage_and_wrong_client_checksum_change_nothing(wu: World, s3: FakeS3) -> None:
+    upload, object_key = await new_intent(wu)
+    async with await wu.client("analyst") as c:
+        not_ready = await complete(c, upload)
+        s3.objects[object_key] = (1234, SHA)
+        s3.down = True
+        outage = await complete(c, upload)
+        s3.down = False
+        wrong = await complete(c, upload, sha="cd" * 32)
+    assert (not_ready.status_code, outage.status_code, wrong.status_code) == (409, 503, 422)
+    assert not_ready.json()["code"] == "OPERATION_NOT_READY" and wrong.json()["errors"][0]["field"] == "sha256"
+    assert upload_state(wu, upload) == ("PENDING", None) and wu.count("operations.operations", "operation_type = 'SOURCE_INGESTION'") == 0
+
+
+async def test_complete_is_idempotent_for_the_same_key_and_a_second_key_cannot_complete_it_again(wu: World, s3: FakeS3) -> None:
+    upload, object_key = await new_intent(wu)
+    s3.objects[object_key] = (1234, SHA)
+    k = key()
+    async with await wu.client("analyst") as c:
+        first, second = await complete(c, upload, headers=k), await complete(c, upload, headers=k)
+        again = await complete(c, upload)
+    assert first.status_code == second.status_code == 202 and first.json()["id"] == second.json()["id"]
+    assert again.status_code == 409 and again.json()["code"] == "STATE_TRANSITION_NOT_ALLOWED"
+    assert wu.count("sources.source_versions", "upload_id = %s", upload) == 1 and wu.count("operations.operations", "operation_type = 'SOURCE_INGESTION'") == 1
+
+
+async def test_an_expired_upload_is_marked_expired_and_a_late_object_is_not_accepted(iam_world: Any, tmp_path: Path, s3: FakeS3) -> None:
+    short = StorageConfig(STORAGE.endpoint, STORAGE.bucket, STORAGE.region, STORAGE.credentials, 1_000_000, frozenset({PDF}), 3)  # expires_at is immutable: use a short TTL
+    w = World(iam_world, tmp_path, storage=short, object_store=S3ObjectStore(short.endpoint, short.bucket, short.region, short.credentials, transport=s3.transport()))
+    upload, object_key = await new_intent(w)
+    s3.objects[object_key] = (1234, SHA)
+    await asyncio.sleep(3.6)
+    async with await w.client("analyst") as c:
+        r = await complete(c, upload)
+    assert r.status_code == 422 and upload_state(w, upload) == ("EXPIRED", None) and w.count("sources.source_versions", "upload_id = %s", upload) == 0
+    assert s3.heads == []  # an expired intent is decided before the store is asked
+
+
+async def test_complete_upload_acl_viewer_is_403_and_foreign_missing_are_one_identical_404(wu: World, s3: FakeS3) -> None:
+    upload, object_key = await new_intent(wu)
+    s3.objects[object_key] = (1234, SHA)
+    async with await wu.client("viewer") as v:
+        denied = await complete(v, upload)
+    async with await wu.client("outsider") as o:
+        foreign, missing = await complete(o, upload), await complete(o, uuid4())
+    assert denied.status_code == 403 and (foreign.status_code, missing.status_code) == (404, 404) and stripped(foreign) == stripped(missing)
+    assert upload_state(wu, upload) == ("PENDING", None) and s3.heads == []  # nothing was even asked of the store

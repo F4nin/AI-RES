@@ -16,9 +16,9 @@ from ai_res.db.engine import create_runtime_engine
 from ai_res.db.session import create_session_factory
 from ai_res.modules.events.contract import EventContract
 from ai_res.modules.events.dispatcher import Dispatcher, DispatcherConfig, InternalFanoutPublisher
-from ai_res.modules.events.temporal_start import TemporalStartPublisher
-from ai_res.orchestration.client import OperationStarter, connect
-from ai_res.orchestration.contracts import START_DESTINATION
+from ai_res.modules.events.temporal_start import TemporalCancelPublisher, TemporalStartPublisher
+from ai_res.orchestration.client import OperationCanceller, OperationStarter, connect
+from ai_res.orchestration.contracts import CANCEL_DESTINATION, START_DESTINATION
 from ai_res.platform.config import ConfigError, load_settings
 from ai_res.platform.redaction import configure_logging
 
@@ -31,15 +31,16 @@ async def _run(env: Mapping[str, str]) -> None:
     if settings.asyncapi_contract_file is None:
         raise ConfigError("asyncapi_contract_file is required (the dispatcher validates every event against the contract)")
     contract = EventContract.from_file(settings.asyncapi_contract_file)
-    starter = TemporalStartPublisher(OperationStarter(await connect(settings)))
-    publisher = InternalFanoutPublisher({START_DESTINATION: [starter.publish]})
+    client = await connect(settings)
+    starter, canceller = TemporalStartPublisher(OperationStarter(client)), TemporalCancelPublisher(OperationCanceller(client))
+    publisher = InternalFanoutPublisher({START_DESTINATION: [starter.publish], CANCEL_DESTINATION: [canceller.publish]})
     engine = create_runtime_engine(settings)
     stop = asyncio.Event()
     for sig in (signal.SIGTERM, signal.SIGINT):
         with contextlib.suppress(NotImplementedError):
             asyncio.get_running_loop().add_signal_handler(sig, stop.set)
     try:
-        config = DispatcherConfig(owner=f"{socket.gethostname()}-{os.getpid()}", destinations=(START_DESTINATION,))
+        config = DispatcherConfig(owner=f"{socket.gethostname()}-{os.getpid()}", destinations=(START_DESTINATION, CANCEL_DESTINATION))
         await Dispatcher(create_session_factory(engine), publisher, contract, config).run_forever(stop)
     finally:
         await engine.dispose()

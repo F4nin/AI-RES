@@ -127,6 +127,16 @@ class SourceRepository:
             {"id": vid, "o": org, "p": prj, "n": number, "pv": bind_value(provenance, "jsonb"), "rcv": received_at, "by": created_by, "u": upload.id})
         return FinalizedVersion(vid, True, True)
 
+    async def reject_upload(self, upload_id: UUID, status: str, rejection_code: str | None) -> bool:
+        """REJECTED/EXPIRED verdict of a not-yet-verified upload; a verified or already decided upload is never touched."""
+        result = await self._s.execute(text("UPDATE sources.uploads SET status = :st, rejection_code = :rc, row_version = row_version + 1 WHERE id = :i AND status IN ('PENDING','UPLOADED')"),
+                              {"st": status, "rc": rejection_code, "i": upload_id})
+        return bool(result.rowcount)  # type: ignore[attr-defined]
+
+    async def get_upload(self, upload_id: UUID) -> UploadRow | None:
+        row = (await self._s.execute(text("SELECT id, source_id, status, row_version FROM sources.uploads WHERE id = :i"), {"i": upload_id})).first()
+        return None if row is None else UploadRow(row[0], row[1], str(row[2]), int(row[3]))
+
     async def get_intent(self, upload_id: UUID) -> "UploadIntentRow | None":
         """What an upload intent response is rebuilt from (the signed URL itself is never stored)."""
         row = (await self._s.execute(text(

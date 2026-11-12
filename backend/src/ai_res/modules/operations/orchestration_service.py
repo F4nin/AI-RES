@@ -7,13 +7,15 @@ the transaction-local context and the Operation must then be visible under it (R
 """
 from uuid import UUID
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from ai_res.db.session import UnitOfWork
 from ai_res.modules.audit.writer import SqlAuditWriter
 from ai_res.modules.events.aggregate_events import EventSpec
 from ai_res.modules.events.envelope import DOMAIN_DESTINATION
-from ai_res.modules.operations.repository import TERMINAL, OperationRepository, OperationRow
+from ai_res.modules.operations.repository import OperationRepository, OperationRow
+from ai_res.modules.operations.state_machine import TERMINAL
 from ai_res.orchestration.contracts import OperationFailure, OperationRef, OperationState, workflow_id_for
 from ai_res.platform.clock import utc_now
 from ai_res.platform.ports import AuditOutcome, AuditRecord
@@ -79,3 +81,21 @@ class OperationOrchestrationService:
                 problem_ref={"code": failure.code})
             await self._audit(uow, ref, "OPERATION_FAILED_BY_ORCHESTRATION", {"code": failure.code})
         return OperationState(ref.operation_id, "FAILED")
+
+    async def confirm_cancellation(self, ref: OperationRef, correlation_id: UUID) -> OperationState:
+        """Reconciliation before CANCELLED: only a CANCEL_REQUESTED Operation with no active WorkerRun becomes CANCELLED. A terminal status that already exists
+        wins (an action that really completed is never reported as cancelled); with active branches the Operation stays CANCEL_REQUESTED (cleanup pending)."""
+        async with UnitOfWork(self._factory) as uow:
+            row = await self._load(uow, ref)
+            if row.status != "CANCEL_REQUESTED":
+                return OperationState(ref.operation_id, row.status)
+            active = (await uow.session.execute(text(
+                "SELECT count(*) FROM agents.worker_runs WHERE operation_id = :o "
+                "AND status NOT IN ('COMPLETED','REWORK_REQUIRED','REJECTED','UNVERIFIED','FAILED','TIMED_OUT','CANCELLED')"), {"o": row.id})).scalar_one()
+            if active:
+                return OperationState(ref.operation_id, row.status)
+            confirmed = self._spec("operation.cancelled", correlation_id, from_status="CANCEL_REQUESTED", to_status="CANCELLED",
+                                   reason="CANCELLATION_CONFIRMED")
+            await OperationRepository(uow.session).transition(row, "CANCELLED", confirmed)
+            await self._audit(uow, ref, "OPERATION_CANCELLATION_CONFIRMED", {})
+        return OperationState(ref.operation_id, "CANCELLED")

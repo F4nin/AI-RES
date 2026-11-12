@@ -12,7 +12,7 @@ from ai_res.orchestration.workflows import OperationWorkflow
 def manager_worker(client: Client, platform: OperationPlatform) -> Worker:
     acts = ManagerActivities(platform)
     return Worker(client, task_queue=MANAGER_TASK_QUEUE, workflows=[OperationWorkflow],
-                  activities=[acts.acknowledge_operation_start, acts.record_operation_failure])
+                  activities=[acts.acknowledge_operation_start, acts.record_operation_failure, acts.confirm_operation_cancellation])
 
 
 def worker_runtime_worker(client: Client) -> Worker:

@@ -46,7 +46,7 @@ async def make_operation(api: AsyncEngine, org: UUID = ORG_A, prj: UUID = PRJ_A,
         await uow.with_tenant(org, prj)
         repo = OperationRepository(uow.session)
         row, _ = await repo.create(new_operation(org, prj), spec(dests=dests))
-        for etype, to in (("operation.started", "RUNNING"), ("operation.succeeded", "SUCCEEDED"))[:extra_events]:
+        for etype, to in (("operation.queued", "QUEUED"), ("operation.started", "RUNNING"))[:extra_events]:
             done = await repo.transition(row, to, spec(etype, dests=dests))
             row = replace(row, status=to, row_version=done.row_version)
         return row.id

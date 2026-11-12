@@ -21,6 +21,11 @@ class OperationPlatform(Protocol):
         """Idempotent: ACCEPTED -> QUEUED -> RUNNING; an Operation already past that (or terminal / cancel requested) is returned unchanged."""
         ...
 
+    async def confirm_cancellation(self, ref: OperationRef) -> OperationState:
+        """Idempotent reconciliation: CANCEL_REQUESTED -> CANCELLED only when no required branch is still active; a terminal fact that already exists wins
+        (a completed side effect is never reported as cancelled); anything else is returned unchanged."""
+        ...
+
     async def record_failure(self, failure: OperationFailure) -> OperationState:
         """Idempotent terminal FAILED with a machine code; a different terminal status already recorded is returned, never overwritten."""
         ...

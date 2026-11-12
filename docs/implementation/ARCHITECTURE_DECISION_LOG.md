@@ -96,6 +96,9 @@
 | ADR-088 | S11: внутренний Platform API для Runtime (транспорт, аутентификация, capability) | ACCEPTED |
 | ADR-089 | S11: маршрут запуска Operation в Temporal — destination, фильтр dispatcher'а, skeleton fail-closed | ACCEPTED |
 | ADR-090 | S11: топология Compose для оркестрации — сеть `workflow`, секреты, изоляция Runtime | ACCEPTED |
+| ADR-091 | S12: типизированные переходы Operation и отмена с reconciliation | ACCEPTED |
+| ADR-092 | S12: SSE проекта из event history — курсор, ACL на каждом опросе, retention gap | ACCEPTED |
+| ADR-093 | S12: completeUpload — проверка объекта хранилищем, Operation SOURCE_INGESTION, роли политики | ACCEPTED |
 
 ---
 
@@ -1628,3 +1631,54 @@
 | Влияние на компоненты/контракты | `infra/compose.yaml`, `infra/scripts/{check_compose,secrets_dev,wait_stack}.py`, infra-тесты |
 | Риски и компромиссы | Образ Runtime содержит DB-код (не импортируется, но присутствует); healthcheck'и Runtime/dispatcher проверяют только достижимость Temporal (G-108); platform-api делит сеть `app` с reverse proxy (G-106); Temporal без аутентификации (G-104). |
 | Затронутые тесты | infra static (check_compose, secrets), runtime: изоляция, секреты по сервисам, health, сквозной прогон |
+
+## ADR-91 — S12: типизированные переходы Operation и отмена с reconciliation
+
+| Поле | Значение |
+|---|---|
+| Статус | ACCEPTED |
+| Дата | 2026-11-12 |
+| Ответственный | Implementation Lead |
+| Проблема и контекст | Переходы Operation проверялись только спецификацией в БД-ограничениях; отмена должна записывать запрос (202), а не результат, и не должна перезаписывать фактический исход. |
+| Связанные требования | PROC-MVP; INF-MVP-002 |
+| Документы и разделы | Operation State Machine v1.2; Decision v1.6 §2.4–2.5; API Contracts v1.10 §7 |
+| Альтернативы | Сразу CANCELLED по запросу (ложь при активных WorkerRun); подтверждать отмену самим Temporal-статусом (статус Temporal не источник истины); отдельная таблица запросов отмены. |
+| Решение | (1) `modules/operations/state_machine.py` — таблица переходов, равная baselined JSON (тест), применяется в `OperationRepository.transition`. (2) `POST /operations/{id}/cancel` → 202: ACCEPTED сразу CANCELLED (ничего не запущено, команды оркестратору нет); активная Operation → CANCEL_REQUESTED + Outbox-команда `orchestration.operation-cancel`; терминальная → 409; повтор — no-op. (3) Dispatcher сигналит workflow (`request_cancel`), workflow просит домен выполнить идемпотентную reconciliation `confirm_cancellation`: CANCELLED только если нет активных WorkerRun; уже терминальный статус побеждает; сигнал без опоры в домене ничего не меняет (домен — авторитет, сигнал — подсказка). (4) 409 `STATE_TRANSITION_NOT_ALLOWED` классифицируется как PERMANENT по problem code. |
+| Обоснование | Запрос и результат — разные факты; реальный исход не перетирается; закрывает S11 L7 (CANCEL_REQUESTED без исполнителя). |
+| Влияние на компоненты/контракты | `state_machine.py`, `cancellation.py`, `orchestration_service.py`, `orchestration/*`, `temporal_start.py`, `cli/dispatcher.py`, `internal_api.py`, `write_api.py`; внутренний контракт v0.1 (путь cancellation-confirmation) |
+| Риски и компромиссы | Если workflow закрыт или отсутствует, Operation остаётся CANCEL_REQUESTED до будущего reconciler (G-107). Роли `operation.cancel` (PROJECT_ADMIN/ANALYST, humanOnly) — WORKING (G-113). |
+| Затронутые тесты | test_operation_state_machine (hypothesis), test_operation_cancellation, test_write_api (cancel), temporal/test_operation_workflow |
+
+## ADR-92 — S12: SSE проекта из event history — курсор, ACL на каждом опросе, retention gap
+
+| Поле | Значение |
+|---|---|
+| Статус | ACCEPTED |
+| Дата | 2026-11-12 |
+| Ответственный | Implementation Lead |
+| Проблема и контекст | ADR-033 требует SSE из event history с Last-Event-ID, gap-сигналом и закрытием при потере прав; Outbox — не источник для клиента. |
+| Связанные требования | API-MVP; SEC-* |
+| Документы и разделы | ADR-033; API Contracts v1.10 §7; Security v1.2 |
+| Альтернативы | Читать Outbox (смешивает транспортное и клиентское, нет ACL-проекции); отдавать `data` событий (обход ACL ресурсных эндпоинтов); LISTEN/NOTIFY (не гарантирует replay). |
+| Решение | `GET /projects/{id}/events` (policy `project.events_read`; недоступный/отсутствующий проект — 404). Источники — пять append-only таблиц истории (замороженный allowlist). Событие — ACL-нейтральная проекция (идентификатор, тип, порядок, смена статуса), без `data`. `id` — непрозрачный HMAC-курсор `{watermark, {aggregate: sequence}}`, привязанный к сессии, проекту и endpoint; подделка, чужая сессия, чужой проект → 422, не молчаливый рестарт. На каждом опросе заново проверяются сессия и право чтения; сбой → `event: close` (`access_revoked`/`unavailable`, fail closed). Курсор старше retention → `event: gap` (resync из REST). Поток ограничен по времени, клиент переподключается. WORKING (настройки): poll, settle, max duration, retention. |
+| Обоснование | Per-aggregate порядок точный (sequence); водяной знак находит только новые агрегаты; settle-окно защищает от поздних коммитов. |
+| Влияние на компоненты/контракты | `modules/events/stream.py`, `api/events_api.py`, `platform/config.py` (sse_*), `app.py` |
+| Риски и компромиссы | Settle-окно — техническая гипотеза (поздний коммит дольше окна будет пропущен для НОВОГО агрегата, G-114); опрос БД вместо push; курсор ограничен MAX_TRACKED агрегатами (иначе gap); сессия в потоке не продлевается до истечения idle — поток живёт ≤ sse_max_seconds. |
+| Затронутые тесты | test_read_api (SSE: проекция, ACL 404/401, подделанный/чужой курсор, resume без повторов, отзыв сессии, retention gap) |
+
+## ADR-93 — S12: completeUpload — проверка объекта хранилищем, Operation SOURCE_INGESTION, роли политики
+
+| Поле | Значение |
+|---|---|
+| Статус | ACCEPTED |
+| Дата | 2026-11-12 |
+| Ответственный | Implementation Lead |
+| Проблема и контекст | Завершение загрузки не должно доверять заявленному клиентом: проверять нужно то, что реально лежит в хранилище, затем создавать Operation (конвейер — S27). |
+| Связанные требования | SRC-MVP; SEC-* |
+| Документы и разделы | Source and Context Lifecycle v1.3; API Contracts v1.10; Security v1.2 |
+| Альтернативы | Принимать sha256 клиента как доказательство; скачивать объект целиком для хеша (дорого, SSRF-поверхность); считать объект без проверенного хранилищем SHA-256 принятым. |
+| Решение | `POST /uploads/{id}/complete` (Idempotency-Key, policy `source.upload_complete`). Порт `ObjectStore.stat` (presigned HEAD, `x-amz-checksum-mode`) возвращает размер и SHA-256, вычисленный и проверенный хранилищем при PUT. Несовпадение размера/суммы или отсутствие проверенной суммы → REJECTED (вердикт фиксируется отдельной транзакцией и переживает отказ), истёкший → EXPIRED без обращения к хранилищу, нет объекта → 409 OPERATION_NOT_READY, недоступное хранилище → 503 без изменений. Успех: UPLOADED→VERIFIED, SourceVersion, Operation SOURCE_INGESTION (ACCEPTED, 202, Location). Команда старта оркестратору НЕ ставится (G-107). Роли `source.upload_complete` и `operation.cancel` — PROJECT_ADMIN/ANALYST, humanOnly (WORKING). |
+| Обоснование | Доказательство целостности — у хранилища; сетевой вызов вне транзакции; отказ необратим и аудируем. |
+| Влияние на компоненты/контракты | `modules/sources/object_store.py`, `sources/repository.py`, `write_api.py`, `policy_config.json` (+sha256), `app.py` |
+| Риски и компромиссы | Объект, загруженный без `x-amz-checksum-sha256`, отклоняется (presign требует заголовок); completion policy SOURCE_INGESTION — заглушка `wip-1` до S21/S27; TOCTOU между HEAD и finalize (объект неизменяем по ключу, G-115). |
+| Затронутые тесты | test_write_api (completeUpload: успех, несовпадения, истечение, недоступность, идемпотентность, ACL/IDOR) |

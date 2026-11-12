@@ -7,6 +7,7 @@ defines a message) -> audit rows -> idempotency completion. Any failure rolls al
 projection. Authorization is the Policy Engine, decided BEFORE a data connection is taken; browser CSRF, Origin and the session come from the shared
 dependencies. Nothing here approves anything: requirement versions are CANDIDATE proposals.
 """
+import hashlib
 import logging
 import re
 from collections.abc import Awaitable, Callable
@@ -21,7 +22,7 @@ from pydantic.alias_generators import to_camel
 
 from ai_res.api.identity import IdentityServices
 from ai_res.api.locator import ObjectLocator
-from ai_res.api.read_api import epic_dto, project_dto, requirement_dto, requirement_version_dto
+from ai_res.api.read_api import epic_dto, operation_dto, project_dto, requirement_dto, requirement_version_dto
 from ai_res.db.session import DbSession as AsyncSession
 from ai_res.db.session import IntegrityViolation, UnitOfWork
 from ai_res.modules.audit.writer import SqlAuditWriter, correlation_uuid
@@ -31,9 +32,12 @@ from ai_res.modules.events.envelope import DOMAIN_DESTINATION
 from ai_res.modules.iam.sessions import AuthenticatedSession
 from ai_res.modules.idempotency.repository import IdempotencyOutcome, IdempotencyRepository
 from ai_res.modules.idempotency.service import IdempotencyService, load_keyring
+from ai_res.modules.operations.cancellation import request_cancellation
+from ai_res.modules.operations.repository import NewOperation, OperationRepository
 from ai_res.modules.projects.repository import ProjectRepository, new_project_id
 from ai_res.modules.readmodel.queries import ReadQueries
 from ai_res.modules.requirements.repository import NewRequirementVersion, RequirementRepository
+from ai_res.modules.sources.object_store import ObjectStore, ObjectStoreError, S3ObjectStore
 from ai_res.modules.sources.presign import StorageCredentials, checksum_header, presign_url
 from ai_res.modules.sources.repository import NewUpload, SourceRepository
 from ai_res.platform.clock import utc_now
@@ -118,6 +122,17 @@ class CreateUploadBody(_Body):
         return value.lower()
 
 
+class CompleteUploadBody(_Body):
+    sha256: str
+
+    @field_validator("sha256")
+    @classmethod
+    def _hex(cls, value: str) -> str:
+        if not _SHA256.match(value):
+            raise ValueError("must be 64 hexadecimal characters")
+        return value.lower()
+
+
 @dataclass(frozen=True)
 class Rendered:
     status: int
@@ -160,13 +175,15 @@ def _need_key(value: str | None) -> str:
     return value
 
 
-def register_write_api(app: FastAPI, services: IdentityServices, *, idempotency: IdempotencyService | None = None, storage: StorageConfig | None = None) -> None:
+def register_write_api(app: FastAPI, services: IdentityServices, *, idempotency: IdempotencyService | None = None, storage: StorageConfig | None = None,
+                       object_store: ObjectStore | None = None) -> None:
     settings, enforcer, factory = services.settings, services.enforcer, services.factory
     if services.current_session is None or services.origin_guard is None:
         raise RuntimeError("register_identity must run before register_write_api")
     config = enforcer.config
     actions = {"project.create": "PROJECT", "project.update": "PROJECT", "epic.create": "EPIC", "requirement.register": "REQUIREMENT",
-               "requirement.propose_version": "REQUIREMENT", "source.upload_create": "SOURCE", "project.read": "PROJECT"}
+               "requirement.propose_version": "REQUIREMENT", "source.upload_create": "SOURCE", "project.read": "PROJECT", "operation.cancel": "OPERATION",
+               "source.upload_complete": "SOURCE"}
     if config is None or any(a not in config.actions or config.actions[a].resource_type != t for a, t in actions.items()):
         raise RuntimeError("policy configuration lacks the write actions or their resource types; refusing to expose write endpoints")  # fail closed at start-up
     router = APIRouter(prefix="/api/v1", dependencies=[Depends(services.origin_guard)])
@@ -217,7 +234,7 @@ def register_write_api(app: FastAPI, services: IdentityServices, *, idempotency:
                          destinations=(DOMAIN_DESTINATION,), data=data)
 
     async def run(s: AuthenticatedSession, *, command: str, key: str | None, payload: Any, project_id: UUID, decision: tuple[Any, Any], resource_type: str,
-                  execute: Callable[[AsyncSession], Awaitable[UUID]], render: Callable[[AsyncSession, UUID], Awaitable[Rendered]]) -> Rendered:
+                  execute: Callable[[AsyncSession], Awaitable[UUID]], render: Callable[[AsyncSession, UUID], Awaitable[Rendered]], response_status: int = 201) -> Rendered:
         """The common transaction. A replay (same key + same fingerprint) re-renders the stored resource and writes nothing; the same key with another
         request is 409 IDEMPOTENCY_KEY_REUSED; a request still in progress is a retryable 409."""
         raw_key = _need_key(key)
@@ -233,7 +250,7 @@ def register_write_api(app: FastAPI, services: IdentityServices, *, idempotency:
                 raise ProblemError(ErrorCode.OPERATION_NOT_READY, "The same request is still being processed; retry shortly.")
             await enforcer.record_allow(request, allowed, session=uow.session)  # fail-closed: no audit row, no change
             rid = await execute(uow.session)
-            await service.complete(uow.session, record, status="COMPLETED", resource_type=resource_type, resource_id=rid, response_status=201, response_body_ref=None)
+            await service.complete(uow.session, record, status="COMPLETED", resource_type=resource_type, resource_id=rid, response_status=response_status, response_body_ref=None)
             return await render(uow.session, rid)
 
     def out(response: Response, rendered: Rendered) -> dict[str, Any]:
@@ -455,6 +472,118 @@ def register_write_api(app: FastAPI, services: IdentityServices, *, idempotency:
 
         return out(response, await run(s, command="createUploadIntent", key=idempotency_key, payload=body.model_dump(mode="json"), project_id=body.project_id,
                                        decision=decision, resource_type="UPLOAD", execute=execute, render=render))
+
+    # -- completeUpload: the STORE'S view of the object (size + store-verified SHA-256) decides, never the client's claim -----------------------------------
+    shared: list[ObjectStore] = []  # one client (and connection pool) per app, not per request
+
+    def objects() -> ObjectStore:
+        if object_store is not None:
+            return object_store
+        if not shared:
+            cfg = store()
+            shared.append(S3ObjectStore(cfg.endpoint, cfg.bucket, cfg.region, cfg.credentials))
+        return shared[0]
+
+    async def reject_upload(s: AuthenticatedSession, project_id: UUID, upload_id: UUID, status: str, code: str | None, reason: str) -> ProblemError:
+        """Persists the verdict in its OWN committed transaction, then hands back the problem (raised by the caller): a rejection must outlive the failed request."""
+        async with UnitOfWork(factory) as uow:
+            await uow.with_tenant(s.organization_id, project_id)
+            row = await SourceRepository(uow.session).get_upload(upload_id)
+            if row is not None and row.status in ("PENDING", "UPLOADED"):
+                if not await SourceRepository(uow.session).reject_upload(upload_id, status, code):  # lost a race: decide from the real state, not the stale read
+                    return ProblemError(ErrorCode.STATE_TRANSITION_NOT_ALLOWED, "The upload was decided concurrently.")
+                await SqlAuditWriter(uow.session).write(audit(s, "UPLOAD_" + status, "SOURCE", row.source_id, project_id, {"uploadId": str(upload_id), "reason": reason}))
+        return ProblemError(ErrorCode.VALIDATION_ERROR, "The uploaded object failed verification.", errors=[{"field": "object", "reason": reason}])
+
+    @router.post("/uploads/{upload_id}/complete", status_code=202)
+    async def complete_upload(upload_id: UUID, body: CompleteUploadBody, response: Response, s: Session,
+                              idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None) -> dict[str, Any]:
+        project_id = await locator.locate(s, "sources.uploads", upload_id)
+        if project_id is None:
+            raise ProblemError(ErrorCode.RESOURCE_NOT_FOUND, "Resource not found.")
+        decision = await authorize(s, "source.upload_complete", project_id, upload_id)
+        _need_key(idempotency_key)
+        async with UnitOfWork(factory) as uow:  # a short read transaction: no network call is made while it is open
+            await uow.with_tenant(s.organization_id, project_id)
+            intent = await SourceRepository(uow.session).get_intent(upload_id)
+        if intent is None:
+            raise ProblemError(ErrorCode.RESOURCE_NOT_FOUND, "Resource not found.")
+        if intent.status == "VERIFIED":  # completed before: only the SAME key may replay it (handled by the idempotent command below)
+            observed = None
+        else:
+            if intent.status not in ("PENDING", "UPLOADED"):
+                raise ProblemError(ErrorCode.STATE_TRANSITION_NOT_ALLOWED, "The upload can no longer be completed.")
+            if body.sha256 != intent.sha256.hex():
+                raise ProblemError(ErrorCode.VALIDATION_ERROR, "sha256 does not match the declared checksum.", errors=[{"field": "sha256", "reason": "checksum_mismatch"}])
+            if utc_now() > intent.expires_at:
+                raise await reject_upload(s, project_id, upload_id, "EXPIRED", None, "expired")
+            try:
+                observed = await objects().stat(intent.object_key)
+            except ObjectStoreError as exc:
+                _log.error("object store did not answer: %s", exc)
+                raise ProblemError(ErrorCode.DEPENDENCY_UNAVAILABLE, "Upload verification is unavailable; retry.") from exc
+            if observed is None:
+                raise ProblemError(ErrorCode.OPERATION_NOT_READY, "The object has not been uploaded yet.")
+            if observed.size_bytes != intent.size_bytes:
+                raise await reject_upload(s, project_id, upload_id, "REJECTED", "SIZE_MISMATCH", "size_mismatch")
+            if observed.sha256 is None or observed.sha256 != intent.sha256:  # an unverifiable object is rejected, never accepted on declared values
+                raise await reject_upload(s, project_id, upload_id, "REJECTED", "CHECKSUM_MISMATCH", "checksum_mismatch")
+
+        async def execute(session: AsyncSession) -> UUID:
+            sources = SourceRepository(session)
+            upload = await sources.get_upload(upload_id)
+            if upload is None:
+                raise ProblemError(ErrorCode.RESOURCE_NOT_FOUND, "Resource not found.")
+            if upload.status not in ("PENDING", "UPLOADED") or observed is None:
+                raise ProblemError(ErrorCode.STATE_TRANSITION_NOT_ALLOWED, "The upload was already completed.")
+            if upload.status == "PENDING":
+                upload = await sources.mark_uploaded(upload)
+            assert observed.sha256 is not None  # established before the transaction; an unverifiable object never reaches here
+            upload = await sources.verify_upload(upload, observed.size_bytes, observed.sha256)
+            version = await sources.finalize_version(s.organization_id, project_id, upload, received_at=utc_now(), provenance={"uploadId": str(upload_id), "via": "completeUpload"},
+                                                     created_by=s.user_id)
+            operation_id = new_id()
+            correlation = correlation_uuid(current_request_id())
+            # WORKING: completion policy of SOURCE_INGESTION arrives with S21/S27. No start command is queued (G-107): the Operation waits ACCEPTED for the S27 pipeline.
+            await OperationRepository(session).create(
+                NewOperation(id=operation_id, organization_id=s.organization_id, project_id=project_id, operation_type="SOURCE_INGESTION", initiator_type="USER",
+                             initiator_id=s.user_id, idempotency_scope=f"complete-upload:{upload_id}", request_fingerprint=hashlib.sha256(upload_id.bytes).digest(),
+                             completion_policy_version="wip-1", completion_policy_snapshot={}, correlation_id=correlation, created_by=s.user_id),
+                EventSpec(event_type="operation.accepted", schema_version=1, actor_type="USER", actor_id=s.user_id, correlation_id=correlation,
+                          destinations=(DOMAIN_DESTINATION,), data={"sourceVersionId": str(version.id)}))
+            await SqlAuditWriter(session).write(audit(s, "UPLOAD_COMPLETE", "SOURCE", upload.source_id, project_id, {"uploadId": str(upload_id), "sourceVersionId": str(version.id)}))
+            return operation_id
+
+        async def render(session: AsyncSession, rid: UUID) -> Rendered:
+            row = await ReadQueries(session).get_operation(rid)
+            if row is None:
+                raise ProblemError(ErrorCode.INTERNAL_ERROR, "Resource is not visible.")
+            return Rendered(202, operation_dto(row), {"Location": f"/api/v1/operations/{rid}", "ETag": format_etag(row["row_version"])})
+
+        return out(response, await run(s, command="completeUpload", key=idempotency_key, payload={"uploadId": str(upload_id), "sha256": body.sha256}, project_id=project_id,
+                                       decision=decision, resource_type="OPERATION", execute=execute, render=render, response_status=202))
+
+    # -- requestOperationCancellation: 202 = the REQUEST was recorded; CANCELLED comes only after the orchestrator reconciled (S12) ------------------------
+    @router.post("/operations/{operation_id}/cancel", status_code=202)
+    async def cancel_operation(operation_id: UUID, response: Response, s: Session, idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None) -> dict[str, Any]:
+        project_id = await locator.locate(s, "operations.operations", operation_id)
+        if project_id is None:
+            raise ProblemError(ErrorCode.RESOURCE_NOT_FOUND, "Resource not found.")  # missing, foreign and unreadable are indistinguishable
+        decision = await authorize(s, "operation.cancel", project_id, operation_id)
+
+        async def execute(session: AsyncSession) -> UUID:
+            await request_cancellation(session, operation_id, actor_id=s.user_id, correlation_id=correlation_uuid(current_request_id()))
+            await SqlAuditWriter(session).write(audit(s, "OPERATION_CANCEL_REQUESTED", "OPERATION", operation_id, project_id, {}))
+            return operation_id
+
+        async def render(session: AsyncSession, rid: UUID) -> Rendered:
+            row = await ReadQueries(session).get_operation(rid)
+            if row is None:
+                raise ProblemError(ErrorCode.INTERNAL_ERROR, "Resource is not visible.")
+            return Rendered(202, operation_dto(row), {"Location": f"/api/v1/operations/{rid}", "ETag": format_etag(row["row_version"])})
+
+        return out(response, await run(s, command="requestOperationCancellation", key=idempotency_key, payload={"operationId": str(operation_id)}, project_id=project_id,
+                                       decision=decision, resource_type="OPERATION", execute=execute, render=render, response_status=202))
 
     app.include_router(router)
 

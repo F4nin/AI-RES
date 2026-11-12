@@ -8,14 +8,15 @@ Errors: an event that is not a well-formed start command is PERMANENT (quarantin
 """
 import logging
 from typing import Any
+from uuid import UUID
 
 from temporalio.service import RPCError, RPCStatusCode
 
 from ai_res.modules.events import delivery
 from ai_res.modules.events.metrics import get_event_metrics
 from ai_res.modules.events.outbox_repository import OutboxRow
-from ai_res.orchestration.client import OperationStarter, StartOutcome
-from ai_res.orchestration.contracts import CONTRACT_VERSION, START_DESTINATION, ContractError, OperationRef, OperationWorkflowInput
+from ai_res.orchestration.client import CancelOutcome, OperationCanceller, OperationStarter, StartOutcome
+from ai_res.orchestration.contracts import CANCEL_DESTINATION, CONTRACT_VERSION, START_DESTINATION, ContractError, OperationRef, OperationWorkflowInput
 
 log = logging.getLogger("ai_res.events.temporal_start")
 TRANSIENT_RPC = frozenset({RPCStatusCode.UNAVAILABLE, RPCStatusCode.DEADLINE_EXCEEDED, RPCStatusCode.RESOURCE_EXHAUSTED, RPCStatusCode.ABORTED,
@@ -57,3 +58,41 @@ class TemporalStartPublisher:
         if outcome is StartOutcome.ALREADY_FINISHED:  # normal after a success; an anomaly if the Operation is not terminal (G-107): never silent
             get_event_metrics().count("start_already_finished")
             log.warning("start redelivered for a closed workflow", extra={"operation_id": request.operation.operation_id})
+
+
+CANCEL_EVENT_TYPES = frozenset({"operation.cancel_requested", "com.aires.operation.cancel_requested.v1"})
+
+
+class TemporalCancelPublisher:
+    """Outbox -> Temporal signal for an Operation in CANCEL_REQUESTED. At-least-once is harmless: the signal only sets a flag and the domain reconciliation
+    is idempotent. A closed/unknown Workflow is not an error of delivery: the Operation stays CANCEL_REQUESTED and is visible to reconciliation (G-107)."""
+
+    def __init__(self, canceller: OperationCanceller) -> None:
+        self._canceller = canceller
+
+    @staticmethod
+    def operation_id_from(row: OutboxRow) -> UUID:
+        if row.destination != CANCEL_DESTINATION or row.aggregate_type != "OPERATION" or row.event_type not in CANCEL_EVENT_TYPES:
+            raise delivery.PermanentDeliveryError(delivery.ENVELOPE_MISMATCH)
+        data: Any = row.envelope.get("data")
+        try:
+            operation_id = UUID(str(data["operationId"]))
+        except (KeyError, TypeError, ValueError):
+            raise delivery.PermanentDeliveryError(delivery.SCHEMA_REJECTED) from None
+        if operation_id != row.aggregate_id:
+            raise delivery.PermanentDeliveryError(delivery.ENVELOPE_MISMATCH)
+        return operation_id
+
+    async def publish(self, row: OutboxRow) -> None:
+        operation_id = self.operation_id_from(row)
+        try:
+            outcome = await self._canceller.signal(operation_id)
+        except RPCError as exc:
+            log.error("temporal cancel signal rejected", extra={"rpc_status": exc.status.name})
+            raise (delivery.TransientDeliveryError if exc.status in TRANSIENT_RPC else delivery.PermanentDeliveryError)(
+                delivery.PUBLISH_FAILED if exc.status in TRANSIENT_RPC else delivery.SCHEMA_REJECTED) from exc
+        except (ConnectionError, OSError, TimeoutError, RuntimeError) as exc:
+            raise delivery.TransientDeliveryError(delivery.PUBLISH_FAILED) from exc
+        if outcome is CancelOutcome.NO_RUNNING_WORKFLOW:
+            get_event_metrics().count("cancel_without_workflow")
+            log.warning("cancel requested but no running workflow", extra={"operation_id": str(operation_id)})
