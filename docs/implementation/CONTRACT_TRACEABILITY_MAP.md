@@ -25,13 +25,13 @@
 | proposeRequirementVersion | POST /requirements/{id}/versions | RequirementVersion | `requirements.requirement_versions` | If-Match, Idempotency-Key | RequirementVersionCreated | S09 IMPLEMENTED |
 | listSources | GET /projects/{projectId}/sources | Source | `sources.*` (ADR-016) | Limit, Cursor | — | S08 — IMPLEMENTED/TESTED (`test_read_api`, `test_read_api_schemathesis`) |
 | createUploadIntent | POST /uploads | Upload | `sources.uploads` (ADR-016) | Idempotency-Key | — | S09 IMPLEMENTED (хранилище не проверено, G-92) |
-| completeUpload | POST /uploads/{uploadId}/complete | Upload → Operation → SourceVersion | `operations.operations`, `sources.source_versions` | Idempotency-Key; **202 + Operation** | Operation*, SourceVersionIngested | S12 |
+| completeUpload | POST /uploads/{uploadId}/complete | Upload → Operation → SourceVersion | `operations.operations`, `sources.source_versions` | Idempotency-Key; **202 + Operation** | Operation*, SourceVersionIngested | S12 — IMPLEMENTED/TESTED: `test_write_api` (успех, несовпадение размера/суммы, истечение, недоступность хранилища, идемпотентность, ACL/IDOR); ADR-093 |
 | listArtifacts | GET /projects/{projectId}/artifacts | Artifact | `artifacts.*` (ADR-016) | Limit, Cursor | — | S08 — IMPLEMENTED/TESTED (`test_read_api`, `test_read_api_schemathesis`) |
 | listArtifactVersions | GET /artifacts/{id}/versions | ArtifactVersion | `artifacts.artifact_versions` | — | — | S08 — IMPLEMENTED/TESTED (`test_read_api`, `test_read_api_schemathesis`) |
 | getWorkerRun | GET /worker-runs/{workerRunId} | WorkerRun | `agents.worker_runs` (DDL) | — | — | S08 — IMPLEMENTED/TESTED (`test_read_api`, `test_read_api_schemathesis`) |
-| streamProjectEvents | GET /projects/{projectId}/events | SSE projection | event history: `operations.operation_events`, `agents.worker_run_events`, доменные event history (ADR-016); **не** `audit.outbox_events` (очередь доставки; у API нет USAGE на `audit`, DOC-069) | Last-Event-ID | все авторизованные; retention — WORKING | S12 |
-| getOperation | GET /operations/{operationId} | Operation | `operations.operations` (DDL) | — | — | S12 |
-| requestOperationCancellation | POST /operations/{id}/cancel | Operation | `operations.operations` | Idempotency-Key | OperationCancelRequested | S12 |
+| streamProjectEvents | GET /projects/{projectId}/events | SSE projection | event history: `operations.operation_events`, `agents.worker_run_events`, доменные event history (ADR-016); **не** `audit.outbox_events` (очередь доставки; у API нет USAGE на `audit`, DOC-069) | Last-Event-ID | все авторизованные; retention — WORKING | S12 · S12 — IMPLEMENTED/TESTED: `test_read_api` (SSE), ADR-092; G-114, G-118 |
+| getOperation | GET /operations/{operationId} | Operation | `operations.operations` (DDL) | — | — | S12 — IMPLEMENTED/TESTED: `test_read_api`; словарь initiator — G-112 |
+| requestOperationCancellation | POST /operations/{id}/cancel | Operation | `operations.operations` | Idempotency-Key | OperationCancelRequested | S12 — IMPLEMENTED/TESTED: `test_write_api`, `test_operation_cancellation`, `temporal/test_operation_workflow`; события `operation.cancel_requested`/`operation.cancelled`; ADR-091; G-117 |
 | listWorkerRunReadinessEvaluations | GET /worker-runs/{id}/readiness-evaluations | ReadinessEvaluation | `execution.readiness_evaluations` (DDL) | — | ReadinessGate* (`gateResultId` → DR-04) | S22 |
 
 ## AsyncAPI v1.6 (78 сообщений) — группы

@@ -52,10 +52,10 @@ IDOR для cancel/completeUpload/SSE — один и тот же 404; viewer н
 - Открытые: G-112…G-120, в т.ч. HIGH G-117 (зависшая отмена).
 
 ## 13. Обновлённые документы и статусы
-ADL (ADR-091…093), KNOWN_GAPS (G-112…G-120), ECC_USAGE, IMPLEMENTATION_STATUS, CONTEXT_HANDOFF, `reviews/S12_REVIEWS.md`. REQUIREMENTS_TRACEABILITY и CONTRACT_TRACEABILITY_MAP **не обновлены** — осталось сделать.
+ADL (ADR-091…093), KNOWN_GAPS (G-112…G-120), ECC_USAGE, IMPLEMENTATION_STATUS, CONTEXT_HANDOFF, `reviews/S12_REVIEWS.md`. REQUIREMENTS_TRACEABILITY (API-MVP-009, -010) и CONTRACT_TRACEABILITY_MAP (4 операции) обновлены.
 
 ## 14. Статус DoD
-✅ переходы и getOperation; ✅ cancel + reconciliation; ✅ completeUpload (проверка хранилищем, идемпотентность, IDOR); ✅ SSE (ACL, курсор, gap, отзыв); ✅ нет Operation Events history API; ⚠ обязательные reviewers выполнены частично; ❌ трассируемость; ❌ Linux CI.
+✅ переходы и getOperation; ✅ cancel + reconciliation; ✅ completeUpload (проверка хранилищем, идемпотентность, IDOR); ✅ SSE (ACL, курсор, gap, отзыв); ✅ нет Operation Events history API; ⚠ обязательные reviewers выполнены частично; ✅ трассируемость; ❌ Linux CI.
 
 ## 15. Можно ли начинать следующий этап
-Нет, пока: зелёный Linux CI, трассируемость, решение владельца по HIGH G-117 и по неполному составу reviewers.
+Нет, пока: зелёный Linux CI, решение владельца по HIGH G-117 и по неполному составу reviewers.
