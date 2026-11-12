@@ -192,6 +192,19 @@ END $$;
 
 ALTER FUNCTION artifacts.guard_publication_insert() OWNER TO ai_res_owner;
 
+CREATE FUNCTION audit.assert_checkpoint_advances() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN  -- a consumer checkpoint only moves forward: a regression would let an old event be applied again
+  IF NEW.last_sequence <= OLD.last_sequence THEN
+    RAISE EXCEPTION 'inbox checkpoint of % for % % must advance (% -> %)', OLD.consumer_name, OLD.aggregate_type, OLD.aggregate_id, OLD.last_sequence, NEW.last_sequence
+      USING ERRCODE = 'integrity_constraint_violation';
+  END IF;
+  RETURN NEW;
+END $$;
+
+ALTER FUNCTION audit.assert_checkpoint_advances() OWNER TO ai_res_owner;
+
 CREATE FUNCTION audit.assert_outbox_matches_event() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -249,6 +262,19 @@ BEGIN  -- deferred to COMMIT: an outbox row without its event (or for another ag
 END $$;
 
 ALTER FUNCTION audit.assert_outbox_matches_event() OWNER TO ai_res_owner;
+
+CREATE FUNCTION audit.assert_replay_count_step() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN  -- replay_count is a counter of controlled replays: it moves by exactly one, and only together with QUARANTINED -> PENDING
+  IF NEW.replay_count IS DISTINCT FROM OLD.replay_count
+     AND NOT (NEW.replay_count = OLD.replay_count + 1 AND OLD.status = 'QUARANTINED' AND NEW.status = 'PENDING') THEN
+    RAISE EXCEPTION 'outbox row % replay_count may only grow by one when a quarantined row is replayed', OLD.id USING ERRCODE = 'integrity_constraint_violation';
+  END IF;
+  RETURN NEW;
+END $$;
+
+ALTER FUNCTION audit.assert_replay_count_step() OWNER TO ai_res_owner;
 
 CREATE FUNCTION context.assert_package_version_complete() RETURNS trigger
     LANGUAGE plpgsql
@@ -929,6 +955,20 @@ ALTER TABLE ONLY audit.audit_events FORCE ROW LEVEL SECURITY;
 
 ALTER TABLE audit.audit_events OWNER TO ai_res_owner;
 
+CREATE TABLE audit.inbox_checkpoints (
+    consumer_name text NOT NULL,
+    aggregate_type text NOT NULL,
+    aggregate_id uuid NOT NULL,
+    last_sequence bigint NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ck_inbox_checkpoints_consumer_name CHECK (((length(consumer_name) >= 1) AND (length(consumer_name) <= 200))),
+    CONSTRAINT ck_inbox_checkpoints_last_sequence CHECK ((last_sequence > 0))
+);
+
+ALTER TABLE ONLY audit.inbox_checkpoints FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE audit.inbox_checkpoints OWNER TO ai_res_owner;
+
 CREATE TABLE audit.inbox_messages (
     id uuid NOT NULL,
     consumer_name text NOT NULL,
@@ -973,12 +1013,14 @@ CREATE TABLE audit.outbox_events (
     lease_until timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     published_at timestamp with time zone,
+    replay_count integer DEFAULT 0 NOT NULL,
     CONSTRAINT ck_outbox_events_aggregate_sequence CHECK ((aggregate_sequence > 0)),
     CONSTRAINT ck_outbox_events_attempt_count CHECK ((attempt_count >= 0)),
     CONSTRAINT ck_outbox_events_destination CHECK (((length(destination) >= 1) AND (length(destination) <= 200))),
     CONSTRAINT ck_outbox_events_last_error_code CHECK ((last_error_code ~ '^[A-Z][A-Z0-9_]{0,63}$'::text)),
     CONSTRAINT ck_outbox_events_lease_iff_in_flight CHECK ((((status = 'IN_FLIGHT'::text) = ((lease_owner IS NOT NULL) AND (lease_until IS NOT NULL))) AND ((lease_owner IS NULL) = (lease_until IS NULL)))),
     CONSTRAINT ck_outbox_events_published_iff_published CHECK (((status = 'PUBLISHED'::text) = (published_at IS NOT NULL))),
+    CONSTRAINT ck_outbox_events_replay_count CHECK ((replay_count >= 0)),
     CONSTRAINT ck_outbox_events_schema_version CHECK ((schema_version > 0)),
     CONSTRAINT ck_outbox_events_status CHECK ((status = ANY (ARRAY['PENDING'::text, 'IN_FLIGHT'::text, 'PUBLISHED'::text, 'QUARANTINED'::text])))
 );
@@ -2463,6 +2505,9 @@ ALTER TABLE ONLY audit.aggregate_types
 ALTER TABLE ONLY audit.audit_events
     ADD CONSTRAINT pk_audit_events PRIMARY KEY (id);
 
+ALTER TABLE ONLY audit.inbox_checkpoints
+    ADD CONSTRAINT pk_inbox_checkpoints PRIMARY KEY (consumer_name, aggregate_type, aggregate_id);
+
 ALTER TABLE ONLY audit.inbox_messages
     ADD CONSTRAINT pk_inbox_messages PRIMARY KEY (id);
 
@@ -2866,7 +2911,13 @@ CREATE INDEX ix_audit_events_organization_id_occurred_at ON audit.audit_events U
 
 CREATE INDEX ix_inbox_messages_consumer_name_status_received_at ON audit.inbox_messages USING btree (consumer_name, status, received_at);
 
+CREATE INDEX ix_outbox_events_claim_lease ON audit.outbox_events USING btree (lease_until) WHERE (status = 'IN_FLIGHT'::text);
+
+CREATE INDEX ix_outbox_events_claim_pending ON audit.outbox_events USING btree (created_at, aggregate_sequence) WHERE (status = 'PENDING'::text);
+
 CREATE INDEX ix_outbox_events_pending ON audit.outbox_events USING btree (available_at, created_at) WHERE (status = ANY (ARRAY['PENDING'::text, 'IN_FLIGHT'::text]));
+
+CREATE INDEX ix_outbox_events_quarantined ON audit.outbox_events USING btree (created_at) WHERE (status = 'QUARANTINED'::text);
 
 CREATE INDEX ix_context_package_items_artifact_version_id ON context.context_package_items USING btree (artifact_version_id) WHERE (artifact_version_id IS NOT NULL);
 
@@ -3088,11 +3139,17 @@ CREATE TRIGGER trg_audit_events_append_only BEFORE DELETE OR UPDATE ON audit.aud
 
 CREATE TRIGGER trg_audit_events_no_truncate BEFORE TRUNCATE ON audit.audit_events FOR EACH STATEMENT EXECUTE FUNCTION platform.reject_modification();
 
+CREATE TRIGGER trg_inbox_checkpoints_advance BEFORE UPDATE ON audit.inbox_checkpoints FOR EACH ROW EXECUTE FUNCTION audit.assert_checkpoint_advances();
+
+CREATE TRIGGER trg_inbox_checkpoints_immutable_columns BEFORE UPDATE ON audit.inbox_checkpoints FOR EACH ROW EXECUTE FUNCTION platform.keep_columns_immutable('consumer_name', 'aggregate_type', 'aggregate_id');
+
 CREATE TRIGGER trg_inbox_messages_immutable_columns BEFORE UPDATE ON audit.inbox_messages FOR EACH ROW EXECUTE FUNCTION platform.keep_columns_immutable('id', 'consumer_name', 'event_id', 'aggregate_type', 'aggregate_id', 'aggregate_sequence', 'payload_hash', 'received_at');
 
 CREATE TRIGGER trg_outbox_events_immutable_columns BEFORE UPDATE ON audit.outbox_events FOR EACH ROW EXECUTE FUNCTION platform.keep_columns_immutable('id', 'organization_id', 'project_id', 'event_id', 'destination', 'aggregate_type', 'aggregate_id', 'aggregate_sequence', 'event_type', 'schema_version', 'envelope', 'created_at');
 
 CREATE CONSTRAINT TRIGGER trg_outbox_events_matches_event AFTER INSERT ON audit.outbox_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION audit.assert_outbox_matches_event();
+
+CREATE TRIGGER trg_outbox_events_replay_count_step BEFORE UPDATE ON audit.outbox_events FOR EACH ROW EXECUTE FUNCTION audit.assert_replay_count_step();
 
 CREATE TRIGGER trg_context_package_items_append_only BEFORE DELETE OR UPDATE ON context.context_package_items FOR EACH ROW EXECUTE FUNCTION platform.reject_modification();
 
@@ -3464,6 +3521,9 @@ ALTER TABLE ONLY audit.audit_events
 
 ALTER TABLE ONLY audit.audit_events
     ADD CONSTRAINT fk_audit_events_organization_id_project_id_projects FOREIGN KEY (organization_id, project_id) REFERENCES project.projects(organization_id, id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY audit.inbox_checkpoints
+    ADD CONSTRAINT fk_inbox_checkpoints_aggregate_type_aggregate_types FOREIGN KEY (aggregate_type) REFERENCES audit.aggregate_types(code) ON DELETE RESTRICT;
 
 ALTER TABLE ONLY audit.inbox_messages
     ADD CONSTRAINT fk_inbox_messages_aggregate_type_aggregate_types FOREIGN KEY (aggregate_type) REFERENCES audit.aggregate_types(code) ON DELETE RESTRICT;
@@ -3895,6 +3955,8 @@ ALTER TABLE artifacts.validation_reports ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE audit.audit_events ENABLE ROW LEVEL SECURITY;
 
+ALTER TABLE audit.inbox_checkpoints ENABLE ROW LEVEL SECURITY;
+
 ALTER TABLE audit.inbox_messages ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE audit.outbox_events ENABLE ROW LEVEL SECURITY;
@@ -3904,6 +3966,10 @@ CREATE POLICY p_audit_events_api_insert ON audit.audit_events FOR INSERT TO ai_r
 CREATE POLICY p_audit_events_auditor_select ON audit.audit_events FOR SELECT TO ai_res_auditor_group USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
 
 CREATE POLICY p_audit_events_owner_migration ON audit.audit_events TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
+
+CREATE POLICY p_inbox_checkpoints_consumer_all ON audit.inbox_checkpoints TO ai_res_consumer_group USING (true) WITH CHECK (true);
+
+CREATE POLICY p_inbox_checkpoints_owner_migration ON audit.inbox_checkpoints TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
 
 CREATE POLICY p_inbox_messages_consumer_all ON audit.inbox_messages TO ai_res_consumer_group USING (true) WITH CHECK (true);
 
@@ -4327,7 +4393,11 @@ REVOKE ALL ON FUNCTION agents.require_started_open_run() FROM PUBLIC;
 
 REVOKE ALL ON FUNCTION artifacts.guard_publication_insert() FROM PUBLIC;
 
+REVOKE ALL ON FUNCTION audit.assert_checkpoint_advances() FROM PUBLIC;
+
 REVOKE ALL ON FUNCTION audit.assert_outbox_matches_event() FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION audit.assert_replay_count_step() FROM PUBLIC;
 
 REVOKE ALL ON FUNCTION context.assert_package_version_complete() FROM PUBLIC;
 
@@ -4404,6 +4474,12 @@ GRANT SELECT,INSERT ON TABLE artifacts.validation_reports TO ai_res_api_group;
 GRANT INSERT ON TABLE audit.audit_events TO ai_res_api_group;
 GRANT SELECT ON TABLE audit.audit_events TO ai_res_auditor_group;
 
+GRANT SELECT,INSERT ON TABLE audit.inbox_checkpoints TO ai_res_consumer_group;
+
+GRANT UPDATE(last_sequence) ON TABLE audit.inbox_checkpoints TO ai_res_consumer_group;
+
+GRANT UPDATE(updated_at) ON TABLE audit.inbox_checkpoints TO ai_res_consumer_group;
+
 GRANT SELECT,INSERT ON TABLE audit.inbox_messages TO ai_res_consumer_group;
 
 GRANT UPDATE(status) ON TABLE audit.inbox_messages TO ai_res_consumer_group;
@@ -4428,6 +4504,8 @@ GRANT UPDATE(lease_owner) ON TABLE audit.outbox_events TO ai_res_outbox_group;
 GRANT UPDATE(lease_until) ON TABLE audit.outbox_events TO ai_res_outbox_group;
 
 GRANT UPDATE(published_at) ON TABLE audit.outbox_events TO ai_res_outbox_group;
+
+GRANT UPDATE(replay_count) ON TABLE audit.outbox_events TO ai_res_outbox_group;
 
 GRANT SELECT,INSERT ON TABLE context.context_package_items TO ai_res_api_group;
 

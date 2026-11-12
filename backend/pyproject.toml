@@ -17,6 +17,10 @@ dependencies = [
   "argon2-cffi>=23.1",
   "pyotp>=2.9",
   "cryptography>=43",
+  "jsonschema>=4.24",
+  "rfc3339-validator>=0.1.4",
+  "referencing>=0.36",
+  "pyyaml>=6",
 ]
 
 [dependency-groups]
@@ -29,9 +33,8 @@ dev = [
   "mypy>=1.13",
   "import-linter>=2.1",
   "testcontainers[postgres]>=4.9",
-  "jsonschema>=4.24",
-  "referencing>=0.36",
-  "pyyaml>=6",
+  "types-jsonschema>=4.23",
+  "types-pyyaml>=6",
   "schemathesis>=4.33.2",
 ]
 

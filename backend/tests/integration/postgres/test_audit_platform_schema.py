@@ -78,7 +78,7 @@ def test_audits_clean_and_tables_exist(world):
         assert run_audit(c, "rls_coverage.sql") == [] and run_audit(c, "grants_audit.sql") == [] and run_audit(c, "postflight.sql") == []
         tables = {r[0] for r in c.execute("SELECT schemaname || '.' || tablename FROM pg_tables WHERE schemaname IN ('audit','platform') AND tablename <> 'alembic_version'")}
         assert c.execute("SELECT array_agg(code ORDER BY code) FROM audit.aggregate_types").fetchone() == (["ARTIFACT", "BASELINE", "CHANGE_REQUEST", "EPIC", "OPERATION", "PROJECT", "REQUIREMENT", "SOURCE", "WORKER_RUN"],)  # S06 (ADR-059) and S09 (ADR-079) extend the registry
-    assert tables == {"audit.aggregate_types", "audit.outbox_events", "audit.inbox_messages", "audit.audit_events", "platform.idempotency_records", "platform.display_number_counters",
+    assert tables == {"audit.aggregate_types", "audit.outbox_events", "audit.inbox_messages", "audit.inbox_checkpoints", "audit.audit_events", "platform.idempotency_records", "platform.display_number_counters",
                       "platform.bootstrap_state"}  # counters: S06 (ADR-056); bootstrap_state: S07 migration 0013
 
 

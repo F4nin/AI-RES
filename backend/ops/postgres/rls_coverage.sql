@@ -5,7 +5,8 @@ WITH allow(schema_name) AS (VALUES ('iam'),('organization'),('project'),('work')
 cross_tenant(policy_name, reason) AS (VALUES
   ('audit.outbox_events / p_outbox_events_dispatcher_select', 'outbox dispatcher is cross-tenant by design (ADR-034 (4))'),
   ('audit.outbox_events / p_outbox_events_dispatcher_update', 'outbox dispatcher claims/updates delivery columns only (column grants + trigger)'),
-  ('audit.inbox_messages / p_inbox_messages_consumer_all', 'event consumer is cross-tenant by design (ADR-034 (4)); progress columns only')),
+  ('audit.inbox_messages / p_inbox_messages_consumer_all', 'event consumer is cross-tenant by design (ADR-034 (4)); progress columns only'),
+  ('audit.inbox_checkpoints / p_inbox_checkpoints_consumer_all', 'event consumer is cross-tenant by design (ADR-034 (4)); checkpoint advance only (S10, ADR-086)')),
 exempt(table_name, reason) AS (VALUES ('platform.alembic_version', 'Alembic bookkeeping; not tenant data, no runtime grants'),
   ('iam.roles', 'global reference data (ADR-050); runtime SELECT-only, writable only by migrations'),
   ('operations.operation_types', 'global operation_type registry (ADR-013); runtime SELECT-only, extended only by revisions'),

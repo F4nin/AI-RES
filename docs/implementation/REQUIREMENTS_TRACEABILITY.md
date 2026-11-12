@@ -387,8 +387,8 @@
 | PERSIST-012 | DOC-072 | Event sequence concurrent updates | Unique contiguous sequence p | S04, S05 | NOT_STARTED |
 | PERSIST-013 | DOC-072 | Idempotency same key/fingerprint concurrency | One resource, same response | S04, S05 | NOT_STARTED |
 | PERSIST-014 | DOC-072 | Same key, different fingerprint | `IDEMPOTENCY_KEY_REUSED` | S04, S05 | NOT_STARTED |
-| PERSIST-015 | DOC-072 | Outbox crash after publish before mark | Duplicate delivery safely de | S04, S05 | NOT_STARTED |
-| PERSIST-016 | DOC-072 | Inbox crash before commit | No partial local effect | S04, S05 | NOT_STARTED |
+| PERSIST-015 | DOC-072 | Outbox crash after publish before mark | Duplicate delivery safely de | S04, S05, S10 | TESTED (test_event_delivery) |
+| PERSIST-016 | DOC-072 | Inbox crash before commit | No partial local effect | S04, S05, S10 | TESTED (test_event_delivery) |
 | PERSIST-017 | DOC-072 | Backfill stop/restart | Safe resume, no duplicate ma | S04, S05 | NOT_STARTED |
 | PERSIST-018 | DOC-072 | FK NOT VALID then VALIDATE | Validation detects orphan | S04, S05 | NOT_STARTED |
 | PERSIST-019 | DOC-072 | Concurrent index interrupted | Invalid index detected and r | S04, S05 | NOT_STARTED |

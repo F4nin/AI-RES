@@ -228,7 +228,7 @@ def test_alembic_does_not_see_or_touch_foreign_schemas(empty_db: Pg, migrate_env
     command.upgrade(cfg, "head")
     command.revision(cfg, message="autogen probe", autogenerate=True, rev_id="ffff00000003")
     generated = next((scratch / "versions").glob("ffff00000003*.py")).read_text()
-    for forbidden in ("langgraph", "temporal", "checkpoints", "foreign_table", "alembic_version"):
+    for forbidden in ("langgraph", "temporal", "'checkpoints'", "foreign_table", "alembic_version"):
         assert forbidden not in generated, f"autogenerate saw {forbidden}"
     with empty_db.connect() as c:
         assert c.execute("SELECT count(*) FROM langgraph.checkpoints").fetchone() == (0,)

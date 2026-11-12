@@ -16,7 +16,7 @@
 | S07 | Identity, Local Auth, Policy Engine, Audit, Idempotency | VERIFIED по решению владельца (2026-11-11/12; локально `make pre-pr` ok: backend 676, runtime 99, infra 185, contracts 22; два прохода независимого review (4 + 2 агента), CRITICAL/HIGH нет; GitHub Actions на Linux зелёный (2026-11-11, PR #6, коммит 86328e4: ci 43111752244 и 43111759690, contracts 43111752277 и 43111759762 — backend/infra-static/infra-runtime/contracts success; ранее на c8e9040: ci 43107954898 и 43107964966)). Решения владельца R01/R03/SEC-05/SEC-06 внедрены (ADR-071…073); открыты NCP-12 (PROPOSED), OD-15 (WORKING), G-75…G-83 | READY | — |
 | S08 | Read-only API vertical slices | VERIFIED (2026-11-12; GitHub Actions на Linux зелёный, PR #7, коммит 588055d: ci 43186306478 и 43186313460, contracts 43186306145 и 43186313578 — backend/infra-static/infra-runtime/contracts success; первый прогон упал на дрейфе дайджеста `caddy:2.11.9`, пин обновлён). Локально `make pre-pr` exit 0: backend 872, contracts 22, infra 185, runtime 99; schemathesis 13; review 3 агента — CRITICAL 0, HIGH 1 исправлен, дельта не пересматривалась). Дельта review отдельным агентом не пересматривалась. Открыты G-84…G-90, OD-17 | READY | `increments/S08_read_only_api_slices_REPORT.md`, `reviews/S08_REVIEWS.md` |
 | S09 | Controlled write commands | VERIFIED (2026-11-12; PR #8 `feat/s09-controlled-write-commands`, коммит cc26beb; `make pre-pr` ok: backend 924, infra static 186, runtime 99; GitHub Actions на Linux зелёный: ci 43203466196 и 43203684744, contracts 43203466171 и 43203684738 — backend/infra-static/infra-runtime/contracts success; независимое review 4 агента — 0 CRITICAL/HIGH; приём загрузки MinIO не проверен, G-92) | READY (S08 DONE) | `increments/S09_controlled_write_commands_REPORT.md` |
-| S10 | Outbox dispatcher, Inbox и CloudEvents | NOT_STARTED | PENDING_DEPS | — |
+| S10 | Outbox dispatcher, Inbox и CloudEvents | TESTED (2026-11-12; ветка `feat/s10-outbox-dispatcher-inbox-cloudevents`; `make pre-pr` exit 0: backend 964, contracts 22, infra static 186, runtime 99; review 3 агента — CRITICAL/HIGH нет, замечания исправлены; Linux CI не выполнялся — VERIFIED не заявлен). OD-13 решён (ADR-084); открыты G-98…G-103, NCP-13 | READY (S09 DONE) | `increments/S10_outbox_dispatcher_inbox_cloudevents_REPORT.md`, `reviews/S10_REVIEWS.md` |
 | S11 | Temporal foundation и dispatch Operation | NOT_STARTED | PENDING_DEPS | — |
 | S12 | Operation API, process primitives, cancellation, SSE | NOT_STARTED | PENDING_DEPS | — |
 | S13 | Observability stack и мониторинг | NOT_STARTED | PENDING_DEPS | — |
@@ -55,7 +55,7 @@
 | Backend API | NOT_STARTED | S02, S07–S12 |
 | PostgreSQL `ai_res_db` (миграции, роли, RLS) | TESTED (S04–S06 схемы; репозитории частично) | S04–S06 |
 | Docker Compose / secrets / CI | VERIFIED (локально и на GitHub Actions) | S03 |
-| Outbox / Inbox | NOT_STARTED | S10 |
+| Outbox / Inbox | TESTED (dispatcher/consumer — библиотека + CLI; в стеке не запущен, G-98) | S10 |
 | Temporal, Manager Runtime, Worker Runtime | NOT_STARTED | S11, S20, S23 |
 | LangGraph | NOT_STARTED | S23 |
 | LLM Gateway (port / Bifrost) | NOT_STARTED / BLOCKED | S15 / S16 |
