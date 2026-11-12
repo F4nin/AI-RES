@@ -1,6 +1,6 @@
 # S13 — Observability stack и мониторинг: Increment Report
 
-**Дата:** 2026-11-12 · **Промпт:** `increments/prompts/S13_observability_stack.md` · **Итоговый статус:** TESTED (локально; Linux CI ещё не запускался; не закоммичено). VERIFIED — после зелёного CI.
+**Дата:** 2026-11-12 · **Промпт:** `increments/prompts/S13_observability_stack.md` · **Итоговый статус:** VERIFIED (Linux CI зелёный (PR #16: ci 43301634548/43301768127, contracts 43301634628/43301768417 — backend, infra-runtime, infra-static, contracts success)).
 
 ## 1. Что реализовано
 - Конвейер `процессы → OTLP → Collector (redaction, allowlist) → Prometheus / Loki / Tempo → Grafana`; Alertmanager — единственный путь алертов, без получателей (OD-02).
@@ -47,11 +47,11 @@ Redaction: канареечные секреты (Bearer, JWT, key=value, DSN, P
 `reviews/S13_REVIEWS.md`: 4 агента, blind-first. CRITICAL 1 (алерт не мог сработать) и HIGH исправлены или вынесены владельцу; дельта исправлений отдельным проходом не пересматривалась.
 
 ## Неразрешённое и допущения
-- IMPLEMENTATION NOT VERIFIED на Linux CI. Имена метрик Temporal schedule-to-start не проверены реальным workflow (G-129). Тест восстановления после остановки backend'ов слабый (проходит и на старых трассах). Переполнение очереди SDK не считается (G-124). Не закрыты `spanlink`-атрибуты на уровне OTTL.
+- Имена метрик Temporal schedule-to-start не проверены реальным workflow (G-129). Тест восстановления после остановки backend'ов слабый (проходит и на старых трассах). Переполнение очереди SDK не считается (G-124). Не закрыты `spanlink`-атрибуты на уровне OTTL.
 - Решения владельца: пороги, retention, получатели, доверие внутренних путей только по сети, NCP-15, расширение Outbox для `traceparent` (см. DECISIONS_PENDING).
 
 ## Документация обновлена
 Да: ADL (095–099), NORMATIVE_CHANGE_PROPOSALS (NCP-15), KNOWN_GAPS (G-22/99/101/102/108 обновлены, G-123…G-133), DECISIONS_PENDING, REQUIREMENTS_TRACEABILITY (13 подтверждённых строк), ECC_USAGE, CONTEXT_HANDOFF, runbook. `docs/architecture/` и Registry не менялись.
 
 ## Следующий безопасный инкремент
-После зелёного CI и решения владельца по G-126/OD-02 — S14.
+После слияния PR #16 и решения владельца по G-126/OD-02 — S14.
