@@ -15,7 +15,7 @@ import psycopg
 import pytest
 from psycopg import errors
 
-from .conftest import Pg, run_audit
+from .conftest import Pg, run_audit, seed_worker_definition_version
 from .test_operations_work_schema import ORG_A, ORG_B, PRJ_A1, PRJ_A2, PRJ_B, api, new_epic, new_op, new_task
 
 pytestmark = pytest.mark.postgres
@@ -31,7 +31,7 @@ def new_run(c: psycopg.Connection[Any], org: UUID, prj: UUID, op: UUID, task: UU
         "INSERT INTO agents.worker_runs (id, organization_id, project_id, operation_id, task_id, worker_definition_version_id, status, derived_from_worker_run_id, "
         "derivation_reason, context_package_version_id, input_contract_version, output_contract_version, finished_at, attempt_number) "
         f"VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'in-1','out-1',{fin}, (SELECT coalesce(max(attempt_number), 0) + 1 FROM agents.worker_runs WHERE task_id = %s))",
-        [rid, org, prj, op, task, uuid4(), status, derived, reason, uuid4(), task])  # each new run of a task is its next attempt (UNIQUE per task and attempt)
+        [rid, org, prj, op, task, seed_worker_definition_version(c), status, derived, reason, uuid4(), task])  # each new run of a task is its next attempt (UNIQUE per task and attempt)
     return rid
 
 
@@ -89,7 +89,8 @@ def test_audits_clean_and_tables_exist(world):
     with pg.connect() as c:
         assert run_audit(c, "rls_coverage.sql") == [] and run_audit(c, "grants_audit.sql") == [] and run_audit(c, "postflight.sql") == []
         tables = {r[0] for r in c.execute("SELECT schemaname || '.' || tablename FROM pg_tables WHERE schemaname IN ('agents','execution')")}
-    assert tables == {"agents.worker_runs", "agents.worker_run_events", "agents.worker_results", "execution.readiness_evaluations", "execution.readiness_check_results"}
+    assert tables == {"agents.worker_runs", "agents.worker_run_events", "agents.worker_results", "agents.worker_definitions", "agents.worker_definition_versions",
+                      "execution.readiness_evaluations", "execution.readiness_check_results"}
 
 
 @pytest.mark.parametrize("table", ["agents.worker_runs", "agents.worker_run_events", "agents.worker_results", "execution.readiness_evaluations", "execution.readiness_check_results"])
@@ -484,9 +485,11 @@ def test_gate_cannot_be_bypassed_by_linking_the_evaluation_before_it_exists(worl
 
 def test_start_evaluation_must_be_computed_for_the_runs_own_versions(world):
     pg, ids = world
-    for override in ({"cpv": uuid4()}, {"wdv": uuid4()}, {"ocv": "out-2"}):
+    for override in ({"cpv": uuid4()}, {"wdv": "other"}, {"ocv": "out-2"}):
         with pg.connect() as c:
             run = new_run(c, ORG_A, PRJ_A1, ids["op"], ids["task"])
+            if "wdv" in override:  # another EXISTING definition version: the FK holds, the start guard still calls the evaluation stale
+                override = {"wdv": seed_worker_definition_version(c, "wd-test-other")}
             stale = new_eval(c, run, **override)
         with pg.connect(autocommit=False) as c, pytest.raises(errors.IntegrityConstraintViolation, match="stale evaluation"):
             start(c, run, stale)

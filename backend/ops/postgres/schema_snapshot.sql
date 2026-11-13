@@ -130,6 +130,46 @@ END $$;
 
 ALTER FUNCTION agents.assert_worker_run_started_ready() OWNER TO ai_res_owner;
 
+CREATE FUNCTION agents.guard_worker_definition() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN  -- the nine roles are fixed (BASELINED): a definition row is neither renamed nor removed
+  RAISE EXCEPTION 'worker definition % is immutable', OLD.id USING ERRCODE = 'integrity_constraint_violation';
+END $$;
+
+ALTER FUNCTION agents.guard_worker_definition() OWNER TO ai_res_owner;
+
+CREATE FUNCTION agents.guard_worker_definition_version() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE rank_old int; rank_new int;
+BEGIN  -- a version is a snapshot of a capability: it is born ACTIVE, only its status moves, and only forward; a row that a run may reference is never deleted
+  IF TG_OP = 'INSERT' THEN
+    IF NEW.status <> 'ACTIVE' THEN
+      RAISE EXCEPTION 'a worker definition version is created ACTIVE (got %)', NEW.status USING ERRCODE = 'integrity_constraint_violation';
+    END IF;
+    RETURN NEW;
+  END IF;
+  IF TG_OP = 'DELETE' THEN
+    RAISE EXCEPTION 'worker definition version % is never deleted (retire it instead)', OLD.id USING ERRCODE = 'integrity_constraint_violation';
+  END IF;
+  IF (NEW.id, NEW.worker_definition_id, NEW.version, NEW.input_contract_version, NEW.output_contract_version, NEW.output_schema_id, NEW.output_schema_version,
+      NEW.acceptance_schema, NEW.runtime_profile_version, NEW.created_at)
+     IS DISTINCT FROM
+     (OLD.id, OLD.worker_definition_id, OLD.version, OLD.input_contract_version, OLD.output_contract_version, OLD.output_schema_id, OLD.output_schema_version,
+      OLD.acceptance_schema, OLD.runtime_profile_version, OLD.created_at) THEN
+    RAISE EXCEPTION 'worker definition version % is immutable except for its status (publish a new version)', OLD.id USING ERRCODE = 'integrity_constraint_violation';
+  END IF;
+  rank_old := array_position(ARRAY['ACTIVE','DEPRECATED','RETIRED'], OLD.status);
+  rank_new := array_position(ARRAY['ACTIVE','DEPRECATED','RETIRED'], NEW.status);
+  IF rank_new < rank_old THEN
+    RAISE EXCEPTION 'worker definition version % status may not go back from % to %', OLD.id, OLD.status, NEW.status USING ERRCODE = 'integrity_constraint_violation';
+  END IF;
+  RETURN NEW;
+END $$;
+
+ALTER FUNCTION agents.guard_worker_definition_version() OWNER TO ai_res_owner;
+
 CREATE FUNCTION agents.guard_worker_run_start() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -685,6 +725,39 @@ END $$;
 ALTER FUNCTION work.require_open_operation() OWNER TO ai_res_owner;
 
 SET default_table_access_method = heap;
+
+CREATE TABLE agents.worker_definition_versions (
+    id uuid NOT NULL,
+    worker_definition_id uuid NOT NULL,
+    version text NOT NULL,
+    status text DEFAULT 'ACTIVE'::text NOT NULL,
+    input_contract_version text NOT NULL,
+    output_contract_version text NOT NULL,
+    output_schema_id text NOT NULL,
+    output_schema_version text NOT NULL,
+    acceptance_schema jsonb DEFAULT '{}'::jsonb NOT NULL,
+    runtime_profile_version text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ck_worker_definition_versions_acceptance_schema CHECK ((jsonb_typeof(acceptance_schema) = 'object'::text)),
+    CONSTRAINT ck_worker_definition_versions_input_contract_version CHECK (((length(input_contract_version) >= 1) AND (length(input_contract_version) <= 32))),
+    CONSTRAINT ck_worker_definition_versions_output_contract_version CHECK (((length(output_contract_version) >= 1) AND (length(output_contract_version) <= 32))),
+    CONSTRAINT ck_worker_definition_versions_output_schema_id CHECK (((length(output_schema_id) >= 1) AND (length(output_schema_id) <= 200))),
+    CONSTRAINT ck_worker_definition_versions_output_schema_version CHECK (((length(output_schema_version) >= 1) AND (length(output_schema_version) <= 32))),
+    CONSTRAINT ck_worker_definition_versions_runtime_profile_version CHECK (((length(runtime_profile_version) >= 1) AND (length(runtime_profile_version) <= 64))),
+    CONSTRAINT ck_worker_definition_versions_status CHECK ((status = ANY (ARRAY['ACTIVE'::text, 'DEPRECATED'::text, 'RETIRED'::text]))),
+    CONSTRAINT ck_worker_definition_versions_version CHECK (((length(version) >= 1) AND (length(version) <= 64)))
+);
+
+ALTER TABLE agents.worker_definition_versions OWNER TO ai_res_owner;
+
+CREATE TABLE agents.worker_definitions (
+    id uuid NOT NULL,
+    worker_role text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ck_worker_definitions_worker_role CHECK ((worker_role = ANY (ARRAY['ELICITATION'::text, 'RESEARCH'::text, 'BUSINESS_ANALYSIS'::text, 'REQUIREMENTS'::text, 'SYSTEM_ANALYSIS'::text, 'API_INTEGRATION'::text, 'MODELING_DIAGRAM_VALIDATION'::text, 'QUALITY_ASSURANCE'::text, 'TRACEABILITY_CHANGE'::text])))
+);
+
+ALTER TABLE agents.worker_definitions OWNER TO ai_res_owner;
 
 CREATE TABLE agents.worker_results (
     id uuid NOT NULL,
@@ -2439,6 +2512,12 @@ ALTER TABLE ONLY work.tasks FORCE ROW LEVEL SECURITY;
 
 ALTER TABLE work.tasks OWNER TO ai_res_owner;
 
+ALTER TABLE ONLY agents.worker_definition_versions
+    ADD CONSTRAINT pk_worker_definition_versions PRIMARY KEY (id);
+
+ALTER TABLE ONLY agents.worker_definitions
+    ADD CONSTRAINT pk_worker_definitions PRIMARY KEY (id);
+
 ALTER TABLE ONLY agents.worker_results
     ADD CONSTRAINT pk_worker_results PRIMARY KEY (id);
 
@@ -2447,6 +2526,12 @@ ALTER TABLE ONLY agents.worker_run_events
 
 ALTER TABLE ONLY agents.worker_runs
     ADD CONSTRAINT pk_worker_runs PRIMARY KEY (id);
+
+ALTER TABLE ONLY agents.worker_definition_versions
+    ADD CONSTRAINT uq_worker_definition_versions_worker_definition_id_version UNIQUE (worker_definition_id, version);
+
+ALTER TABLE ONLY agents.worker_definitions
+    ADD CONSTRAINT uq_worker_definitions_worker_role UNIQUE (worker_role);
 
 ALTER TABLE ONLY agents.worker_results
     ADD CONSTRAINT uq_worker_results_organization_id_project_id_worker_run_id UNIQUE (organization_id, project_id, worker_run_id);
@@ -2893,6 +2978,8 @@ CREATE INDEX ix_worker_runs_schedulable ON agents.worker_runs USING btree (statu
 
 CREATE INDEX ix_worker_runs_task_id_created_at ON agents.worker_runs USING btree (task_id, created_at DESC);
 
+CREATE INDEX ix_worker_runs_worker_definition_version_id ON agents.worker_runs USING btree (worker_definition_version_id);
+
 CREATE INDEX ix_artifact_events_artifact_id_occurred_at ON artifacts.artifact_events USING btree (artifact_id, occurred_at DESC);
 
 CREATE INDEX ix_artifacts_epic_id ON artifacts.artifacts USING btree (epic_id) WHERE (epic_id IS NOT NULL);
@@ -2974,6 +3061,8 @@ CREATE INDEX ix_unknowns_epic_id ON decisions.unknowns USING btree (epic_id) WHE
 CREATE INDEX ix_unknowns_project_id_status ON decisions.unknowns USING btree (project_id, status);
 
 CREATE INDEX ix_unknowns_task_id ON decisions.unknowns USING btree (task_id) WHERE (task_id IS NOT NULL);
+
+CREATE INDEX ix_readiness_evaluations_worker_definition_version_id ON execution.readiness_evaluations USING btree (worker_definition_version_id);
 
 CREATE INDEX ix_readiness_evaluations_worker_run_id_created_at ON execution.readiness_evaluations USING btree (worker_run_id, created_at DESC);
 
@@ -3070,6 +3159,14 @@ CREATE INDEX ix_task_requirements_requirement_id ON work.task_requirements USING
 CREATE INDEX ix_tasks_epic_id ON work.tasks USING btree (epic_id);
 
 CREATE INDEX ix_tasks_operation_id_status_priority ON work.tasks USING btree (operation_id, status, priority);
+
+CREATE TRIGGER trg_worker_definition_versions_guard BEFORE INSERT OR DELETE OR UPDATE ON agents.worker_definition_versions FOR EACH ROW EXECUTE FUNCTION agents.guard_worker_definition_version();
+
+CREATE TRIGGER trg_worker_definition_versions_no_truncate BEFORE TRUNCATE ON agents.worker_definition_versions FOR EACH STATEMENT EXECUTE FUNCTION platform.reject_modification();
+
+CREATE TRIGGER trg_worker_definitions_guard BEFORE DELETE OR UPDATE ON agents.worker_definitions FOR EACH ROW EXECUTE FUNCTION agents.guard_worker_definition();
+
+CREATE TRIGGER trg_worker_definitions_no_truncate BEFORE TRUNCATE ON agents.worker_definitions FOR EACH STATEMENT EXECUTE FUNCTION platform.reject_modification();
 
 CREATE TRIGGER trg_worker_results_append_only BEFORE DELETE OR UPDATE ON agents.worker_results FOR EACH ROW EXECUTE FUNCTION platform.reject_modification();
 
@@ -3465,6 +3562,9 @@ CREATE TRIGGER trg_tasks_require_open_operation BEFORE INSERT ON work.tasks FOR 
 
 CREATE TRIGGER trg_tasks_touch BEFORE UPDATE ON work.tasks FOR EACH ROW EXECUTE FUNCTION platform.touch_row();
 
+ALTER TABLE ONLY agents.worker_definition_versions
+    ADD CONSTRAINT fk_worker_definition_versions_worker_definition_id FOREIGN KEY (worker_definition_id) REFERENCES agents.worker_definitions(id) ON DELETE RESTRICT;
+
 ALTER TABLE ONLY agents.worker_results
     ADD CONSTRAINT fk_worker_results_worker_run_id_worker_runs FOREIGN KEY (organization_id, project_id, worker_run_id) REFERENCES agents.worker_runs(organization_id, project_id, id) ON DELETE RESTRICT;
 
@@ -3482,6 +3582,9 @@ ALTER TABLE ONLY agents.worker_runs
 
 ALTER TABLE ONLY agents.worker_runs
     ADD CONSTRAINT fk_worker_runs_started_with_readiness_evaluation_id_readiness_e FOREIGN KEY (id, started_with_readiness_evaluation_id) REFERENCES execution.readiness_evaluations(worker_run_id, id) DEFERRABLE INITIALLY DEFERRED;
+
+ALTER TABLE ONLY agents.worker_runs
+    ADD CONSTRAINT fk_worker_runs_worker_definition_version_id FOREIGN KEY (worker_definition_version_id) REFERENCES agents.worker_definition_versions(id) ON DELETE RESTRICT;
 
 ALTER TABLE ONLY artifacts.artifact_events
     ADD CONSTRAINT fk_artifact_events_artifact_id_artifacts FOREIGN KEY (artifact_id) REFERENCES artifacts.artifacts(id) ON DELETE RESTRICT;
@@ -3653,6 +3756,9 @@ ALTER TABLE ONLY decisions.unknowns
 
 ALTER TABLE ONLY execution.readiness_check_results
     ADD CONSTRAINT fk_readiness_check_results_worker_run_id_readiness_evaluations FOREIGN KEY (worker_run_id, readiness_evaluation_id) REFERENCES execution.readiness_evaluations(worker_run_id, id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY execution.readiness_evaluations
+    ADD CONSTRAINT fk_readiness_evaluations_worker_definition_version_id FOREIGN KEY (worker_definition_version_id) REFERENCES agents.worker_definition_versions(id) ON DELETE RESTRICT;
 
 ALTER TABLE ONLY execution.readiness_evaluations
     ADD CONSTRAINT fk_readiness_evaluations_worker_run_id_worker_runs FOREIGN KEY (worker_run_id) REFERENCES agents.worker_runs(id) ON DELETE RESTRICT;
@@ -4387,6 +4493,10 @@ GRANT USAGE ON SCHEMA work TO ai_res_api_group;
 
 REVOKE ALL ON FUNCTION agents.assert_worker_run_started_ready() FROM PUBLIC;
 
+REVOKE ALL ON FUNCTION agents.guard_worker_definition() FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION agents.guard_worker_definition_version() FROM PUBLIC;
+
 REVOKE ALL ON FUNCTION agents.guard_worker_run_start() FROM PUBLIC;
 
 REVOKE ALL ON FUNCTION agents.require_started_open_run() FROM PUBLIC;
@@ -4450,6 +4560,10 @@ REVOKE ALL ON FUNCTION sources.guard_source_version_insert() FROM PUBLIC;
 REVOKE ALL ON FUNCTION traceability.assert_endpoint_exists() FROM PUBLIC;
 
 REVOKE ALL ON FUNCTION work.require_open_operation() FROM PUBLIC;
+
+GRANT SELECT ON TABLE agents.worker_definition_versions TO ai_res_api_group;
+
+GRANT SELECT ON TABLE agents.worker_definitions TO ai_res_api_group;
 
 GRANT SELECT,INSERT ON TABLE agents.worker_results TO ai_res_api_group;
 
