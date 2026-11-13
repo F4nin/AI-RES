@@ -578,6 +578,39 @@ END $$;
 
 ALTER FUNCTION platform.freeze_when_status_in() OWNER TO ai_res_owner;
 
+CREATE FUNCTION platform.guard_model_profile() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE rank_old int; rank_new int;
+BEGIN  -- a profile version is a snapshot: born CANDIDATE, only its lifecycle moves, forward only; a row that a run may reference is never deleted
+  IF TG_OP = 'INSERT' THEN
+    IF NEW.status <> 'CANDIDATE' OR NEW.approved_at IS NOT NULL OR NEW.approved_by IS NOT NULL THEN
+      RAISE EXCEPTION 'a model profile is created CANDIDATE and unapproved (approval is a separate, human step)' USING ERRCODE = 'integrity_constraint_violation';
+    END IF;
+    RETURN NEW;
+  END IF;
+  IF TG_OP = 'DELETE' THEN
+    RAISE EXCEPTION 'model profile % is never deleted (retire it instead)', OLD.id USING ERRCODE = 'integrity_constraint_violation';
+  END IF;
+  IF (to_jsonb(NEW) - 'status' - 'approved_at' - 'approved_by' - 'deprecated_at') IS DISTINCT FROM (to_jsonb(OLD) - 'status' - 'approved_at' - 'approved_by' - 'deprecated_at') THEN
+    RAISE EXCEPTION 'model profile % is immutable except for its lifecycle (publish a new profile_version)', OLD.id USING ERRCODE = 'integrity_constraint_violation';
+  END IF;
+  IF OLD.approved_at IS NOT NULL AND (NEW.approved_at IS DISTINCT FROM OLD.approved_at OR NEW.approved_by IS DISTINCT FROM OLD.approved_by) THEN
+    RAISE EXCEPTION 'the approval of model profile % is not rewritten', OLD.id USING ERRCODE = 'integrity_constraint_violation';
+  END IF;
+  IF OLD.deprecated_at IS NOT NULL AND NEW.deprecated_at IS DISTINCT FROM OLD.deprecated_at THEN
+    RAISE EXCEPTION 'deprecated_at of model profile % is not rewritten', OLD.id USING ERRCODE = 'integrity_constraint_violation';
+  END IF;
+  rank_old := array_position(ARRAY['CANDIDATE','APPROVED','DEPRECATED','RETIRED'], OLD.status);
+  rank_new := array_position(ARRAY['CANDIDATE','APPROVED','DEPRECATED','RETIRED'], NEW.status);
+  IF rank_new < rank_old THEN
+    RAISE EXCEPTION 'model profile % status may not go back from % to %', OLD.id, OLD.status, NEW.status USING ERRCODE = 'integrity_constraint_violation';
+  END IF;
+  RETURN NEW;
+END $$;
+
+ALTER FUNCTION platform.guard_model_profile() OWNER TO ai_res_owner;
+
 CREATE FUNCTION platform.guard_status_transition() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -2026,6 +2059,60 @@ ALTER TABLE ONLY platform.idempotency_records FORCE ROW LEVEL SECURITY;
 
 ALTER TABLE platform.idempotency_records OWNER TO ai_res_owner;
 
+CREATE TABLE platform.model_profiles (
+    id uuid NOT NULL,
+    profile_key text NOT NULL,
+    profile_version integer NOT NULL,
+    provider text NOT NULL,
+    provider_model_id text NOT NULL,
+    pinned_model_version text NOT NULL,
+    capabilities text[] NOT NULL,
+    context_window_tokens integer NOT NULL,
+    max_output_tokens integer NOT NULL,
+    data_classifications text[] NOT NULL,
+    allowed_regions text[] NOT NULL,
+    egress text NOT NULL,
+    cost_currency text,
+    cost_input_per_million numeric(20,6),
+    cost_output_per_million numeric(20,6),
+    rate_limit_rpm integer,
+    rate_limit_tpm integer,
+    timeout_seconds numeric(8,3) NOT NULL,
+    retry_class text NOT NULL,
+    fallback_group text,
+    evaluation_manifest_ref text,
+    status text DEFAULT 'CANDIDATE'::text NOT NULL,
+    approved_at timestamp with time zone,
+    approved_by uuid,
+    deprecated_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ck_model_profiles_allowed_regions CHECK (((cardinality(allowed_regions) >= 1) AND (array_to_string(allowed_regions, ','::text) ~ '^[a-z0-9][a-z0-9-]{0,31}(,[a-z0-9][a-z0-9-]{0,31})*$'::text))),
+    CONSTRAINT ck_model_profiles_approval_recorded CHECK (((status = 'CANDIDATE'::text) OR ((approved_at IS NOT NULL) AND (approved_by IS NOT NULL)))),
+    CONSTRAINT ck_model_profiles_capabilities CHECK (((cardinality(capabilities) >= 1) AND (capabilities <@ ARRAY['CHAT'::text, 'STRUCTURED_OUTPUT'::text, 'TOOL_CALLING'::text, 'STREAMING'::text, 'VISION'::text, 'EMBEDDING'::text]))),
+    CONSTRAINT ck_model_profiles_context_window_tokens CHECK ((context_window_tokens >= 1)),
+    CONSTRAINT ck_model_profiles_cost_currency CHECK ((cost_currency ~ '^[A-Z]{3}$'::text)),
+    CONSTRAINT ck_model_profiles_cost_input_per_million CHECK ((cost_input_per_million >= (0)::numeric)),
+    CONSTRAINT ck_model_profiles_cost_output_per_million CHECK ((cost_output_per_million >= (0)::numeric)),
+    CONSTRAINT ck_model_profiles_cost_rates_complete CHECK ((((cost_currency IS NULL) = (cost_input_per_million IS NULL)) AND ((cost_currency IS NULL) = (cost_output_per_million IS NULL)))),
+    CONSTRAINT ck_model_profiles_data_classifications CHECK (((cardinality(data_classifications) >= 1) AND (array_to_string(data_classifications, ','::text) ~ '^[A-Z][A-Z0-9_]{0,31}(,[A-Z][A-Z0-9_]{0,31})*$'::text))),
+    CONSTRAINT ck_model_profiles_egress CHECK ((egress = ANY (ARRAY['LOCAL'::text, 'EXTERNAL'::text]))),
+    CONSTRAINT ck_model_profiles_evaluation_manifest_ref CHECK (((length(evaluation_manifest_ref) >= 1) AND (length(evaluation_manifest_ref) <= 500))),
+    CONSTRAINT ck_model_profiles_fallback_group CHECK ((fallback_group ~ '^[a-z][a-z0-9_.-]{0,63}$'::text)),
+    CONSTRAINT ck_model_profiles_max_output_tokens CHECK (((max_output_tokens >= 1) AND (max_output_tokens <= context_window_tokens))),
+    CONSTRAINT ck_model_profiles_pinned_model_version CHECK ((((length(btrim(pinned_model_version)) >= 1) AND (length(btrim(pinned_model_version)) <= 100)) AND (lower(btrim(pinned_model_version)) <> ALL (ARRAY['latest'::text, 'stable'::text, 'default'::text, 'current'::text, 'newest'::text])))),
+    CONSTRAINT ck_model_profiles_profile_key CHECK ((profile_key ~ '^[a-z][a-z0-9_.-]{0,63}$'::text)),
+    CONSTRAINT ck_model_profiles_profile_version CHECK ((profile_version >= 1)),
+    CONSTRAINT ck_model_profiles_provider CHECK (((length(provider) >= 1) AND (length(provider) <= 64))),
+    CONSTRAINT ck_model_profiles_provider_model_id CHECK (((length(provider_model_id) >= 1) AND (length(provider_model_id) <= 200))),
+    CONSTRAINT ck_model_profiles_rate_limit_rpm CHECK ((rate_limit_rpm >= 1)),
+    CONSTRAINT ck_model_profiles_rate_limit_tpm CHECK ((rate_limit_tpm >= 1)),
+    CONSTRAINT ck_model_profiles_retry_class CHECK ((retry_class = ANY (ARRAY['NONE'::text, 'BOUNDED'::text]))),
+    CONSTRAINT ck_model_profiles_status CHECK ((status = ANY (ARRAY['CANDIDATE'::text, 'APPROVED'::text, 'DEPRECATED'::text, 'RETIRED'::text]))),
+    CONSTRAINT ck_model_profiles_timeout_seconds CHECK ((timeout_seconds > (0)::numeric))
+);
+
+ALTER TABLE platform.model_profiles OWNER TO ai_res_owner;
+
 CREATE TABLE project.project_events (
     event_id uuid NOT NULL,
     project_id uuid NOT NULL,
@@ -2830,8 +2917,14 @@ ALTER TABLE ONLY platform.display_number_counters
 ALTER TABLE ONLY platform.idempotency_records
     ADD CONSTRAINT pk_idempotency_records PRIMARY KEY (id);
 
+ALTER TABLE ONLY platform.model_profiles
+    ADD CONSTRAINT pk_model_profiles PRIMARY KEY (id);
+
 ALTER TABLE ONLY platform.idempotency_records
     ADD CONSTRAINT uq_idempotency_records_organization_id_scope_type_scope_id_key_ UNIQUE (organization_id, scope_type, scope_id, key_digest);
+
+ALTER TABLE ONLY platform.model_profiles
+    ADD CONSTRAINT uq_model_profiles_profile_key_profile_version UNIQUE (profile_key, profile_version);
 
 ALTER TABLE ONLY project.project_events
     ADD CONSTRAINT pk_project_events PRIMARY KEY (event_id);
@@ -3125,6 +3218,8 @@ CREATE INDEX ix_operations_project_id_created_at ON operations.operations USING 
 CREATE INDEX ix_bootstrap_state_organization_id ON platform.bootstrap_state USING btree (organization_id);
 
 CREATE INDEX ix_idempotency_records_expires_at ON platform.idempotency_records USING btree (expires_at);
+
+CREATE INDEX ix_model_profiles_approved_by ON platform.model_profiles USING btree (approved_by);
 
 CREATE INDEX ix_project_events_project_id_occurred_at ON project.project_events USING btree (project_id, occurred_at DESC);
 
@@ -3449,6 +3544,10 @@ CREATE TRIGGER trg_display_number_counters_immutable_columns BEFORE UPDATE ON pl
 CREATE TRIGGER trg_idempotency_records_freeze_finished BEFORE UPDATE ON platform.idempotency_records FOR EACH ROW EXECUTE FUNCTION platform.freeze_when_status_in('status', 'COMPLETED', 'REJECTED');
 
 CREATE TRIGGER trg_idempotency_records_immutable_columns BEFORE UPDATE ON platform.idempotency_records FOR EACH ROW EXECUTE FUNCTION platform.keep_columns_immutable('id', 'organization_id', 'project_id', 'scope_type', 'scope_id', 'key_digest', 'key_id', 'request_fingerprint', 'created_at', 'expires_at');
+
+CREATE TRIGGER trg_model_profiles_guard BEFORE INSERT OR DELETE OR UPDATE ON platform.model_profiles FOR EACH ROW EXECUTE FUNCTION platform.guard_model_profile();
+
+CREATE TRIGGER trg_model_profiles_no_truncate BEFORE TRUNCATE ON platform.model_profiles FOR EACH STATEMENT EXECUTE FUNCTION platform.reject_modification();
 
 CREATE TRIGGER trg_project_events_append_only BEFORE DELETE OR UPDATE ON project.project_events FOR EACH ROW EXECUTE FUNCTION platform.reject_modification();
 
@@ -3888,6 +3987,9 @@ ALTER TABLE ONLY platform.idempotency_records
 
 ALTER TABLE ONLY platform.idempotency_records
     ADD CONSTRAINT fk_idempotency_records_organization_id_project_id_projects FOREIGN KEY (organization_id, project_id) REFERENCES project.projects(organization_id, id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY platform.model_profiles
+    ADD CONSTRAINT fk_model_profiles_approved_by_users FOREIGN KEY (approved_by) REFERENCES iam.users(id) ON DELETE RESTRICT;
 
 ALTER TABLE ONLY project.project_events
     ADD CONSTRAINT fk_project_events_project_id_projects FOREIGN KEY (project_id) REFERENCES project.projects(id) ON DELETE RESTRICT;
@@ -4541,6 +4643,8 @@ REVOKE ALL ON FUNCTION platform.forbid_unset() FROM PUBLIC;
 
 REVOKE ALL ON FUNCTION platform.freeze_when_status_in() FROM PUBLIC;
 
+REVOKE ALL ON FUNCTION platform.guard_model_profile() FROM PUBLIC;
+
 REVOKE ALL ON FUNCTION platform.guard_status_transition() FROM PUBLIC;
 
 REVOKE ALL ON FUNCTION platform.keep_columns_immutable() FROM PUBLIC;
@@ -4694,6 +4798,8 @@ GRANT SELECT,INSERT ON TABLE platform.bootstrap_state TO ai_res_api_group;
 GRANT SELECT,INSERT,UPDATE ON TABLE platform.display_number_counters TO ai_res_api_group;
 
 GRANT SELECT,INSERT,UPDATE ON TABLE platform.idempotency_records TO ai_res_api_group;
+
+GRANT SELECT ON TABLE platform.model_profiles TO ai_res_api_group;
 
 GRANT SELECT,INSERT ON TABLE project.project_events TO ai_res_api_group;
 

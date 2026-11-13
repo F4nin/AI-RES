@@ -18,7 +18,8 @@ exempt(table_name, reason) AS (VALUES ('platform.alembic_version', 'Alembic book
   ('traceability.link_types', 'global traceability link type registry (ADR-058); runtime SELECT-only'),
   ('traceability.link_type_rules', 'global registry of allowed (link type, source type, target type) triples (ADR-058); runtime SELECT-only'),
   ('agents.worker_definitions', 'global registry of the nine Worker roles (ADR-102); runtime SELECT-only, written only by revisions'),
-  ('agents.worker_definition_versions', 'global registry of immutable Worker capability versions (ADR-102, WORKING); runtime SELECT-only, written only by revisions')),
+  ('agents.worker_definition_versions', 'global registry of immutable Worker capability versions (ADR-102, WORKING); runtime SELECT-only, written only by revisions'),
+  ('platform.model_profiles', 'global registry of immutable model profile versions (ADR-106, WORKING); runtime SELECT-only, written only by revisions/the owner')),
 tbl AS (
   SELECT c.oid, c.relrowsecurity AS rls, c.relforcerowsecurity AS forced, n.nspname || '.' || c.relname AS name,
          EXISTS (SELECT 1 FROM pg_attribute a WHERE a.attrelid = c.oid AND a.attname IN ('organization_id','project_id') AND NOT a.attisdropped) AS scoped

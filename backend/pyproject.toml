@@ -51,13 +51,14 @@ packages = ["src/ai_res"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = ["temporal: needs Docker (Testcontainers, real Temporal dev server); never replaced by the SDK time-skipping stub", "postgres: needs Docker (Testcontainers, real PostgreSQL 16); never replaced by SQLite (ADR-003)"]
+pythonpath = ["testkit"]  # the test-only package ai_res_testkit lives outside src/ so no wheel or image contains it (ADR-110)
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 
 [tool.ruff]
 line-length = 160
 target-version = "py313"
-src = ["src", "tests"]
+src = ["src", "tests", "testkit"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "S", "SIM"]
@@ -69,8 +70,8 @@ ignore = ["S101"]
 [tool.mypy]
 strict = true
 python_version = "3.13"
-mypy_path = "src"
-packages = ["ai_res"]
+mypy_path = "src:testkit"
+packages = ["ai_res", "ai_res_testkit"]
 
 [tool.importlinter]
 root_package = "ai_res"
@@ -89,6 +90,18 @@ type = "forbidden"
 source_modules = ["ai_res.api", "ai_res.platform", "ai_res.modules", "ai_res.llm"]
 forbidden_modules = ["openai", "anthropic", "google", "litellm", "boto3"]
 allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "The LLM package is pure: no database, ORM, API, domain, policy or CLI code (S15, ADR-110)"
+type = "forbidden"
+source_modules = ["ai_res.llm"]
+forbidden_modules = ["sqlalchemy", "psycopg", "alembic", "ai_res.db", "ai_res.api", "ai_res.modules", "ai_res.policy", "ai_res.cli"]
+
+[[tool.importlinter.contracts]]
+name = "Production code never imports the test-only package (ADR-022, ADR-110)"
+type = "forbidden"
+source_modules = ["ai_res"]
+forbidden_modules = ["ai_res_testkit"]
 
 [[tool.importlinter.contracts]]
 name = "Platform primitives do not depend on application layers"

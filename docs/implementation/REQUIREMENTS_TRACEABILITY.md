@@ -69,7 +69,7 @@
 | API-MVP-024 | DOC-009 | Temporal contracts | MVP | S01, S02, S08, S09, S12 | NOT_STARTED |
 | API-MVP-025 | DOC-009 | Temporal compatibility | MVP | S01, S02, S08, S09, S12 | NOT_STARTED |
 | API-MVP-026 | DOC-009 | LangGraph contract | MVP | S01, S02, S08, S09, S12 | NOT_STARTED |
-| API-MVP-027 | DOC-009 | LLM Gateway Adapter | MVP | S01, S02, S08, S09, S12 | NOT_STARTED |
+| API-MVP-027 | DOC-009 | LLM Gateway Adapter | MVP | S01, S02, S08, S09, S12 | PARTIAL (S15 TESTED локально: LLMGatewayPort, Model Registry, routing/fallback, бюджет; провайдерский адаптер и Bifrost — S16, OD-01) |
 | API-MVP-028 | DOC-009 | CloudEvents envelope | MVP | S01, S02, S08, S09, S12 | NOT_STARTED |
 | API-MVP-029 | DOC-009 | Transactional Outbox | MVP | S01, S02, S08, S09, S12 | NOT_STARTED |
 | API-MVP-030 | DOC-009 | Event ordering/replay | MVP | S01, S02, S08, S09, S12 | NOT_STARTED |
@@ -217,7 +217,7 @@
 | INF-MVP-012 | DOC-009 | Использовать готовый LLM Gateway, не разрабатывать свой | MVP | S03; S11; S13; S32 | NOT_STARTED |
 | INF-MVP-013 | DOC-009 | Провести Bifrost PoC и security review до production-подобного использования | Gate | S03; S11; S13; S32 | NOT_STARTED |
 | INF-MVP-014 | DOC-009 | Поддержать внешний и локальный модельный provider через Gateway architecture | MVP architecture | S03; S11; S13; S32 | NOT_STARTED |
-| INF-MVP-015 | DOC-009 | Не передавать секреты в LLM context, logs, traces, Temporal History и Worker results | MVP | S03; S11; S13; S32 | PARTIAL (S03: инфраструктура; S11/S13 — Temporal/telemetry) |
+| INF-MVP-015 | DOC-009 | Не передавать секреты в LLM context, logs, traces, Temporal History и Worker results | MVP | S03; S11; S13; S32 | PARTIAL (S03: инфраструктура; S15: охрана исходящих промптов — блок/редакция секретов, G-147; S11/S13 — Temporal/telemetry) |
 | INF-MVP-016 | DOC-009 | Применять least privilege и scoped Worker permissions | MVP | S03; S11; S13; S32 | NOT_STARTED |
 | INF-MVP-017 | DOC-009 | Ограничить контейнеры и выполнение | MVP | S03; S11; S13; S32 | TESTED (S03) |
 | INF-MVP-018 | DOC-009 | Инструментировать компоненты через OpenTelemetry | MVP | S03; S11; S13; S32 | NOT_STARTED |
@@ -480,7 +480,7 @@
 | SEC-004 | DOC-020 | Каждый tool/connector side effect MUST проходить независимую policy authorization перед исполнением | P0 | S02–S37 (по области); S37 верификация | NOT_STARTED |
 | SEC-005 | DOC-020 | Worker/Manager MUST NOT иметь прямой произвольный доступ к provider credentials | P0 | S02–S37 (по области); S37 верификация | NOT_STARTED |
 | SEC-006 | DOC-020 | Secrets MUST NOT appear in prompts, Context Packages, Worker Results, Temporal History, logs or traces | P0 | S02–S37 (по области); S37 верификация | NOT_STARTED |
-| SEC-007 | DOC-020 | LLM requests MUST route through AI RES LLM Gateway Adapter and approved Gateway | P0 | S02–S37 (по области); S37 верификация | NOT_STARTED |
+| SEC-007 | DOC-020 | LLM requests MUST route through AI RES LLM Gateway Adapter and approved Gateway | P0 | S02–S37 (по области); S37 верификация | PARTIAL (S15 TESTED локально: порт — единственный путь, import-linter запрещает SDK вне adapters; верификация — S37) |
 | SEC-008 | DOC-020 | Provider/model routing MUST enforce data classification and egress policy | P0 | S02–S37 (по области); S37 верификация | NOT_STARTED |
 | SEC-009 | DOC-020 | Fallback MUST use only explicitly allowed provider/model profiles and MUST re-evaluate data policy | P0 | S02–S37 (по области); S37 верификация | NOT_STARTED |
 | SEC-010 | DOC-020 | External writes MUST be deny-by-default in MVP unless separately approved and scoped | P0 | S02–S37 (по области); S37 верификация | NOT_STARTED |
@@ -510,7 +510,7 @@
 | SEC-MVP-002 | DOC-009 | ACL до retrieval/search/graph/cache/export | MUST | S07; S37 | NOT_STARTED |
 | SEC-MVP-003 | DOC-009 | Scoped, expiring Worker Run grants | MUST | S07; S37 | NOT_STARTED |
 | SEC-MVP-004 | DOC-009 | Per-operation authorization для tool/connector calls | MUST | S07; S37 | NOT_STARTED |
-| SEC-MVP-005 | DOC-009 | LLM Gateway Adapter; отсутствие прямых provider calls из Runtime | MUST | S07; S37 | NOT_STARTED |
+| SEC-MVP-005 | DOC-009 | LLM Gateway Adapter; отсутствие прямых provider calls из Runtime | MUST | S07; S37 | PARTIAL (S15: нет прямых provider-вызовов, architecture test; S37 верификация) |
 | SEC-MVP-006 | DOC-009 | Data classification и egress/model routing policy | MUST | S07; S37 | NOT_STARTED |
 | SEC-MVP-007 | DOC-009 | Secret isolation from prompts, context, Temporal and telemetry | MUST | S07; S37 | NOT_STARTED |
 | SEC-MVP-008 | DOC-009 | Deny-by-default external writes in MVP | MUST | S07; S37 | NOT_STARTED |
@@ -524,7 +524,7 @@
 | THR-001 | DOC-017 | Indirect prompt injection в PDF/Markdown/репозитории заставляет агента раскрыть данные или вызвать инструмент | Утечка/несанкционированное д | S03, S05, S07, S16, S17, S23, S37 (по области угрозы) | NOT_STARTED |
 | THR-002 | DOC-017 | Worker использует права сервисной учётной записи шире Task/Run scope | Межпроектный доступ/изменени | S03, S05, S07, S16, S17, S23, S37 (по области угрозы) | NOT_STARTED |
 | THR-003 | DOC-017 | Ошибка ACL в RAG/графе/кеше возвращает чужие фрагменты или summary | Утечка данных | S03, S05, S07, S16, S17, S23, S37 (по области угрозы) | NOT_STARTED |
-| THR-004 | DOC-017 | Prompt/tool output содержит секрет и он попадает в LLM, Temporal, logs или result | Компрометация credentials | S03, S05, S07, S16, S17, S23, S37 (по области угрозы) | NOT_STARTED |
+| THR-004 | DOC-017 | Prompt/tool output содержит секрет и он попадает в LLM, Temporal, logs или result | Компрометация credentials | S03, S05, S07, S16, S17, S23, S37 (по области угрозы) | PARTIAL (S15: секрет в prompt блокируется/редактируется до провайдера; остаточный риск G-147; остальные области — по этапам) |
 | THR-005 | DOC-017 | SSRF через URL/document parser/connector вызывает доступ к metadata/internal services | Захват внутренних сервисов/д | S03, S05, S07, S16, S17, S23, S37 (по области угрозы) | NOT_STARTED |
 | THR-006 | DOC-017 | Подмена MCP server/tool schema или supply-chain package | Произвольные действия/утечка | S03, S05, S07, S16, S17, S23, S37 (по области угрозы) | NOT_STARTED |
 | THR-007 | DOC-017 | BOLA/IDOR в API позволяет обратиться к чужому Project/Epic/Artifact | Утечка/изменение | S03, S05, S07, S16, S17, S23, S37 (по области угрозы) | NOT_STARTED |
