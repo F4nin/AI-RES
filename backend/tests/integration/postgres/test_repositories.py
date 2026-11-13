@@ -32,7 +32,7 @@ from ai_res.platform.concurrency import AggregateVersionConflict
 from ai_res.platform.config import load_settings
 from ai_res.platform.problems import ErrorCode, ProblemError
 
-from .conftest import Pg
+from .conftest import Pg, seed_worker_definition_version
 
 pytestmark = pytest.mark.postgres
 ORG_A, ORG_B, PRJ_A, PRJ_B = uuid4(), uuid4(), uuid4(), uuid4()
@@ -57,6 +57,7 @@ def world(migrated: Pg) -> Pg:
             c.execute("INSERT INTO organization.organizations (id, name) VALUES (%s, 'o')", [org])
         for prj, org in ((PRJ_A, ORG_A), (PRJ_B, ORG_B)):
             c.execute("INSERT INTO project.projects (id, organization_id, name, project_type) VALUES (%s,%s,'p','GREENFIELD')", [prj, org])
+        seed_worker_definition_version(c, vid=WDV)
     return migrated
 
 

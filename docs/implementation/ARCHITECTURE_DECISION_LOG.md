@@ -106,6 +106,10 @@
 | ADR-098 | S13: трассировка и метрики Temporal; контекст через Platform API, но не через Outbox | ACCEPTED |
 | ADR-099 | S13: PostgreSQL — application-side метрики пула; серверные метрики ждут monitoring-роли (NCP-15) | ACCEPTED |
 | ADR-100 | S13: решения владельца по OD-02 — стартовые пороги алертов, retention 30/7/30 дней, получатели и owner | ACCEPTED |
+| ADR-101 | S14: контракты Worker — пакет `ai_res.worker_contracts` вне `modules`, четыре точки валидации, fail-closed, правило evidence (WORKING) | ACCEPTED |
+| ADR-102 | S14: реестр WorkerDefinition — глобальный справочник, неизменяемые версии, FK из `worker_runs` и `readiness_evaluations` | ACCEPTED |
+| ADR-103 | S14: сохранение WorkerResult только через сервис — принадлежность run/task/роли, один результат на run | ACCEPTED |
+| ADR-104 | S14: решение владельца по OD-20 — прозу «слово-секрет: слово» не считать секретом, остальное отклонять | ACCEPTED |
 
 ---
 
@@ -1808,3 +1812,74 @@
 | Влияние на компоненты/контракты | `thresholds.yml`, `compose.yaml` (Prometheus), `loki/tempo` конфиги, `alerts.yml`/тесты (owner), runbook; публичные контракты и `docs/architecture/` не менялись |
 | Риски и компромиссы | Стартовые числа могут давать ложные срабатывания или пропуски до калибровки; без получателей алерт виден только в Alertmanager/дашборде (OBS-ALR-006 для production-like запуска остаётся: нужна эскалация человеку); диск Loki/Tempo/Prometheus по-прежнему без алерта (G-127) |
 | Затронутые тесты | test_observability_static (пороги записаны и WORKING, retention, owner), promtool `thresholds_test.yml`, runtime-набор |
+
+
+## ADR-101 — S14: контракты Worker — пакет `ai_res.worker_contracts` вне `modules`, четыре точки валидации, fail-closed, правило evidence (WORKING)
+
+| Поле | Значение |
+|---|---|
+| Статус | ACCEPTED |
+| Дата | 2026-11-13 |
+| Ответственный | Implementation Lead |
+| Проблема и контекст | DOC-007 v1.1 (WORKING) задаёт Envelope/Result/Notice; Envelope должен проверяться Worker Runtime перед исполнением, а import-linter (ADR-087) запрещает `runtime`/`orchestration` импортировать `ai_res.modules`. Нужны единые функции проверки в четырёх точках |
+| Связанные требования | API-MVP (internal contracts); PROC-MVP |
+| Документы и разделы | DOC-007 (`AI_RES_Worker_Contracts_v1.1.schema.json`); DOC-006 §8; `.claude/rules/api-and-contracts.md`; ADR-021 |
+| Альтернативы | Pydantic-модели, сгенерированные из схемы (`datamodel-code-generator` не входит в стек); проверка только Pydantic без JSON Schema; пакет внутри `modules` (нарушает ADR-087); разные проверки в каждой точке |
+| Решение | 1) Пакет `ai_res.worker_contracts` без БД и ORM: `WorkerContracts.check(kind, payload, point)`. Envelope проверяется в ENQUEUE и PRE_EXECUTION, Result и Notice — в RESULT_RECEIPT и DOWNSTREAM; неверная пара kind/point — ошибка программиста (ValueError). 2) Порядок: независимый JSON-снимок payload (строгий JSON: NaN/Infinity, не-JSON типы, одиночные суррогаты и размер > 1 МиБ (`MAX_PAYLOAD_BYTES`, **WORKING**, граница против неограниченного сканирования, не продуктовый лимит) → `SCHEMA_REJECTED`; дальше проверяется и возвращается именно снимок, `check_snapshot`) → `contractVersion` (любая версия кроме `1.1` отклоняется как `UNSUPPORTED_CONTRACT_VERSION`, без downgrade) → JSON Schema (авторитетна; форматы uuid/date-time проверяются) → правило evidence → значения, похожие на секреты (окнами, чтобы длинный текст не давал ложных срабатываний и не скрывал секрет; текст предварительно нормализуется NFKC и очищается от символов формата, чтобы full-width/нулевой ширины не прятали шаблон). Ошибка называет путь поля (`$/summary: forbidden_content`), но не значение. 3) Pydantic-модели написаны вручную, неизменяемы, `extra=forbid`; вложенные объекты остаются проверенными словарями; тест паритета сравнивает поля и required со схемой. 4) **WORKING:** `FACT`, `SOURCE_ASSERTION`, `CONCLUSION` обязаны иметь ≥1 evidence ref, `HYPOTHESIS`/`ASSUMPTION`/`UNKNOWN` — нет (спецификация говорит лишь «с evidence references»). 5) `ContractViolation` несёт причину и пути полей, но никогда значения payload; отказы считаются счётчиком `ai_res.worker_contracts.rejected` (kind, point, reason). 6) Схема загружается один раз, отсутствие файла или секции — ошибка старта (`load_worker_contracts`) |
+| Обоснование | JSON Schema — единственный авторитет формы, поэтому ручные модели не расходятся незаметно; один код для четырёх точек исключает разные трактовки; пакет вне `modules` соблюдает ADR-087 |
+| Влияние на компоненты/контракты | Новый пакет; `Settings.worker_contract_schema_file`; контракты в `contracts/` и `docs/architecture/` не менялись; изменения полей DOC-007 — NCP-04 |
+| Риски и компромиссы | Набор классификаций с evidence — предположение исполнителя, владелец может изменить (G-134); проверка секретов по значениям основана на шаблонах `redact_text`: не ловит произвольно закодированный секрет (G-138) и даёт ложные срабатывания на обычной прозе требований вроде «Password: min 15 characters» (G-140, OD-20 — компромисс безопасности и доступности решает владелец; поведение зафиксировано тестом); ручные модели требуют тест паритета при каждом изменении схемы |
+| Затронутые тесты | tests/unit/test_worker_contracts.py (64), tests/integration/postgres/test_worker_result_service.py |
+
+
+## ADR-102 — S14: реестр WorkerDefinition — глобальный справочник, неизменяемые версии, FK из `worker_runs` и `readiness_evaluations`
+
+| Поле | Значение |
+|---|---|
+| Статус | ACCEPTED |
+| Дата | 2026-11-13 |
+| Ответственный | Implementation Lead |
+| Проблема и контекст | Domain Model v1.9 перечисляет `agents.worker_definitions`, но не задаёт колонок; `worker_definition_version_id` в `worker_runs` и `readiness_evaluations` был без владельца FK, а Gate нужна проверка «wrong capability» |
+| Связанные требования | API-MVP; PROC-MVP; DOC-055 (Gate) |
+| Документы и разделы | Domain Model v1.9 §agents; Persistence Blueprint §14; database-and-migrations.md; ADR-050 (iam.roles как образец) |
+| Альтернативы | Определения на организацию (RLS по tenant; требует засева на каждую организацию); оставить без FK; засеять тестовые версии миграцией |
+| Решение | Миграция 0016 (expand-only): `agents.worker_definitions` — девять ролей (BASELINED), засеяны, неизменяемы; `agents.worker_definition_versions` — неизменяемый снимок возможностей (версии контрактов, `output_schema_id/version`, `acceptance_schema`, `runtime_profile_version`), двигается только `status` вперёд ACTIVE → DEPRECATED → RETIRED, удаление запрещено триггером. Версия создаётся только ACTIVE (триггер на INSERT), `TRUNCATE` обеих таблиц запрещён триггером как у остальных неизменяемых таблиц; ACTIVE → RETIRED может пропускать DEPRECATED. Глобальный справочник: runtime SELECT-only (читает только `ai_res_api_group`), запись только ревизиями, поэтому RLS-exempt с причиной в `rls_coverage.sql` (как `iam.roles`). FK из `worker_runs` и `readiness_evaluations` с короткими именами ≤ 63 байт (длинные имена PostgreSQL обрезал бы молча) — NOT VALID + VALIDATE в одной транзакции допустимы, потому что таблицы пусты по построению: проверка предусловия останавливает миграцию понятным сообщением, если там уже есть строки; для непустой базы нужны две ревизии и CONCURRENTLY. Индексы под FK (G-59). **База хранит только ссылку:** то, что версия ACTIVE и что её версии контрактов совпадают с запуском, решает Readiness Gate (S22, реестр `check_code` WORKING), а не стартовый guard; граница зафиксирована тестом, который S22 обязан заменить Версии не засеяны: их содержимое (схемы вывода, критерии) — WORKING и появится вместе с первым Worker (S23) |
+| Обоснование | Роли фиксированы baseline-архитектурой, поэтому не tenant-данные; неизменяемые версии позволяют WorkerRun и ReadinessEvaluation ссылаться на точный снимок возможностей |
+| Влияние на компоненты/контракты | Новая миграция 0016; тестовые помощники сеют версию; `rls_coverage.sql` (+2 exempt); снимок схемы |
+| Риски и компромиссы | Содержимое версий и источник провижининга не определены (G-137); если владелец решит, что определения принадлежат организации, потребуется expand/contract; миграция останавливается на базе, где уже есть runs/evaluations (сознательно: fail loudly); RETIRED-версию БД не запрещает ссылать — это обязанность Gate (G-137) |
+| Затронутые тесты | tests/integration/postgres/test_worker_definition_registry.py (6), test_agents_execution_schema.py, test_repositories.py |
+
+
+## ADR-103 — S14: сохранение WorkerResult только через сервис — принадлежность run/task/роли, один результат на run
+
+| Поле | Значение |
+|---|---|
+| Статус | ACCEPTED |
+| Дата | 2026-11-13 |
+| Ответственный | Implementation Lead |
+| Проблема и контекст | `WorkerRunRepository.store_result` (S05) проверял лишь отсутствие секретных ключей; контракт и принадлежность не проверялись, а повторная запись давала «сырой» IntegrityError |
+| Связанные требования | PROC-MVP; Worker isolation (testing-and-verification.md) |
+| Документы и разделы | DOC-006 §8.2, §8.4; ADR-016; ADR-052 |
+| Альтернативы | Проверять контракт внутри репозитория (смешивает persistence и контракт); сравнивать `contractVersion` результата с `output_contract_version` запуска; доверять `workerRole` из payload |
+| Решение | `modules/worker_runs/results.py::store_worker_result`: (1) `check_snapshot("result", …, RESULT_RECEIPT)` → при нарушении `ProblemError` VALIDATION_ERROR (с путями полей, без значений); хранится проверенный снимок, а не объект вызывающего (между проверкой и записью есть `await`); (2) run перечитывается из БД под tenant-контекстом вызывающего: чужой или подделанный organization/project → RESOURCE_NOT_FOUND (одинаковый ответ, без утечки существования); `workerRunId`, `taskId` совпадают с запуском, а `workerRole` — с ролью определения, на которое ссылается run (из реестра, не из payload); (3) вставка в savepoint; ошибки хранения отображаются по SQLSTATE: нарушение триггера (run не стартовал, терминален) или уникальности (второй результат) → STATE_TRANSITION_NOT_ALLOWED, FK → RESOURCE_NOT_FOUND, DataError → VALIDATION_ERROR без значения; транзакция вызывающего остаётся пригодной Неизменяемость и «run стартовал с READY Gate» остаются на триггерах 0004 |
+| Обоснование | Роль берётся из данных платформы, а не из заявления Worker; savepoint сохраняет транзакцию; БД остаётся последней линией защиты |
+| Влияние на компоненты/контракты | Новый сервис; `store_result` не менялся (может вызываться только через сервис — прямой вызов остаётся возможным внутри backend, ограничения Runtime обеспечены отсутствием DB credentials) |
+| Риски и компромиссы | Сравнение `contractVersion` с `output_contract_version` и `expectedOutputSchema` не делается: поле `output_contract_version` запуска и версия DOC-007 — разные величины, связь не определена (G-136) |
+| Затронутые тесты | tests/integration/postgres/test_worker_result_service.py (9) |
+
+## ADR-104 — S14: решение владельца по OD-20 — прозу «слово-секрет: слово» не считать секретом, остальное отклонять
+
+| Поле | Значение |
+|---|---|
+| Статус | ACCEPTED |
+| Дата | 2026-11-13 |
+| Ответственный | Владелец проекта (решение дано в сессии 2026-11-13: «да, этот компромисс»); реализация — Implementation Lead |
+| Проблема и контекст | Детектор секретов в значениях (`redact_text`) отклонял обычную прозу требований: «Password: min 15 characters», «Token: refresh flow» (G-140). Requirements/API/Security Workers регулярно пишут об аутентификации, и такой результат не мог быть принят |
+| Связанные требования | PROC-MVP-013; security.md (секреты не попадают в результаты) |
+| Документы и разделы | security.md «Секреты»; ADR-101; G-138, G-140 |
+| Альтернативы | Оставить строго (отклонять прозу); ослабить общий `redact_text` (затронул бы редакцию логов); поле-исключение в схеме (изменение DOC-007, NCP-04) |
+| Решение | В `worker_contracts` (не в общем `redact_text`): пара «секретное слово + `=`/`:` + ОДНО короткое слово из букв (1–12), за которым нет символов идентификатора» считается описанием правила, а не значением; её разделитель нейтрализуется до проверки. Всё остальное после разделителя — цифры, символы, кавычки, длинный или составной токен, регистр с цифрой — по-прежнему отклоняется, как и прочие шаблоны (Bearer, JWT, PEM, URL с паролем, известные форматы токенов): они продолжают работать на остальном тексте, и описательная пара не прикрывает секрет рядом с ней |
+| Обоснование | Снимает главный источник ложных срабатываний без ослабления логов и без изменения контракта; защита от настоящих учётных данных сохраняется для всех форм, кроме одного обычного слова |
+| Влияние на компоненты/контракты | Только `ai_res.worker_contracts.validation`; `redact_text`, схема DOC-007 и `docs/architecture/` не менялись |
+| Риски и компромиссы | **Принятый остаточный риск:** `password: tiger` (одно обычное слово) не отличить от прозы, он принимается. Закреплено тестом `test_accepted_risk_a_plain_word_after_the_separator_is_not_detected`. Решение принял владелец; если security owner — другое лицо, его подтверждение остаётся открытым (OD-03) |
+| Затронутые тесты | tests/unit/test_worker_contracts.py (проза принимается; 12 credential-подобных форм отклоняются; пара не прикрывает соседний секрет) |

@@ -50,8 +50,22 @@
 
 ## Execution slice DDL v1.0 (DOC-065)
 
-Есть в DDL: `operations.operations`, `operations.operation_events`, `agents.worker_runs`, `agents.worker_run_events`, `execution.readiness_evaluations`, `execution.readiness_check_results`, `platform.idempotency_records`, `audit.outbox_events`, `audit.inbox_messages`.
+Есть в DDL (S14 добавил реестр `agents.worker_definitions`/`worker_definition_versions` — миграция 0016, в DOC-065 их нет): `operations.operations`, `operations.operation_events`, `agents.worker_runs`, `agents.worker_run_events`, `execution.readiness_evaluations`, `execution.readiness_check_results`, `platform.idempotency_records`, `audit.outbox_events`, `audit.inbox_messages`.
 Требуются DOC-064 v1.2, но отсутствуют в DDL (DR-09): `agents.worker_results`, `audit.audit_events`, `work.task_dependencies`; `work.tasks` — только ALTER.
+
+## Internal Worker contracts DOC-007 v1.1 (WORKING, ADR-021/101; внутренние, не публичный API)
+
+Источник: `AI_RES_Worker_Contracts_v1.1.schema.json`, зеркало `contracts/json-schema/worker/`. Реализация: пакет `ai_res.worker_contracts`. Статус: S14 TESTED локально (Linux CI не запускался).
+
+| Контракт | Точки валидации | Хранение | События | Этап / тесты |
+|---|---|---|---|---|
+| WorkerRunEnvelope | ENQUEUE, PRE_EXECUTION | не хранится отдельно (`worker_runs.execution_envelope_ref` — ссылка, S23) | — | S14 — `tests/unit/test_worker_contracts.py`; формирование и вызов в точках — S23 |
+| WorkerResult | RESULT_RECEIPT, DOWNSTREAM | `agents.worker_results` (неизменяем, один на run) через `modules/worker_runs/results.py` | `WorkerResultSubmitted` (S23) | S14 — `test_worker_contracts.py`, `test_worker_result_service.py`; DOWNSTREAM-потребитель — S23 |
+| WorkerNotice | RESULT_RECEIPT, DOWNSTREAM | не персистится (G-139) | — | S14 — форма проверяется (`test_worker_contracts.py`); хранение и обработка — S23/S24 |
+| WorkerCoordinationRequest | внутри WorkerNotice | — (S24) | `WorkerCoordination*` (S24) | S14 — форма; логика — S24 |
+| Реестр WorkerDefinition | — | `agents.worker_definitions`, `agents.worker_definition_versions` (миграция 0016, ADR-102; глобальный справочник, runtime SELECT-only) | — | S14 — `test_worker_definition_registry.py`; проверку возможностей делает Gate (S22, G-137) |
+
+Расхождения: `workerRole` в WorkerResult — свободная строка (G-143); связь `output_contract_version` запуска с `contractVersion` не определена (G-136); изменения полей — NCP-04.
 
 ## Overlay S07 — `contracts/openapi/extensions/identity_auth.yaml` (WORKING, ADR-038/063; формализация — NCP-06)
 

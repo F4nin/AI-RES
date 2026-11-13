@@ -11,6 +11,7 @@ import tarfile
 from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
+from uuid import UUID, uuid4
 
 import psycopg
 import pytest
@@ -161,3 +162,22 @@ async def iam_world(migrated: Pg, tmp_path: Path) -> Any:
     world = IamWorld(migrated, tmp_path)
     yield world
     await world.dispose()
+
+
+def seed_worker_definition_version(c: psycopg.Connection[Any], version: str = "wd-test-1", role: str = "REQUIREMENTS", vid: UUID | None = None,
+                                  **fields: Any) -> UUID:
+    """Registry rows are written by the owner/migrator only (S14, ADR-102): tests seed one as the superuser. Idempotent per (role, version)."""
+    vid = vid or uuid4()
+    row = {"input_contract_version": "1.1", "output_contract_version": "1.1", "output_schema_id": "test.output", "output_schema_version": "1"} | fields
+    c.execute(
+        "INSERT INTO agents.worker_definition_versions (id, worker_definition_id, version, input_contract_version, output_contract_version, output_schema_id, "
+        "output_schema_version) SELECT %s, d.id, %s, %s, %s, %s, %s FROM agents.worker_definitions d WHERE d.worker_role = %s "
+        "ON CONFLICT (worker_definition_id, version) DO NOTHING",
+        [vid, version, row["input_contract_version"], row["output_contract_version"], row["output_schema_id"], row["output_schema_version"], role])
+    found = c.execute("SELECT v.id FROM agents.worker_definition_versions v JOIN agents.worker_definitions d ON d.id = v.worker_definition_id "
+                      "WHERE d.worker_role = %s AND v.version = %s", [role, version]).fetchone()
+    assert found is not None
+    if (stored := c.execute("SELECT output_schema_id, output_schema_version FROM agents.worker_definition_versions WHERE id = %s", [found[0]]).fetchone()) != (
+            row["output_schema_id"], row["output_schema_version"]):
+        raise AssertionError(f"version {role}/{version} already exists with other content {stored}: a test would silently use the wrong capability")
+    return found[0]

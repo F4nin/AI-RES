@@ -120,6 +120,7 @@ class Settings(BaseModel):
     temporal_address: str | None = Field(default=None, pattern=r"^[A-Za-z0-9.-]{1,253}:[0-9]{1,5}$")
     temporal_namespace: str = Field(default="ai-res", pattern=r"^[a-z0-9][a-z0-9-]{0,62}$")
     asyncapi_contract_file: Path | None = None  # packaged domain-event contract the dispatcher validates against (closes G-99 for the dispatcher process)
+    worker_contract_schema_file: Path | None = None  # packaged DOC-007 schema (WORKING); needed by any process validating Worker contracts (S14; wired in S23)
     platform_api_url: str | None = None  # internal Platform API base URL used by the runtimes (never the public listener)
     platform_api_timeout_seconds: float = Field(default=10.0, gt=0, le=60)  # WORKING
     policy_timeout_seconds: float = Field(default=2.0, gt=0, le=30)  # WORKING: Policy Engine decision budget; exceeded => fail-closed 503

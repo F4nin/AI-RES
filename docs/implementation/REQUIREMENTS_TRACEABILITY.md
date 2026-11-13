@@ -61,10 +61,10 @@
 | API-MVP-016 | DOC-009 | Policy fail-closed | MVP | S01, S02, S08, S09, S12 | NOT_STARTED |
 | API-MVP-017 | DOC-009 | Scoped Worker grants | MVP | S01, S02, S08, S09, S12 | NOT_STARTED |
 | API-MVP-018 | DOC-009 | Safe MinIO file transfer | MVP | S01, S02, S08, S09, S12 | NOT_STARTED |
-| API-MVP-019 | DOC-009 | WorkerRunEnvelope | MVP | S01, S02, S08, S09, S12 | NOT_STARTED |
-| API-MVP-020 | DOC-009 | WorkerResult | MVP | S01, S02, S08, S09, S12 | NOT_STARTED |
+| API-MVP-019 | DOC-009 | WorkerRunEnvelope | MVP | S01, S02, S08, S09, S12 | PARTIAL (S14 TESTED локально: Envelope проверяется в ENQUEUE и PRE_EXECUTION, unknown major/лишние поля/секреты отклоняются; DOC-007 WORKING, ADR-101; формирование Envelope и загрузка схемы процессами — S23, G-135) |
+| API-MVP-020 | DOC-009 | WorkerResult | MVP | S01, S02, S08, S09, S12 | PARTIAL (S14 TESTED локально: Result проверяется в RESULT_RECEIPT и DOWNSTREAM, evidence обязателен для FACT/SOURCE_ASSERTION/CONCLUSION (WORKING, G-134); неизменяемое сохранение через `store_worker_result`, ADR-103) |
 | API-MVP-021 | DOC-009 | Distinct acceptance states | MVP | S01, S02, S08, S09, S12 | NOT_STARTED |
-| API-MVP-022 | DOC-009 | No direct Worker DB writes | MVP | S01, S02, S08, S09, S12 | NOT_STARTED |
+| API-MVP-022 | DOC-009 | No direct Worker DB writes | MVP | S01, S02, S08, S09, S12 | PARTIAL (S14: запись результата только через сервис с проверкой контракта и принадлежности; Runtime без DB credentials и import-linter из S11; прямой вызов репозитория внутри backend остаётся, G-142; негативные тесты Worker→SQL — S23/S37) |
 | API-MVP-023 | DOC-009 | Controlled Worker handoff | MVP | S01, S02, S08, S09, S12 | NOT_STARTED |
 | API-MVP-024 | DOC-009 | Temporal contracts | MVP | S01, S02, S08, S09, S12 | NOT_STARTED |
 | API-MVP-025 | DOC-009 | Temporal compatibility | MVP | S01, S02, S08, S09, S12 | NOT_STARTED |
@@ -409,7 +409,7 @@
 | PROC-MVP-010 | DOC-009 | Gate staleness protection | MVP | S12, S20–S32 | NOT_STARTED |
 | PROC-MVP-011 | DOC-009 | Immutable WorkerRun context | MVP | S12, S20–S32 | NOT_STARTED |
 | PROC-MVP-012 | DOC-009 | Controlled Worker handoff | MVP | S12, S20–S32 | NOT_STARTED |
-| PROC-MVP-013 | DOC-009 | Worker result validation | MVP | S12, S20–S32 | NOT_STARTED |
+| PROC-MVP-013 | DOC-009 | Worker result validation | MVP | S12, S20–S32 | PARTIAL (S14 TESTED локально: валидация результата в двух точках и принадлежность run/task/роли из реестра; приёмка Manager и независимый QA — S23/S25) |
 | PROC-MVP-014 | DOC-009 | Separate verification levels | MVP | S12, S20–S32 | NOT_STARTED |
 | PROC-MVP-015 | DOC-009 | Risk-based independent QA | MVP | S12, S20–S32 | NOT_STARTED |
 | PROC-MVP-016 | DOC-009 | Source ingestion pipeline | MVP | S12, S20–S32 | NOT_STARTED |
@@ -425,7 +425,7 @@
 | PROC-MVP-026 | DOC-009 | Process observability | MVP | S12, S20–S32 | NOT_STARTED |
 | PROC-MVP-027 | DOC-009 | Process evaluation sets | MVP | S12, S20–S32 | NOT_STARTED |
 | PROC-MVP-028 | DOC-009 | Process deployment gates | MVP | S12, S20–S32 | NOT_STARTED |
-| PROC-MVP-029 | DOC-009 | Typed Worker Coordination Request | MVP | S12, S20–S32 | NOT_STARTED |
+| PROC-MVP-029 | DOC-009 | Typed Worker Coordination Request | MVP | S12, S20–S32 | PARTIAL (S14: форма `WorkerCoordinationRequest` проверяется внутри `WorkerNotice`; Manager decision, Policy и новый Gate — S24, G-139) |
 | PROC-MVP-030 | DOC-009 | Mediated Worker-to-Worker coordination | MVP | S12, S20–S32 | NOT_STARTED |
 | PROC-MVP-031 | DOC-009 | Per-Run scope and readiness | MVP | S12, S20–S32 | NOT_STARTED |
 | PROC-MVP-032 | DOC-009 | Manager adjudication by risk tier | MVP | S12, S20–S32 | NOT_STARTED |
