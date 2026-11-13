@@ -1,6 +1,6 @@
 # S14 — Worker contracts: Envelope/Result/Notice: Increment Report
 
-**Дата:** 2026-11-13 · **Промпт:** `increments/prompts/S14_worker_contracts_runtime_validation.md` · **Итоговый статус:** TESTED (локально; Linux CI не запускался, дельта исправлений review не пересматривалась отдельным агентом — до VERIFIED нужны зелёный Linux CI и OD-20 решён ADR-104 уже после review, эта правка отдельным агентом не пересматривалась)
+**Дата:** 2026-11-13 · **Промпт:** `increments/prompts/S14_worker_contracts_runtime_validation.md` · **Итоговый статус:** VERIFIED (локально и на GitHub Actions Linux: PR #18: ci 43428029283/43428039248, contracts 43428029128/43428039135 — backend, infra-runtime, infra-static, contracts success; дельта исправлений review не пересматривалась отдельным агентом — до VERIFIED нужны зелёный Linux CI и OD-20 решён ADR-104 уже после review, эта правка отдельным агентом не пересматривалась)
 
 ## 1. Что реализовано
 - Пакет `ai_res.worker_contracts` (вне `modules`, без БД — его импортирует Worker Runtime): `WorkerContracts.check/check_snapshot` проверяет WorkerRunEnvelope (ENQUEUE, PRE_EXECUTION) и WorkerResult/WorkerNotice (RESULT_RECEIPT, DOWNSTREAM). Fail-closed: независимый JSON-снимок → `contractVersion` (только `1.1`) → JSON Schema (авторитет, форматы uuid/date-time) → правило evidence → значения, похожие на секреты. Неизменяемые Pydantic-модели + тест паритета со схемой.
@@ -69,13 +69,13 @@ Unknown major/minor/тип версии — отклонены во всех 4 �
 `reviews/S14_REVIEWS.md`. Исправленное ревью-раундом не пересматривалось отдельным агентом.
 
 ## 12. Не выполненные проверки, ограничения, риски
-Linux CI не запускался; схема не смонтирована в Compose, ни один процесс её не грузит (G-135); Gate не проверяет возможности (G-137); правило evidence — предположение (G-134); остаточный риск OD-20/ADR-104: `password: tiger` принимается (G-140); store_result публичен внутри backend (G-142).
+Первый Linux-прогон упал на `infra-static` из-за digest-пина `caddy:2.11.9` (индекс переиздан в Docker Hub, не связано с S14; пин обновлён отдельным коммитом, манифесты платформ идентичны); схема не смонтирована в Compose, ни один процесс её не грузит (G-135); Gate не проверяет возможности (G-137); правило evidence — предположение (G-134); остаточный риск OD-20/ADR-104: `password: tiger` принимается (G-140); store_result публичен внутри backend (G-142).
 
 ## 13. Обновлённые документы и статусы
 STATUS (S14), ADL (ADR-101…103), KNOWN_GAPS (G-134…G-143), DECISIONS_PENDING (OD-20), ECC_USAGE, CONTEXT_HANDOFF, `reviews/S14_REVIEWS.md`. REQUIREMENTS_TRACEABILITY: API-MVP-019/020/022, PROC-MVP-013/029 → PARTIAL (S14 TESTED локально). CONTRACT_TRACEABILITY_MAP: новый раздел «Internal Worker contracts DOC-007» и пометка о реестре WorkerDefinition. `check_prompts.py`: 40 prompts, issues 0.
 
 ## 14. Статус DoD
-✅ 4 точки покрыты тестами · ✅ обязательные тесты §9 · ✅ миграции upgrade/drift · ✅ security negative tests · ✅ review (CRITICAL 0) · ⚠️ observability: счётчик `ai_res.worker_contracts.rejected` есть, дашборд/алерт — нет · ❌ Linux CI · ✅ traceability-карты · N/A Temporal replay (нет workflow-изменений).
+✅ 4 точки покрыты тестами · ✅ обязательные тесты §9 · ✅ миграции upgrade/drift · ✅ security negative tests · ✅ review (CRITICAL 0) · ⚠️ observability: счётчик `ai_res.worker_contracts.rejected` есть, дашборд/алерт — нет · ✅ Linux CI · ✅ traceability-карты · N/A Temporal replay (нет workflow-изменений).
 
 ## 15. Можно ли начинать следующий этап
-S15 (LLM Gateway port) не зависит от S14 по промпту — можно после слияния PR. S22/S23 требуют закрыть G-135/G-137/G-142.
+S15 (LLM Gateway port) не зависит от S14 по промпту — разблокирован слиянием PR #18. S22/S23 требуют закрыть G-135/G-137/G-142.
