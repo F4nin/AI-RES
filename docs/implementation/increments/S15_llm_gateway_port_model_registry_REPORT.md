@@ -1,6 +1,6 @@
 # S15 — LLMGatewayPort и Model Registry (провайдер-нейтрально): Increment Report
 
-**Дата:** 2026-11-13 · **Промпт:** `increments/prompts/S15_llm_gateway_port_model_registry.md` · **Итоговый статус:** TESTED локально (`make pre-pr`: @@RESULT@@); Linux CI — после PR. Качество вывода модели **не проверялось** (используется только deterministic test double, ADR-022); реального провайдера нет (S16, OD-01).
+**Дата:** 2026-11-13 · **Промпт:** `increments/prompts/S15_llm_gateway_port_model_registry.md` · **Итоговый статус:** VERIFIED (локально `make pre-pr` и Linux CI зелёный (PR #19: ci 43476639282/43476718776, contracts 43476639070/43476719560 — backend, infra-runtime, infra-static, contracts success)). Качество вывода модели **не проверялось** (используется только deterministic test double, ADR-022); реального провайдера нет (S16, OD-01).
 
 ## 1. Что реализовано
 - `ai_res.llm` (чистый пакет без БД/ORM/API): `LLMGatewayPort` (chat / structured / embed / stream_chat), нормализованные request/response по Contracts v1.10 §11 (в ответе — фактический provider/model/pinned version/profile), типизированные ошибки с `retryable`/`fallback_eligible`, `ProviderTransport` — шов для адаптеров S16.
@@ -58,10 +58,10 @@ DOC-076 `AI_RES_Model_Gateway_and_Model_Registry_v1.0.md` (BASELINED, сущес
 ## 9. Тесты и проверки
 | Gate | Команда | Результат (точно) |
 |---|---|---|
-| G1–G9 в сумме | `make pre-pr` (contracts, ruff, mypy strict, import-linter 10→12 контрактов, backend unit+PostgreSQL 16, infra static, `make up`+migrate на локальной dev-БД, runtime) | @@RESULT@@ |
-| Новые тесты S15 | `cd backend && uv run pytest tests/unit/test_llm_gateway.py tests/integration/postgres/test_model_registry.py` | см. строку выше (@@NEWTESTS@@) |
+| G1–G9 в сумме | `make pre-pr` (contracts, ruff, mypy strict, import-linter 10→12 контрактов, backend unit+PostgreSQL 16, infra static, `make up`+migrate на локальной dev-БД, runtime) | contracts 22, backend 1286, infra 307, runtime 148, import-linter 12 kept, секрет-скан 0; полный backend гонялся до переименования кода ошибки `CREDENTIAL_IN_PROMPT` (после — unit 441 и скан), CI на финальном коммите зелёный |
+| Новые тесты S15 | `cd backend && uv run pytest tests/unit/test_llm_gateway.py tests/integration/postgres/test_model_registry.py` | см. строку выше (42 unit + 8 integration) |
 | Мутационная проверка | отключение 9 исправлений/правил по очереди | каждое валит ≥1 тест (см. §11) |
-Linux CI: после PR. IMPLEMENTATION NOT VERIFIED на реальном провайдере: качество вывода модели не проверялось.
+Linux CI: зелёный (PR #19). IMPLEMENTATION NOT VERIFIED на реальном провайдере: качество вывода модели не проверялось.
 
 ## 10. Security / authorization cases
 Неутверждённый/CANDIDATE/RETIRED/после `deprecated_at`/незарегистрированный/пустой реестр → отказ до вызова; budget exhausted/не установлен/нельзя оценить → typed error, без retry и без вызова; test double в local/prod — отказ в Settings, фабрике и конструкторе, import в подпроцессе при явном prod/local; wheel и Dockerfile без testkit; credential в prompt (JWT, ключ, URL с паролем, connection string, 8 форм ключей провайдеров, fullwidth/zero-width, разрезанный между сообщениями) → блок без эха значения; проза-секрет и embedding → редакция; хвост после 40 КБ сканируется; DoS-вход 0.6 с; несовместимая capability/классификация/окно/лимит → отказ; fallback не уходит в более открытый, неутверждённый, другую группу, с меньшим лимитом; отказ политики/бюджета не вызывает fallback; runtime-роль БД только читает реестр, DELETE/TRUNCATE/откат статуса/перезапись approval отклонены. Cross-project IDOR/сессии — неприменимо (нет HTTP-поверхности); Policy Engine не вовлечён (G-150).
@@ -70,7 +70,7 @@ Linux CI: после PR. IMPLEMENTATION NOT VERIFIED на реальном пр�
 `reviews/S15_REVIEWS.md` (3 агента, blind-first): CRITICAL 0, HIGH 5 → исправлены, MEDIUM исправлены/приняты с записью, LOW — см. отчёт. Мутации: breaker-release_probe, release при отмене, settle usage при invalid output, лимит `max_output_tokens` fallback, скан склейки сообщений, approval-проверка, retry-условие, egress fallback, guard — каждая валит тест. Дельта исправлений отдельным агентом не пересматривалась.
 
 ## 12. Не выполненные проверки, ограничения, риски
-Реальный провайдер/Bifrost (S16); Linux CI до PR; качество агентного вывода; сборка и инспекция образа (G-148); durable бюджет и размещение шлюза (G-145); rate limits (G-144); Collector не пропускает `ai_res.llm.*` (G-149); путь approval профиля (G-146/OD-21); охрана промптов — регулярные выражения с остаточным риском (G-147); `database-reviewer` не запускался.
+Реальный провайдер/Bifrost (S16); качество агентного вывода; сборка и инспекция образа (G-148); durable бюджет и размещение шлюза (G-145); rate limits (G-144); Collector не пропускает `ai_res.llm.*` (G-149); путь approval профиля (G-146/OD-21); охрана промптов — регулярные выражения с остаточным риском (G-147); `database-reviewer` не запускался.
 
 ## 13. Обновлённые документы и статусы
 STATUS (S15), ADL (ADR-105…110), KNOWN_GAPS (G-144…G-152), DECISIONS_PENDING (OD-21), ECC_USAGE, REQUIREMENTS_TRACEABILITY (API-MVP-027, SEC-007, SEC-MVP-005, INF-MVP-015, THR-004), CONTEXT_HANDOFF, prompts/README. `docs/architecture/` и Registry не менялись.
@@ -83,7 +83,7 @@ STATUS (S15), ADL (ADR-105…110), KNOWN_GAPS (G-144…G-152), DECISIONS_PENDING
 - ✅ Security negative tests выполнены; секретов в коде/логах/трейсах/ошибках нет.
 - ✅ Observability: spans/metrics без содержимого; ⚠ экспорт через Collector — G-149.
 - ✅ Независимое review (code + security + silent-failure), CRITICAL/HIGH устранены.
-- ⚠ Linux CI и дельта review — после PR.
+- ✅ Linux CI зелёный; ⚠ дельта исправлений review отдельным агентом не пересматривалась.
 
 ## 15. Можно ли начинать следующий этап
 Да. S16 (Bifrost PoC и первый provider profile) — блокирован OD-01 (провайдер, egress). Разблокированы по зависимости S15: S20, S23, S27 (где ещё нужны их прочие зависимости). Перед S22/S23: G-145, G-150; перед первым профилем: OD-21, G-146, G-149.
