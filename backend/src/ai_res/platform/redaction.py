@@ -1,3 +1,4 @@
+# ruff: noqa: E501  -- long prose lines in docstrings and comments
 """Log redaction (security.md: no passwords, cookies, tokens, prompts, source fragments in telemetry).
 
 Defense in depth: key-based redaction of structured fields and value-pattern redaction of every string leaf (objects are
@@ -6,7 +7,9 @@ repr'd and redacted). Reserved log fields cannot be overwritten by `extra` value
 import json
 import logging
 import re
+import unicodedata
 from collections.abc import Mapping
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
@@ -56,17 +59,87 @@ def assert_no_sensitive_keys(value: Any, path: str = "data") -> None:
             assert_no_sensitive_keys(inner, f"{path}[{i}]")
 
 
-_VALUE_PATTERNS = [
-    re.compile(r"(?i)\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{6,}"),
-    re.compile(r"(?i)\b(ai_res_session|session)=[^;\s]+"),
-    re.compile(r"(?i)(?<![A-Za-z0-9])[\"']?[A-Za-z0-9_-]{0,32}(password|passwd|secret|token|api[-_]?key|authorization)[A-Za-z0-9_-]{0,32}[\"']?\s*[=:]\s*"
-               r"(\"[^\"]*\"|'[^']*'|[^\s,;]+)"),
-    re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]*"),  # JWT-like
-    re.compile(r"(?i)\b[a-z][a-z0-9+.-]{0,15}://[^\s/@:]+:[^\s/@]+@[^\s]+"),  # URL with embedded credentials
-    re.compile(r"(?i)\b(postgres(?:ql)?|redis|amqp|mongodb)://[^\s]+"),
-    re.compile(r"-----BEGIN [A-Z ]{0,20}PRIVATE KEY-----[\s\S]{0,8192}?(-----END [A-Z ]{0,20}PRIVATE KEY-----|$)"),
-    re.compile(r"\b(sk-[A-Za-z0-9]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16})\b"),
-]
+# Well-known credential prefixes. The body allows `-` and `_` (Anthropic `sk-ant-api03-…`, OpenAI `sk-proj-…`, `github_pat_…`, Slack `xoxb-…`, Stripe `sk_live_…`).
+_KNOWN_KEY = re.compile(r"\b(sk-[A-Za-z0-9_-]{20,}|sk_(?:live|test)_[A-Za-z0-9]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}"
+                        r"|xox[abprs]-[A-Za-z0-9-]{10,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{35})(?![A-Za-z0-9_-])")
+_PRIVATE_KEY_LOG = re.compile(r"-----BEGIN [A-Z ]{0,20}PRIVATE KEY-----[\s\S]{0,8192}?(-----END [A-Z ]{0,20}PRIVATE KEY-----|$)")
+_PRIVATE_KEY_BEGIN = re.compile(r"-----BEGIN [A-Z ]{0,20}PRIVATE KEY-----")
+_PRIVATE_KEY_END = "-----END "
+_PRIVATE_KEY_MAX_BODY = 8192
+# (kind, pattern, high_confidence). High confidence = the shape is (almost) never ordinary prose, so a hit means a credential really is in the text;
+# low confidence patterns (`password: x`, `Bearer authentication`) also match requirements prose and can only be redacted, not used to refuse (S15, ADR-105).
+_LABELED_PATTERNS: tuple[tuple[str, re.Pattern[str], bool], ...] = (
+    ("bearer", re.compile(r"(?i)\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{6,}"), False),
+    ("session_cookie", re.compile(r"(?i)\b(ai_res_session|session)=[^;\s]+"), False),
+    ("assignment", re.compile(r"(?i)(?<![A-Za-z0-9])[\"']?[A-Za-z0-9_-]{0,32}(password|passwd|secret|token|api[-_]?key|authorization)"
+                              r"[A-Za-z0-9_-]{0,32}[\"']?\s*[=:]\s*(\"[^\"]*\"|'[^']*'|[^\s,;]+)"), False),
+    ("jwt", re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]*"), True),  # JWT-like
+    ("url_credentials", re.compile(r"(?i)\b[a-z][a-z0-9+.-]{0,15}://[^\s/@:]+:[^\s/@]+@[^\s]+"), True),  # URL with embedded credentials
+    ("connection_string", re.compile(r"(?i)\b(postgres(?:ql)?|redis|amqp|mongodb)://[^\s]+"), True),
+    ("known_key_prefix", _KNOWN_KEY, True),
+)
+_VALUE_PATTERNS = [*(pattern for _, pattern, _ in _LABELED_PATTERNS), _PRIVATE_KEY_LOG]  # log path: text is bounded to MAX_LOG_TEXT first
+
+
+@dataclass(frozen=True, slots=True)
+class SecretScan:
+    """What a full-text scan found: the text with every secret-shaped value replaced, and which kinds hit (never the values)."""
+    redacted: str
+    kinds: frozenset[str]
+    high_confidence_kinds: frozenset[str]
+
+    @property
+    def found(self) -> bool:
+        return bool(self.kinds)
+
+
+def _redact_private_keys(text: str) -> tuple[str, bool]:
+    """Single left-to-right pass: a BEGIN marker redacts up to its END marker (or at most 8 KiB). Every character is visited once, so a text made of thousands of
+    BEGIN markers costs linear time (a regex with a bounded lazy tail is quadratic on it)."""
+    out: list[str] = []
+    pos, found = 0, False
+    for m in _PRIVATE_KEY_BEGIN.finditer(text):
+        if m.start() < pos:
+            continue  # inside a region already redacted
+        found = True
+        limit = min(len(text), m.end() + _PRIVATE_KEY_MAX_BODY)
+        end = text.find(_PRIVATE_KEY_END, m.end(), limit)
+        if end < 0:
+            stop = limit  # no END marker: redact the bounded body
+        else:
+            close = text.find("-----", end + len(_PRIVATE_KEY_END), min(len(text), end + 64))
+            stop = (close + 5) if close >= 0 else end + len(_PRIVATE_KEY_END)
+        out.append(text[pos:m.start()])
+        out.append(REDACTED)
+        pos = max(stop, m.end())
+    out.append(text[pos:])
+    return "".join(out), found
+
+
+def _detection_form(text: str) -> str:
+    """NFKC and removal of format characters (zero-width space/joiner, BOM, soft hyphen): `ｓｋ-…` and `s\u200bk-…` must not hide a credential from the scan."""
+    return "".join(ch for ch in unicodedata.normalize("NFKC", text) if unicodedata.category(ch) != "Cf")
+
+
+def scan_secrets(text: str) -> SecretScan:
+    """Scan the WHOLE text (no truncation, unlike `redact_text`, which bounds log lines): an outbound prompt must not have an unscanned tail. Detection runs on the
+    NFKC / format-character-stripped form; the text is returned unchanged when nothing is found and in that normalised form (with secrets replaced) when something is.
+    Every pattern is linear (the private-key search is a single pass); callers bound the input size first (the gateway rejects input beyond the context window)."""
+    scan_text = _detection_form(text)
+    kinds: set[str] = set()
+    high: set[str] = set()
+    redacted = scan_text
+    for kind, pattern, is_high in _LABELED_PATTERNS:
+        if pattern.search(scan_text):  # kinds are decided on the ORIGINAL text: an earlier replacement must not hide a later (high-confidence) hit
+            kinds.add(kind)
+            if is_high:
+                high.add(kind)
+            redacted = pattern.sub(REDACTED, redacted)
+    redacted, has_key = _redact_private_keys(redacted)
+    if has_key:
+        kinds.add("private_key")
+        high.add("private_key")
+    return SecretScan(redacted if kinds else text, frozenset(kinds), frozenset(high))
 
 
 MAX_LOG_TEXT = 8192  # bound regex work on attacker-controlled text (ReDoS); longer text is truncated before matching

@@ -21,7 +21,7 @@
 | S12 | Operation API, process primitives, cancellation, SSE | [`S12_operation_api_process_primitives_sse.md`](S12_operation_api_process_primitives_sse.md) | S11 | PENDING_DEPS | Нет (после DONE зависимостей) |
 | S13 | Observability stack и мониторинг | [`S13_observability_stack.md`](S13_observability_stack.md) | S03, S10 | PENDING_DEPS | Нет (после DONE зависимостей) |
 | S14 | Worker contracts: Envelope/Result/Notice | [`S14_worker_contracts_runtime_validation.md`](S14_worker_contracts_runtime_validation.md) | S12 | PENDING_DEPS | Нет (после DONE зависимостей) |
-| S15 | LLMGatewayPort и Model Registry (провайдер-нейтрально) | [`S15_llm_gateway_port_model_registry.md`](S15_llm_gateway_port_model_registry.md) | S11 | PENDING_DEPS | Нет (после DONE зависимостей) |
+| S15 | LLMGatewayPort и Model Registry (провайдер-нейтрально) | [`S15_llm_gateway_port_model_registry.md`](S15_llm_gateway_port_model_registry.md) | S11 | TESTED (2026-11-13) | Нет |
 | S16 | Bifrost PoC и первый утверждённый provider profile | [`S16_bifrost_poc_provider_profile.md`](S16_bifrost_poc_provider_profile.md) | S15, S13 | BLOCKED | Нет |
 | S17 | Tool Registry и Tool Gateway | [`S17_tool_registry_tool_gateway.md`](S17_tool_registry_tool_gateway.md) | S07, S12 | PENDING_DEPS | Нет (после DONE зависимостей) |
 | S18 | Rules Registry и Rules Engine | [`S18_rules_registry_rules_engine.md`](S18_rules_registry_rules_engine.md) | S07, S06 | PENDING_DEPS | Нет (после DONE зависимостей) |

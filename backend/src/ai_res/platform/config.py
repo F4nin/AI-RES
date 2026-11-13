@@ -121,6 +121,13 @@ class Settings(BaseModel):
     temporal_namespace: str = Field(default="ai-res", pattern=r"^[a-z0-9][a-z0-9-]{0,62}$")
     asyncapi_contract_file: Path | None = None  # packaged domain-event contract the dispatcher validates against (closes G-99 for the dispatcher process)
     worker_contract_schema_file: Path | None = None  # packaged DOC-007 schema (WORKING); needed by any process validating Worker contracts (S14; wired in S23)
+    # LLM gateway (S15, ADR-109): WORKING technical defaults for bounded retry / circuit breaker; none is an SLO (OD-02).
+    llm_retry_max_attempts: int = Field(default=3, ge=1, le=10)
+    llm_retry_base_delay_seconds: float = Field(default=0.5, ge=0, le=60)
+    llm_retry_max_delay_seconds: float = Field(default=8.0, ge=0, le=300)
+    llm_circuit_failure_threshold: int = Field(default=5, ge=1, le=100)
+    llm_circuit_open_seconds: float = Field(default=30.0, gt=0, le=3600)
+    llm_bytes_per_token_estimate: float = Field(default=3.0, gt=0, le=16)  # input-size estimate for the budget hold; settlement uses provider usage
     platform_api_url: str | None = None  # internal Platform API base URL used by the runtimes (never the public listener)
     platform_api_timeout_seconds: float = Field(default=10.0, gt=0, le=60)  # WORKING
     policy_timeout_seconds: float = Field(default=2.0, gt=0, le=30)  # WORKING: Policy Engine decision budget; exceeded => fail-closed 503
@@ -147,6 +154,8 @@ class Settings(BaseModel):
             raise ValueError("cookie_secure=false is allowed only when environment is local or test (Auth v1.1 §6)")
         if self.session_idle_seconds > self.session_absolute_seconds:
             raise ValueError("session_idle_seconds cannot exceed session_absolute_seconds")
+        if self.llm_retry_max_delay_seconds < self.llm_retry_base_delay_seconds:
+            raise ValueError("llm_retry_max_delay_seconds cannot be below llm_retry_base_delay_seconds")
         if self.login_delay_max_seconds < self.login_delay_base_seconds:
             raise ValueError("login_delay_max_seconds cannot be below login_delay_base_seconds")
         if self.upload_public_endpoint is not None:

@@ -21,7 +21,7 @@
 | S12 | Operation API, process primitives, cancellation, SSE | VERIFIED (2026-11-12; локально backend 1110; Linux CI зелёный (PR #13: ci 43260641203/43260655454, contracts 43260641383/43260655429; PR #14 с исправлениями review: ci 43270400409/43270476037, contracts 43270400514/43270475542 — backend, infra-runtime, infra-static, contracts success), влит в `main` (6ee65da, 397692e); два раунда независимого review: CRITICAL 0, HIGH 1 — G-117, reconciler до S23 по решению владельца, ADR-094) | [отчёт](increments/S12_operation_api_process_primitives_sse_REPORT.md) | [reviews](reviews/S12_REVIEWS.md) |
 | S13 | Observability stack и мониторинг | VERIFIED (2026-11-13; локально: backend 1116, infra 305, runtime 148, contracts 22; Linux CI зелёный (PR #16: ci 43301634548/43301768127, contracts 43301634628/43301768417 — backend, infra-runtime, infra-static, contracts success); review: CRITICAL 1 и HIGH исправлены/вынесены владельцу, дельта исправлений отдельным агентом не пересматривалась) | [отчёт](increments/S13_observability_stack_REPORT.md) | [reviews](reviews/S13_REVIEWS.md) |
 | S14 | Worker contracts: Envelope/Result/Notice | VERIFIED (2026-11-13; локально, одним `make pre-pr`: backend 1236, infra 307, runtime 148, contracts 22; Linux CI зелёный (PR #18: ci 43428029283/43428039248, contracts 43428029128/43428039135 — backend, infra-runtime, infra-static, contracts success); review: CRITICAL 0, HIGH 2 — 1 исправлен, 1 граница Gate; дельта исправлений и ADR-104 отдельным агентом не пересматривались) | [отчёт](increments/S14_worker_contracts_runtime_validation_REPORT.md) | [reviews](reviews/S14_REVIEWS.md) |
-| S15 | LLMGatewayPort и Model Registry (провайдер-нейтрально) | NOT_STARTED | PENDING_DEPS | — |
+| S15 | LLMGatewayPort и Model Registry (провайдер-нейтрально) | TESTED (2026-11-13, локально: backend 1286 passed, contracts 22, import-linter 12 kept; остальные стадии `make pre-pr` — см. отчёт §9); Linux CI после PR; не VERIFIED. Качество вывода модели не проверялось (только deterministic test double, ADR-022), реального провайдера нет (S16, OD-01); review: CRITICAL 0, HIGH 5 исправлены, дельта отдельным агентом не пересматривалась | [отчёт](increments/S15_llm_gateway_port_model_registry_REPORT.md) | [reviews](reviews/S15_REVIEWS.md) |
 | S16 | Bifrost PoC и первый утверждённый provider profile | BLOCKED | BLOCKED | — |
 | S17 | Tool Registry и Tool Gateway | NOT_STARTED | PENDING_DEPS | — |
 | S18 | Rules Registry и Rules Engine | NOT_STARTED | PENDING_DEPS | — |
@@ -58,7 +58,7 @@
 | Outbox / Inbox | VERIFIED (dispatcher/consumer — библиотека + CLI; в стеке не запущен, G-98) | S10 |
 | Temporal, Manager Runtime, Worker Runtime | VERIFIED (skeleton: старт, ack, fail-closed; WorkerRun — S23) | S11, S20, S23 |
 | LangGraph | NOT_STARTED | S23 |
-| LLM Gateway (port / Bifrost) | NOT_STARTED / BLOCKED | S15 / S16 |
+| LLM Gateway (port / Bifrost) | TESTED (port, реестр, test double; провайдера нет) / BLOCKED (Bifrost: OD-01) | S15 / S16 |
 | Readiness Gate | NOT_STARTED | S22 |
 | MinIO / ingestion / retrieval | NOT_STARTED | S03, S27, S28 |
 | Observability stack | NOT_STARTED | S13 |
