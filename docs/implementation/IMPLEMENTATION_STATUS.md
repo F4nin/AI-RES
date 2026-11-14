@@ -46,6 +46,11 @@
 | S37 | Contract & security verification, hardening | BLOCKED | BLOCKED (транзитивно: S16) | — |
 | S38 | Performance, capacity и resilience drills | BLOCKED | BLOCKED | — |
 | S39 | UI/UX acceptance, runbooks и productization | BLOCKED | BLOCKED (транзитивно: S16) | — |
+| CI-01 | Ускорение CI и локального прогона тестов (мини-этап вне нумерации S, ADR-112) | IN_PROGRESS (шаг 0 выполнен и перепроверен 2026-11-14) | READY (не блокирует S16); [промпт](increments/prompts/CI-01_faster_ci_pipeline.md) | — |
+| DEP-01 | Renovate: настройка конфига и автоматические PR обновлений (мини-этап вне нумерации S, ADR-113) | NOT_STARTED | PENDING_DEPS (после CI-01); приложение устанавливает владелец после VERIFIED | — |
+| ARCH-01 | Контракты import-linter между доменными модулями (мини-этап вне нумерации S, ADR-114) | NOT_STARTED | PENDING_DEPS (после CI-01, до S17) | — |
+| PROF-01 | Профили запуска Compose: dev-минимум и полный, метрики/дашборды в обоих (мини-этап вне нумерации S, ADR-116) | NOT_STARTED | PENDING_DEPS (после CI-01) | — |
+| SLICE-01 | Тонкий экспериментальный прогон Requirements Worker с реальной моделью (мини-этап между S16 и S17, ADR-115) | NOT_STARTED | BLOCKED (транзитивно: S16, OD-01 — бюджет и идентификатор модели) | — |
 
 ## Компоненты runtime
 
