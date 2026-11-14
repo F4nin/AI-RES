@@ -33,8 +33,9 @@ for img in "${IMAGES[@]}"; do
     echo "== OWN   $img (blocking)"
     trivy "$name" --exit-code 1 || status=1
   else
-    n="$(trivy "$name" --format json | python3 -c 'import json,sys; d=json.load(sys.stdin); print(sum(len(r.get("Vulnerabilities") or []) for r in d.get("Results", [])))')"
+    # One scan per image (CI-01): the count is read back from the very report that is written, so an empty/invalid report still fails (set -e).
     trivy "$name" --format json > "$REPORTS/$name.json"
+    n="$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(sum(len(r.get("Vulnerabilities") or []) for r in d.get("Results", [])))' "$REPORTS/$name.json")"
     echo "== THIRD $img: $n HIGH/CRITICAL fixable finding(s) (report-only, $REPORTS/$name.json)"
   fi
 done

@@ -8,6 +8,7 @@ import io
 import re
 import secrets
 import tarfile
+import time
 from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
@@ -22,6 +23,7 @@ from testcontainers.community.postgres import PostgresContainer
 BACKEND = Path(__file__).resolve().parents[3]
 REPO = BACKEND.parent
 DB = "ai_res_db"
+TEMPLATE_DB = "ai_res_db_template"  # CI-01: ai_res_db migrated once per session, cloned for every `migrated` test (ADR-118)
 LOGIN_ROLES = {
     "ai_res_migrator": "migrator_pw", "ai_res_api": "api_pw", "ai_res_outbox_dispatcher": "outbox_pw",
     "ai_res_event_consumer": "consumer_pw", "ai_res_auditor": "auditor_pw", "ai_res_backup": "backup_pw",
@@ -71,6 +73,35 @@ class Pg:
             c.execute(f"DROP DATABASE IF EXISTS {DB} WITH (FORCE)")
         self.provision()  # creates ai_res_db owned by ai_res_owner, re-applies attributes and grants (also proves idempotency)
 
+    def park_as_template(self) -> None:
+        """Renames the freshly migrated ai_res_db to the template database; nobody may connect to it afterwards."""
+        with self.connect(dbname="postgres") as c:
+            for _ in range(10):  # pg_terminate_backend is asynchronous and a pooled client may reconnect between the kill and the rename
+                c.execute("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = %s AND pid <> pg_backend_pid()", [DB])
+                try:
+                    c.execute(f"ALTER DATABASE {DB} RENAME TO {TEMPLATE_DB}")
+                    break
+                except psycopg.errors.ObjectInUse:
+                    time.sleep(0.2)
+            else:
+                raise AssertionError(f"{DB} still has sessions after 10 attempts: cannot park it as a template")
+            c.execute(f"ALTER DATABASE {TEMPLATE_DB} WITH IS_TEMPLATE true ALLOW_CONNECTIONS false")
+
+    def clone_template(self) -> None:
+        """Replaces ai_res_db with a copy of the migrated template. CREATE DATABASE copies objects and data but NOT the database ACL or role
+        settings, so the idempotent provisioning script is re-applied exactly as after `reset_database` (the parity test proves the result is identical)."""
+        with self.connect(dbname="postgres") as c:
+            c.execute(f"DROP DATABASE IF EXISTS {DB} WITH (FORCE)")
+            for _ in range(10):  # the template refuses to be copied while any session (e.g. an autovacuum worker) is attached to it
+                try:
+                    c.execute(f"CREATE DATABASE {DB} OWNER ai_res_owner TEMPLATE {TEMPLATE_DB}")
+                    break
+                except psycopg.errors.ObjectInUse:
+                    time.sleep(0.2)
+            else:
+                raise AssertionError(f"{TEMPLATE_DB} stayed in use: cannot clone it")
+        self.provision()
+
 
 @pytest.fixture(scope="session")
 def pg() -> Iterator[Pg]:
@@ -86,16 +117,20 @@ def empty_db(pg: Pg) -> Pg:
     return pg
 
 
+def _migrator_env(pg: Pg, pw_file: Path) -> dict[str, str]:
+    return {
+        "AI_RES_ENVIRONMENT": "test", "AI_RES_DB_HOST": pg.host, "AI_RES_DB_PORT": str(pg.port), "AI_RES_DB_USER": "ai_res_migrator",
+        "AI_RES_DB_PASSWORD_FILE": str(pw_file), "AI_RES_DB_SSLMODE": "disable", "AI_RES_DB_APPLICATION_NAME": "ai-res-migrate-test",
+        "AI_RES_DB_STATEMENT_TIMEOUT_MS": "60000", "AI_RES_DB_LOCK_TIMEOUT_MS": "3000",
+    }
+
+
 @pytest.fixture
 def migrate_env(pg: Pg, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Callable[..., None]:
     """Points env.py at the container as ai_res_migrator (password via file, like production)."""
     pw = tmp_path / "migrator_pw"
     pw.write_text(pg.passwords["ai_res_migrator"])
-    for k, v in {
-        "AI_RES_ENVIRONMENT": "test", "AI_RES_DB_HOST": pg.host, "AI_RES_DB_PORT": str(pg.port), "AI_RES_DB_USER": "ai_res_migrator",
-        "AI_RES_DB_PASSWORD_FILE": str(pw), "AI_RES_DB_SSLMODE": "disable", "AI_RES_DB_APPLICATION_NAME": "ai-res-migrate-test",
-        "AI_RES_DB_STATEMENT_TIMEOUT_MS": "60000", "AI_RES_DB_LOCK_TIMEOUT_MS": "3000",
-    }.items():
+    for k, v in _migrator_env(pg, pw).items():
         monkeypatch.setenv(k, v)
     return lambda **extra: [monkeypatch.setenv(k, v) for k, v in extra.items()] and None
 
@@ -112,10 +147,34 @@ def upgrade(empty_db: Pg, migrate_env: Callable[..., None]) -> Callable[..., Non
     return lambda target="head", cfg=None: command.upgrade(cfg or alembic_config(), target)
 
 
+@pytest.fixture(scope="session")
+def migrated_template(pg: Pg, tmp_path_factory: pytest.TempPathFactory) -> None:
+    """Runs the real `alembic upgrade head` from an EMPTY database once per session (as ai_res_migrator, like production) and parks the result as a
+    template. Tests that verify the migrations themselves keep using `empty_db` / `upgrade` and are unaffected."""
+    with pg.connect(dbname="postgres") as c:  # the template must be the first thing that touches the cluster, or its content would depend on test order
+        assert c.execute("SELECT 1 FROM pg_roles WHERE rolname = 'ai_res_owner'").fetchone() is None, (
+            "the template must be built on a pristine cluster: migrated_template has to be the first migration of the session")
+    pg.reset_database()
+    pw = tmp_path_factory.mktemp("template_migrator") / "migrator_pw"
+    pw.write_text(pg.passwords["ai_res_migrator"])
+    with pytest.MonkeyPatch.context() as mp:
+        for k, v in _migrator_env(pg, pw).items():
+            mp.setenv(k, v)
+        command.upgrade(alembic_config(), "head")
+    pg.park_as_template()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _template_built_first(migrated_template: None) -> None:
+    """Builds the template before any test touches the cluster: migrations create cluster-level objects (e.g. ai_res_checkpointer), so building it
+    lazily on the first `migrated` request would make its content depend on which tests ran before."""
+
+
 @pytest.fixture
-def migrated(empty_db: Pg, upgrade: Callable[..., None]) -> Pg:
-    upgrade()
-    return empty_db
+def migrated(pg: Pg, migrate_env: Callable[..., None], migrated_template: None) -> Pg:
+    """A fresh, fully migrated ai_res_db for this test: a clone of the template (CI-01), not a per-test Alembic run."""
+    pg.clone_template()
+    return pg
 
 
 def run_audit(conn: psycopg.Connection[Any], name: str) -> list[tuple[str, str]]:

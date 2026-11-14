@@ -100,7 +100,11 @@ infra-test-runtime:
 
 # Everything CI runs, in one command, before opening or updating a PR. A change to migrations/schema/contracts affects checks outside backend/ too
 # (S05: a runtime test pinned the S04 migration head and failed in CI only). Starts the local stack (`make up` applies migrations to the LOCAL dev DB).
-.PHONY: pre-pr
+.PHONY: pre-pr pre-push-fast
+# CI-01 step 6: the quick local layer before every push (no Docker needed). The full `make pre-pr` stays mandatory before a stage is called VERIFIED.
+pre-push-fast: backend-check backend-test-unit
+	@echo "pre-push-fast: lint, mypy --strict, import-linter and the Docker-free tests passed. This is NOT the evidence for VERIFIED: run make pre-pr."
+
 infra-scan-secrets:
 	cd infra && uv run --locked python scripts/scan_secrets.py
 

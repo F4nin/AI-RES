@@ -1,5 +1,11 @@
 name: ci
-on: [push, pull_request]
+# A change that touches ONLY docs/implementation (journal, reports, status) skips this workflow (CI-01 step 3). docs/architecture, contracts/,
+# .claude/ and everything else still run it; contracts.yml is unaffected. The repository secret scan then runs on the next push that is not docs-only.
+on:
+  push:
+    paths-ignore: ["docs/implementation/**"]
+  pull_request:
+    paths-ignore: ["docs/implementation/**"]
 permissions:
   contents: read
 concurrency:
@@ -58,7 +64,6 @@ jobs:
   infra-runtime:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
-    needs: [backend, infra-static]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with: { persist-credentials: false }

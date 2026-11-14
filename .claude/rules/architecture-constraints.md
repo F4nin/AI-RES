@@ -37,7 +37,7 @@ Redis             ← опционально; не источник истины
 - Все вызовы LLM — только через `LLMGatewayPort` (AI RES adapter).
 - Прямые вызовы provider API из LangGraph nodes запрещены.
 - **Bifrost (Maxim AI) — кандидат на MVP LLM Gateway, статус: PENDING PoC.** Нельзя считать утверждённой production-зависимостью до прохождения PoC и security review.
-- Один одобренный model profile для первого vertical slice.
+- Один одобренный (APPROVED) model profile для первого vertical slice. Ограничение касается только APPROVED-профилей и включения routing: заведение дополнительных профилей как CANDIDATE разрешено (решение владельца 2026-11-14, ADR-111); они не участвуют в маршрутизации и не обслуживают вызовы. Второй APPROVED-профиль и маршрутизация по типу задачи — только через NCP по решению владельца.
 
 ### Manager/Worker разделение
 - Manager Runtime и Worker Runtime — **отдельные процессы**.
