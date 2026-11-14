@@ -387,9 +387,9 @@ STAGES = [
   deps=["S15", "S13"], gate="BLOCKED", blockers=["OD-01 (провайдер/модель и разрешение на передачу данных проекта внешнему провайдеру)"], reqs=["DOC-076 §7 acceptance"],
   goal="PoC Bifrost за `LLMGatewayPort` по DOC-076 §7, security review, один утверждённый model profile для первого vertical slice.",
   refs=[R(MG, "§2, §5, §6, §7 Bifrost acceptance PoC, §8"), R(INF, "§8 LLM Gateway"), R(SEC, "egress"), R(THR, "§5 (LLM/egress сценарии)")],
-  scope=["Bifrost в Compose (pinned), egress allowlist только к утверждённому провайдеру.", "Adapter; streaming/tool-calling совместимость с LangGraph; failure semantics.", "Security review и отчёт PoC; production-like профиль остаётся заблокирован до acceptance."],
-  out=["Несколько провайдеров/маршрутизация сверх одного профиля."], deliverables=["PoC report в reviews/", "adapter", "S16 report"],
-  tests=["PoC критерии DOC-076 §7.", "Egress к неразрешённому хосту блокируется.", "Admin Bifrost не доступен из ingress."],
+  scope=["Bifrost в Compose (pinned), egress allowlist только к утверждённому провайдеру.", "Adapter; streaming/tool-calling совместимость с LangGraph; failure semantics.", "Security review и отчёт PoC; production-like профиль остаётся заблокирован до acceptance.", "Профили DeepSeek (ADR-111): первый APPROVED — один (flash или pro, выбор владельца; идентификатор — из списка моделей провайдера, не угадывать); второй профиль DeepSeek заводится как CANDIDATE. Утверждение — отдельный человеческий шаг владельца с записью в аудит."],
+  out=["Несколько APPROVED-профилей и маршрутизация по типу задачи сверх одного профиля (переход — отдельный NCP по решению владельца, ADR-111).", "Другие провайдеры (Kimi, OpenAI, Anthropic, Ollama) — в S16 не заводятся.", "Сравнительная оценка flash и pro (владелец отказался от неё, ADR-111)."], deliverables=["PoC report в reviews/", "adapter", "S16 report"],
+  tests=["PoC критерии DOC-076 §7.", "Egress к неразрешённому хосту блокируется.", "Admin Bifrost не доступен из ingress.", "Второй профиль DeepSeek в статусе CANDIDATE не выбирается routing, вызов на него отклоняется (ADR-111)."],
   ecc=py([E_SEC], [], [C_SR]), adrs=["ADR-031"], decide=["По итогам PoC — ACCEPT/REJECT Bifrost (решение владельца/security owner)."], docs=["DECISIONS_PENDING.md (OD-01)"], dod=["PoC критерии подтверждены; security review без открытых HIGH; решение владельца зафиксировано."]),
 
  dict(id="S17", slug="tool_registry_tool_gateway", title="Tool Registry и Tool Gateway", spec="Spec Add. v1.20 Inc. 23", phase="D. Agent execution",

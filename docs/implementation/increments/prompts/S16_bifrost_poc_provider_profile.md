@@ -46,13 +46,17 @@ PoC Bifrost за `LLMGatewayPort` по DOC-076 §7, security review, один у
 - Bifrost в Compose (pinned), egress allowlist только к утверждённому провайдеру.
 - Adapter; streaming/tool-calling совместимость с LangGraph; failure semantics.
 - Security review и отчёт PoC; production-like профиль остаётся заблокирован до acceptance.
+- Профили DeepSeek (ADR-111): первый APPROVED — один (flash или pro, выбор владельца; идентификатор — из списка моделей провайдера, не угадывать); второй профиль DeepSeek заводится как CANDIDATE. Утверждение — отдельный человеческий шаг владельца с записью в аудит.
 
 **Не входит:**
-- Несколько провайдеров/маршрутизация сверх одного профиля.
+- Несколько APPROVED-профилей и маршрутизация по типу задачи сверх одного профиля (переход — отдельный NCP по решению владельца, ADR-111).
+- Другие провайдеры (Kimi, OpenAI, Anthropic, Ollama) — в S16 не заводятся.
+- Сравнительная оценка flash и pro (владелец отказался от неё, ADR-111).
 
 ## 6. Обязательные решения (ACCEPTED) для этого этапа
 
 - ADR-031 — Провайдер-нейтральный LLMGatewayPort до решения по провайдеру
+- ADR-111 — Профили DeepSeek первого среза: один APPROVED + второй как CANDIDATE; переход к двум APPROVED — позже, через NCP
 
 **Решения, которые нужно принять и зарегистрировать на этапе:**
 - По итогам PoC — ACCEPT/REJECT Bifrost (решение владельца/security owner).
@@ -97,6 +101,7 @@ PoC Bifrost за `LLMGatewayPort` по DOC-076 §7, security review, один у
 - Provider key только у host-side адаптера (THR-018).
 - Bifrost не логирует prompts/payload (THR-019).
 - Бюджет и таймауты (THR-016); egress deny-by-default для всех, не только «неразрешённый хост» (THR-004).
+- Второй профиль DeepSeek в статусе CANDIDATE не выбирается routing, и вызов на него отклоняется; утверждение возможно только человеком (ADR-111).
 
 Типы тестов и инструменты — `docs/implementation/TEST_STRATEGY.md`.
 
