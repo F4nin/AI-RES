@@ -14,9 +14,10 @@ from .conftest import BACKEND, Pg, alembic_config, run_audit
 pytestmark = pytest.mark.postgres
 
 
-def test_persist_001_upgrade_from_empty_reaches_head(migrated: Pg):
+def test_persist_001_upgrade_from_empty_reaches_head(empty_db: Pg, upgrade):
+    upgrade()  # a REAL `alembic upgrade head` from an empty database: the audits below must not run on a template clone (CI-01, ADR-118)
     head = ScriptDirectory.from_config(alembic_config()).get_current_head()
-    with migrated.connect() as c:
+    with empty_db.connect() as c:
         assert c.execute("SELECT version_num FROM platform.alembic_version").fetchall() == [(head,)]
         schemas = {r[0] for r in c.execute("SELECT nspname FROM pg_namespace WHERE nspname NOT LIKE 'pg\\_%' AND nspname <> 'information_schema'")}
         assert set(DOMAIN_SCHEMAS) <= schemas

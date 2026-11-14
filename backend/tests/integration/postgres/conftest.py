@@ -8,6 +8,7 @@ import io
 import re
 import secrets
 import tarfile
+import time
 from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
@@ -75,11 +76,15 @@ class Pg:
     def park_as_template(self) -> None:
         """Renames the freshly migrated ai_res_db to the template database; nobody may connect to it afterwards."""
         with self.connect(dbname="postgres") as c:
-            if c.execute("SELECT 1 FROM pg_database WHERE datname = %s", [TEMPLATE_DB]).fetchone():
-                c.execute(f"ALTER DATABASE {TEMPLATE_DB} WITH IS_TEMPLATE false")  # a template database cannot be dropped
-                c.execute(f"DROP DATABASE {TEMPLATE_DB} WITH (FORCE)")
-            c.execute("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = %s AND pid <> pg_backend_pid()", [DB])
-            c.execute(f"ALTER DATABASE {DB} RENAME TO {TEMPLATE_DB}")
+            for _ in range(10):  # pg_terminate_backend is asynchronous and a pooled client may reconnect between the kill and the rename
+                c.execute("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = %s AND pid <> pg_backend_pid()", [DB])
+                try:
+                    c.execute(f"ALTER DATABASE {DB} RENAME TO {TEMPLATE_DB}")
+                    break
+                except psycopg.errors.ObjectInUse:
+                    time.sleep(0.2)
+            else:
+                raise AssertionError(f"{DB} still has sessions after 10 attempts: cannot park it as a template")
             c.execute(f"ALTER DATABASE {TEMPLATE_DB} WITH IS_TEMPLATE true ALLOW_CONNECTIONS false")
 
     def clone_template(self) -> None:
@@ -87,7 +92,14 @@ class Pg:
         settings, so the idempotent provisioning script is re-applied exactly as after `reset_database` (the parity test proves the result is identical)."""
         with self.connect(dbname="postgres") as c:
             c.execute(f"DROP DATABASE IF EXISTS {DB} WITH (FORCE)")
-            c.execute(f"CREATE DATABASE {DB} OWNER ai_res_owner TEMPLATE {TEMPLATE_DB}")
+            for _ in range(10):  # the template refuses to be copied while any session (e.g. an autovacuum worker) is attached to it
+                try:
+                    c.execute(f"CREATE DATABASE {DB} OWNER ai_res_owner TEMPLATE {TEMPLATE_DB}")
+                    break
+                except psycopg.errors.ObjectInUse:
+                    time.sleep(0.2)
+            else:
+                raise AssertionError(f"{TEMPLATE_DB} stayed in use: cannot clone it")
         self.provision()
 
 
@@ -139,6 +151,9 @@ def upgrade(empty_db: Pg, migrate_env: Callable[..., None]) -> Callable[..., Non
 def migrated_template(pg: Pg, tmp_path_factory: pytest.TempPathFactory) -> None:
     """Runs the real `alembic upgrade head` from an EMPTY database once per session (as ai_res_migrator, like production) and parks the result as a
     template. Tests that verify the migrations themselves keep using `empty_db` / `upgrade` and are unaffected."""
+    with pg.connect(dbname="postgres") as c:  # the template must be the first thing that touches the cluster, or its content would depend on test order
+        assert c.execute("SELECT 1 FROM pg_roles WHERE rolname = 'ai_res_owner'").fetchone() is None, (
+            "the template must be built on a pristine cluster: migrated_template has to be the first migration of the session")
     pg.reset_database()
     pw = tmp_path_factory.mktemp("template_migrator") / "migrator_pw"
     pw.write_text(pg.passwords["ai_res_migrator"])
@@ -147,6 +162,12 @@ def migrated_template(pg: Pg, tmp_path_factory: pytest.TempPathFactory) -> None:
             mp.setenv(k, v)
         command.upgrade(alembic_config(), "head")
     pg.park_as_template()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _template_built_first(migrated_template: None) -> None:
+    """Builds the template before any test touches the cluster: migrations create cluster-level objects (e.g. ai_res_checkpointer), so building it
+    lazily on the first `migrated` request would make its content depend on which tests ran before."""
 
 
 @pytest.fixture
