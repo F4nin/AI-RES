@@ -1,6 +1,6 @@
-# CI-01 — отчёт (ЧЕРНОВИК, этап IN_PROGRESS)
+# CI-01 — отчёт
 
-**Статус:** TESTED (Linux CI зелёный; не VERIFIED — см. «Что осталось») · **Ветка:** `ci/ci-01-faster-pipeline` · **Промпт:** `increments/prompts/CI-01_faster_ci_pipeline.md` · **ADR:** ADR-112
+**Статус:** VERIFIED (2026-11-14) · **Ветка:** `ci/ci-01-faster-pipeline` · **Промпт:** `increments/prompts/CI-01_faster_ci_pipeline.md` · **ADR:** ADR-112
 
 ## Шаг 0 — профиль (выполнен 2026-11-14)
 Метод: временный плагин pytest (вне репозитория) с прямыми таймерами фаз и фикстур (hookwrapper `runtest_setup/call/teardown`, `fixture_setup`, промежутки между тестами). Выборка: `test_read_api.py`, `test_policy_engine.py`, `test_iam_login.py` — 331 DB-тест, локально (8 ядер, Docker Desktop), 418,2 с.
@@ -126,4 +126,26 @@ Run `ci` **43587914784** — success; `contracts` **43587914832** — success. �
 
 ## Решение владельца 2026-11-14
 Остановиться на достигнутом (25 → 9,4 мин). Дальнейшее ускорение `infra-runtime` зафиксировано как G-155 (отложено); xdist — после G-153 и G-154. Пушить ветку и проверить фильтр путей docs-only коммитами.
+
+## Закрытие: доказательства VERIFIED (2026-11-14)
+| Условие | Результат |
+|---|---|
+| `make pre-pr` целиком локально | **exit 0**, 592 с: contracts 22 passed; backend 1291 passed (287 с); infra static 307 passed; runtime 148 passed; ruff/mypy/lint-imports/actionlint/скан секретов — без замечаний |
+| Linux CI на PR #20 (head `0dad11e`) | `ci` backend 5,7 мин, infra-static 0,5, infra-runtime 9,7 мин; `contracts` — все pass |
+| Linux CI на ветке (`e9a2885`) | `ci` 43587914784: 25 → 9,4 мин; `contracts` 43587914832 — success |
+| Фильтр путей | docs-only пуш `12e869e`: `ci` не запускался, `contracts` success |
+| Независимое review шага 4 | 2 слепых агента, CRITICAL/HIGH 0, MEDIUM исправлены (`reviews/CI-01_step4_REVIEWS.md`) |
+| Число тестов не уменьшилось | backend 1286 → 1291, runtime 148, infra static 159 + contracts без изменений |
+
+### Поверхность по Implementation Spec §10
+1. Файлы: `.github/workflows/ci.yml`, `Makefile`, `infra/scripts/supply_chain.sh`, `backend/tests/integration/postgres/{conftest,test_migrated_template,test_migrations}.py`, документы `docs/implementation/**`.
+2. API/контракты/события: не менялись.
+3. Миграции: не менялись; изменён только способ получения тестовой БД (клон шаблона), эквивалентность доказана тестом.
+4. Тесты: см. таблицу выше.
+5. Security/authz: продуктовых изменений нет; ослабления доказательств нет (скан Trivy — тот же набор, одна проверка на образ; блокирующие собственные образы сохранены).
+6. Открытое: G-153, G-154, G-155 (отложено владельцем); скан секретов по `docs/implementation/**` откладывается до пуша с другими файлами (ADR-119).
+7. Docs: ADR-112, 118, 119, KNOWN_GAPS, `tooling/README.md`, STATUS, HANDOFF обновлены; нормативные документы и Registry не менялись.
+8. Следующий безопасный шаг: слияние PR #20 владельцем → ARCH-01.
+
+Ограничение: время CI зависит от раннера (инфра-runtime 9,4–9,7 мин на двух прогонах); кеши пока не использовались.
 
