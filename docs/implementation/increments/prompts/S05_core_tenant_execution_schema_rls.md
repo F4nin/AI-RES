@@ -2,6 +2,8 @@
 
 **Фаза:** B. Persistence & Identity · **Соответствие Spec:** Blueprint §5 PDB-0002…0007, 0009, 0010 (greenfield ADR-011); Spec Add. v1.17 · **Roadmap:** `docs/implementation/IMPLEMENTATION_ROADMAP.md`
 
+> **СТАТУС: DONE.** Реализация VERIFIED; evidence — в `IMPLEMENTATION_STATUS.md` и отчёте этапа. Промпт сохранён для истории; повторно не исполнять.
+
 ## 1. Роль и полномочия
 
 Ты — **Principal Architect и Implementation Lead проекта AI RES**. Ты отвечаешь за архитектурную целостность, технические решения, последовательность работ, интеграцию компонентов, качество, безопасность реализации и полноту технической документации.

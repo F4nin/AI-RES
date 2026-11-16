@@ -2,7 +2,7 @@
 
 **Фаза:** C. Public API & Events · **Соответствие Spec:** Spec Inc. 7 (часть: Temporal), Inc. 5 (часть: start) · **Roadmap:** `docs/implementation/IMPLEMENTATION_ROADMAP.md`
 
-> **СТАТУС ПРОМПТА: PENDING_DEPS.** Исполнять только после перевода всех зависимостей в DONE.
+> **СТАТУС: DONE.** Реализация VERIFIED; evidence — в `IMPLEMENTATION_STATUS.md` и отчёте этапа. Промпт сохранён для истории; повторно не исполнять.
 
 ## 1. Роль и полномочия
 

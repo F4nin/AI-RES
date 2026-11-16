@@ -220,7 +220,7 @@ STAGES = [
   dod=["PERSIST-тесты этапа проходят на PostgreSQL 16 (Testcontainers).", "Grants audit автоматизирован в CI.", "`.claude/rules/database-and-migrations.md` согласован с ADR-015."]),
 
  dict(id="S05", slug="core_tenant_execution_schema_rls", title="Core tenant и execution schema + RLS", spec="Blueprint §5 PDB-0002…0007, 0009, 0010 (greenfield ADR-011); Spec Add. v1.17", phase="B. Persistence & Identity",
-  deps=["S04"], gate="READY", blockers=[], reqs=["DATA-MVP", "PERSIST-001..024", "TX-01..TX-09 (persistence части)"],
+  deps=["S04"], gate="DONE", blockers=[], reqs=["DATA-MVP", "PERSIST-001..024", "TX-01..TX-09 (persistence части)"],
   goal="Таблицы iam/organization/project/work/operations/agents/execution/audit/platform с ограничениями целостности, sequences, outbox/inbox/idempotency, RLS ENABLE+FORCE и полным PERSIST acceptance suite.",
   refs=[R(DM, "§5, §11, §13, §14, §15, §16, §17; Дополнения v1.3–v1.9"), R(PM, "§3–§9, §11, §12"), R(DDL, "весь файл (design snapshot, WORKING)"), R(BP, "§5, §7, §9, §12, §14"), R(ORG, "§2, §3, §5; Дополнения v1.2–v1.6"), R(EM, "§8, §9, §10"), R(RLS, "весь файл"), R(SM, "статусы Operation/WorkerRun/Gate")],
   scope=["iam: users, credentials (Argon2id hash поля), sessions, mfa, service_identities; organization: organizations, memberships; project: projects, project_memberships.",
@@ -245,7 +245,7 @@ STAGES = [
   dod=["PERSIST-001..024 зелёные.", "RLS coverage = 100% tenant tables.", "Schema drift = 0 относительно snapshot."]),
 
  dict(id="S06", slug="domain_content_schema", title="Domain content schema: requirements, sources, artifacts, context, decisions, traceability, rules", spec="— (DOC-005; ADR-016)", phase="B. Persistence & Identity",
-  deps=["S05"], gate="PENDING_DEPS", blockers=[], reqs=["DATA-MVP", "UX-REQ/UX-SRC/UX-ART (данные)", "RULE-MVP-02"],
+  deps=["S05"], gate="DONE", blockers=[], reqs=["DATA-MVP", "UX-REQ/UX-SRC/UX-ART (данные)", "RULE-MVP-02"],
   goal="Физическая модель контентных bounded contexts с immutable versions, provenance и RLS.",
   refs=[R(DM, "§6 Требования, §7 Источники и знания, §8 Решения и неопределённость, §9 Артефакты и governance, §10 Трассируемость, §11 Агентное исполнение и контекст, §12, §15–§19"), R(RL, "§13–§16"), R(SC, "§3, §6"), R(DAL, "§3, §6, §10"), R(TDI, "§3–§5"), R(DAR, "типизированные объекты"), R(AC, "§15 (Rules Registry)"), R(MVP, "Дополнение v0.8 (RULE-MVP)")],
   scope=["requirements: requirements, requirement_versions (immutable, статусы DOC-003, type registry + UNKNOWN).",
@@ -267,7 +267,7 @@ STAGES = [
   dod=["Все тесты зелёные; RLS coverage 100%; drift = 0."]),
 
  dict(id="S07", slug="identity_auth_policy_audit_idempotency", title="Identity, Local Auth, Policy Engine, Audit, Idempotency", spec="Spec Inc. 2 п.6–9 (реализация); Add. v1.3 §3.1", phase="B. Persistence & Identity",
-  deps=["S05"], gate="PENDING_DEPS", blockers=[], reqs=["AUTH-001..013", "AUTH-MVP-*", "SEC-001..035 (P0 части)", "SEC-MVP-*"],
+  deps=["S05"], gate="DONE", blockers=[], reqs=["AUTH-001..013", "AUTH-MVP-*", "SEC-001..035 (P0 части)", "SEC-MVP-*"],
   goal="Local authentication MVP, opaque server-side sessions, CSRF, privileged TOTP MFA, bootstrap admin, Policy & Permission Engine (deny-by-default), fail-closed audit writer, idempotency service.",
   refs=[R(AUTH, "§1–§6, §8, §9, §10, §11, §12"), R(IAM, "§2–§8, §10"), R(SECR, "§2, §3, Дополнение v1.1 (AUTH-001…013)"), R(SEC, "§2"), R(SK, "§3, §4, §7"), R(THR, "§5 (сценарии для auth/ACL)"), R(API, "§6; Дополнение v1.7"), R(EM, "§10")],
   scope=["Argon2id (параметры конфигурируемы), минимальная длина 15, local denylist; login rate limiting/lockout по DOC-023 §4.",
@@ -292,7 +292,7 @@ STAGES = [
   dod=["Все SEC P0 тесты этапа зелёные.", "security-reviewer review без открытых HIGH.", "Policy matrix покрывает все действия, введённые к этому этапу."]),
 
  dict(id="S08", slug="read_only_api_slices", title="Read-only API vertical slices", spec="Spec Inc. 3", phase="C. Public API & Events",
-  deps=["S06", "S07"], gate="PENDING_DEPS", blockers=[], reqs=["API-MVP-0xx (read)", "SEC-001/002", "WS-MVP (данные)"],
+  deps=["S06", "S07"], gate="DONE", blockers=[], reqs=["API-MVP-0xx (read)", "SEC-001/002", "WS-MVP (данные)"],
   goal="GET-операции Public API v1.3 для Project, Epic, Task, Requirement(+versions), Source, Artifact(+versions), WorkerRun с ACL, cursor pagination, ETag и DTO mapping.",
   refs=[R(SPEC, "§4 Increment 3; §5"), R(OAS, "GET operations: listProjects, getProject, listEpics, getEpic, listTasks, getTask, listRequirements, listRequirementVersions, listSources, listArtifacts, listArtifactVersions, getWorkerRun"), R(API, "§3, §5, §6"), R(IAM, "§7, §10"), R(SECR, "SEC-001, SEC-002")],
   scope=["Handlers + application query services + explicit DTO mappers; ORM-сущности не возвращаются.", "ACL server-side на каждый запрос; cross-project → controlled 404.", "Cursor pagination со stable ordering, без counts недоступных объектов.", "ETag там, где объявлен в OAS.", "Contract tests (schemathesis) против `contracts/openapi`."],
@@ -305,7 +305,7 @@ STAGES = [
   dod=["Все GET из scope соответствуют OAS и проходят ACL-тесты.", "Ни один endpoint вне контракта не создан."]),
 
  dict(id="S09", slug="controlled_write_commands", title="Controlled write commands", spec="Spec Inc. 4", phase="C. Public API & Events",
-  deps=["S08"], gate="PENDING_DEPS", blockers=[], reqs=["API-MVP (writes)", "PROC-MVP (intake/regist.)", "UX-SRC (upload)"],
+  deps=["S08"], gate="DONE", blockers=[], reqs=["API-MVP (writes)", "PROC-MVP (intake/regist.)", "UX-SRC (upload)"],
   goal="createProject, updateProjectMetadata, createEpic, createTask (ADR-012), registerRequirementCandidate, proposeRequirementVersion, createUploadIntent с доменными сервисами, транзакциями, If-Match, idempotency, audit и outbox records.",
   refs=[R(SPEC, "§4 Increment 4"), R(OAS, "POST/PATCH операции кроме 202-операций"), R(API, "§3, §5; Дополнение v1.7"), R(PM, "§8 Транзакционные алгоритмы (TX-01, TX-02)"), R(EM, "§8"), R(RL, "§13, §14, §16"), R(SC, "§5, §13 (upload безопасность)"), R(ORG, "Дополнение v1.2")],
   scope=["Domain/application services; транзакция: projection + aggregate event + outbox.", "createTask → Task + root Operation `TASK_EXECUTION` (ACCEPTED) + outbox command (ADR-012); proposal-режим по полномочиям.",
@@ -320,7 +320,7 @@ STAGES = [
   dod=["Все write операции scope соответствуют OAS и проходят negative suite.", "Outbox записи создаются атомарно (доставка — S10)."]),
 
  dict(id="S10", slug="outbox_dispatcher_inbox_cloudevents", title="Outbox dispatcher, Inbox и CloudEvents", spec="Spec Inc. 8 (часть: Outbox/CloudEvents/Inbox/DLQ)", phase="C. Public API & Events",
-  deps=["S09"], gate="PENDING_DEPS", blockers=[], reqs=["API-MVP (events)", "REL-* (delivery)", "TX-* (outbox)"],
+  deps=["S09"], gate="DONE", blockers=[], reqs=["API-MVP (events)", "REL-* (delivery)", "TX-* (outbox)"],
   goal="Надёжная at-least-once доставка доменных событий с lease, per-aggregate ordering, bounded retry, quarantine и идемпотентными consumers.",
   refs=[R(EM, "§4, §8, §9 Outbox, Inbox, доставка и порядок, §10, §12, §13, §15, §17"), R(ASY, "envelope, сообщения"), R(PM, "§8, §9"), R(API, "§13 Domain event contract"), R(RR, "§1")],
   scope=["Dispatcher process (identity `ai_res_outbox_dispatcher`): lease без удержания DB lock во время network call, backoff+jitter, quarantine, controlled replay.", "CloudEvents 1.0 envelope; тот же event_id при retry.",
@@ -333,7 +333,7 @@ STAGES = [
   docs=["`docs/runbooks/outbox.md`"], dod=["Все тесты доставки зелёные на PostgreSQL.", "Exactly-once нигде не заявлен."]),
 
  dict(id="S11", slug="temporal_foundation_operation_dispatch", title="Temporal foundation и dispatch Operation", spec="Spec Inc. 7 (часть: Temporal), Inc. 5 (часть: start)", phase="C. Public API & Events",
-  deps=["S10"], gate="PENDING_DEPS", blockers=[], reqs=["INF-MVP-002", "PROC-MVP (durable execution)"],
+  deps=["S10"], gate="DONE", blockers=[], reqs=["INF-MVP-002", "PROC-MVP (durable execution)"],
   goal="Manager и Worker Runtime процессы (task queues `ai-res-manager`, `ai-res-workers`), детерминированный Operation workflow skeleton, идемпотентный старт из Outbox, replay-тесты. WorkerRun не исполняется.",
   refs=[R(INF, "§3, §4"), R(API, "§9 Temporal contracts"), R(ORG, "§2, §4, §5"), R(PD, "§2, §13"), R(SPEC, "§4 Increment 7; Add. v1.13 п.2, 14")],
   scope=["Temporal client adapter в API/dispatcher; stable Workflow ID из Operation ID.", "Manager Runtime процесс (без DB credentials) — Activities вызывают Application Services через internal API/service identity.",
@@ -345,7 +345,7 @@ STAGES = [
   docs=["`docs/runbooks/temporal.md`"], dod=["Replay и идемпотентность доказаны тестами с реальным Temporal (test server или Compose)."]),
 
  dict(id="S12", slug="operation_api_process_primitives_sse", title="Operation API, process primitives, cancellation, SSE", spec="Spec Inc. 5; Add. v1.1 Inc. 10; Add. v1.13, v1.15", phase="C. Public API & Events",
-  deps=["S11"], gate="PENDING_DEPS", blockers=[], reqs=["API-MVP (async ops)", "PROC-MVP", "UX-DUR"],
+  deps=["S11"], gate="DONE", blockers=[], reqs=["API-MVP (async ops)", "PROC-MVP", "UX-DUR"],
   goal="Operation resource (GET, cancel), state machine с валидацией переходов, детерминированный aggregator, 202+Location, completeUpload, SSE из event history с ACL.",
   refs=[R(SM, "Operation states/transitions, aggregation rules"), R(ORG, "§2; Дополнение v1.2"), R(EM, "§5, §11, §12"), R(API, "§4; Дополнения v1.3–v1.5"), R(OAS, "getOperation, requestOperationCancellation, streamProjectEvents, completeUpload"), R(PD, "§3, §13, §14"), R(SPEC, "Add. v1.15")],
   scope=["Typed transitions Operation (terminal не переоткрывается), aggregator по критериям, не по счётчикам.", "Cancellation: request → stop/cleanup → reconciliation → terminal.", "completeUpload: checksum verify → Operation `SOURCE_INGESTION` (202).",
@@ -356,7 +356,7 @@ STAGES = [
   docs=["CONTRACT_TRACEABILITY_MAP.md"], dod=["State machine покрыта полностью; SSE ACL доказан."]),
 
  dict(id="S13", slug="observability_stack", title="Observability stack и мониторинг", spec="— (DOC-024/025/026; ADR-025)", phase="C. Public API & Events",
-  deps=["S03", "S10"], gate="PENDING_DEPS", blockers=[], reqs=["OBS-MON-*", "OBS-SEC-*", "OBS-ALR-*"],
+  deps=["S03", "S10"], gate="DONE", blockers=[], reqs=["OBS-MON-*", "OBS-SEC-*", "OBS-ALR-*"],
   goal="OTel Collector → Prometheus, Loki, Tempo, Grafana; redaction до экспорта; dashboards и alert rules без изобретённых порогов.",
   refs=[R(OBS, "§3–§9, §12"), R(MON, "OBS-MON, OBS-SEC, OBS-ALR"), R(AOE, "§2–§4"), R(INF, "§10")],
   scope=["Compose services (pinned digests), admin-сеть.", "Collector pipelines: redaction/filter до экспорта; high-cardinality IDs не в labels.", "Dashboards: API, outbox, Temporal, PostgreSQL.", "Alert rules как код; числовые пороги — конфигурация с пометкой WORKING (OD-02).", "Потеря telemetry не останавливает домен; audit — отдельный контур."],
@@ -366,7 +366,7 @@ STAGES = [
   dod=["Redaction и degradation доказаны тестами."]),
 
  dict(id="S14", slug="worker_contracts_runtime_validation", title="Worker contracts: Envelope/Result/Notice", spec="Spec Inc. 6", phase="D. Agent execution",
-  deps=["S12"], gate="PENDING_DEPS", blockers=[], reqs=["API-MVP (internal contracts)", "PROC-MVP"],
+  deps=["S12"], gate="DONE", blockers=[], reqs=["API-MVP (internal contracts)", "PROC-MVP"],
   goal="Typed WorkerRunEnvelope/WorkerResult/WorkerNotice с валидацией в 4 точках и fail-closed для unknown major.",
   refs=[R(WC, "весь файл (WORKING)"), R(API, "§7, §8 Manager–Worker contract, §15"), R(SPEC, "§4 Increment 6"), "`.claude/rules/api-and-contracts.md` — WorkerRunEnvelope"],
   scope=["Pydantic модели из JSON Schema (генерация после валидации S01) + runtime JSON Schema validation.", "Точки: enqueue / перед исполнением / при получении результата / перед downstream consumption.", "Персистенция WorkerResult только через Application Service (immutable).", "Маркировка WORKING (ADR-021)."],
@@ -375,7 +375,7 @@ STAGES = [
   ecc=py([E_TYPE], [S_CF], []), adrs=["ADR-021"], decide=["Изменения полей → NCP-04."], docs=["decisions/NORMATIVE_CHANGE_PROPOSALS.md (NCP-04)"], dod=["4 точки валидации покрыты тестами."]),
 
  dict(id="S15", slug="llm_gateway_port_model_registry", title="LLMGatewayPort и Model Registry (провайдер-нейтрально)", spec="Spec Add. v1.20 Inc. 20 (часть)", phase="D. Agent execution",
-  deps=["S11"], gate="PENDING_DEPS", blockers=[], reqs=["API-MVP (LLM adapter)", "SEC (LLM)"],
+  deps=["S11"], gate="DONE", blockers=[], reqs=["API-MVP (LLM adapter)", "SEC (LLM)"],
   goal="Единственный путь к LLM: port, Model Registry, routing policy, budgets, failure semantics, deterministic test double.",
   refs=[R(MG, "§1–§6, §8"), R(API, "§11 LLM Gateway Adapter contract"), R(ACB, "§3"), "`.claude/rules/architecture-constraints.md` — «LLM доступ»"],
   scope=["`LLMGatewayPort` (chat/structured/embedding), Model Registry (профили, версии, статус approval), budget enforcement вне модели.", "DeterministicLLMGateway только в `test` профиле (ADR-022).", "Redaction промптов из telemetry; секреты не попадают в контекст.", "Architecture test: provider SDK импортируется только в adapter-пакетах."],
@@ -387,11 +387,13 @@ STAGES = [
   deps=["S15", "S13"], gate="BLOCKED", blockers=["OD-01 (провайдер/модель и разрешение на передачу данных проекта внешнему провайдеру)"], reqs=["DOC-076 §7 acceptance"],
   goal="PoC Bifrost за `LLMGatewayPort` по DOC-076 §7, security review, один утверждённый model profile для первого vertical slice.",
   refs=[R(MG, "§2, §5, §6, §7 Bifrost acceptance PoC, §8"), R(INF, "§8 LLM Gateway"), R(SEC, "egress"), R(THR, "§5 (LLM/egress сценарии)")],
-  scope=["Bifrost в Compose (pinned), egress allowlist только к утверждённому провайдеру.", "Adapter; streaming/tool-calling совместимость с LangGraph; failure semantics.", "Security review и отчёт PoC; production-like профиль остаётся заблокирован до acceptance.", "Профили DeepSeek (ADR-111): первый APPROVED — один (flash или pro, выбор владельца; идентификатор — из списка моделей провайдера, не угадывать); второй профиль DeepSeek заводится как CANDIDATE. Утверждение — отдельный человеческий шаг владельца с записью в аудит."],
+  scope=["Bifrost в Compose (pinned), egress allowlist только к утверждённому провайдеру.", "Adapter; streaming/tool-calling совместимость с LangGraph; failure semantics.", "Security review и отчёт PoC; production-like профиль остаётся заблокирован до acceptance.", "Профили DeepSeek (ADR-111; решение владельца 2026-11-16): Flash выбран для PoC и последующего отдельного человеческого approval с записью в аудит; Pro остаётся CANDIDATE без routing/fallback. API IDs по документации на дату решения: deepseek-flash / deepseek-v4-pro; перед тестами сверить актуальность. До approval не считать Flash APPROVED.", "Model pinning (DOC-076 §3/§7) — обязательное условие приёмки, проверяется в PoC. API alias и запись текущей версии не доказывают immutable version; при невозможности — discrepancy report и варианты/NCP владельцу, без самостоятельного ослабления baseline. Выбор Flash не разрешает запуск этапа/платные вызовы; подробности в DECISIONS_PENDING.md."],
   out=["Несколько APPROVED-профилей и маршрутизация по типу задачи сверх одного профиля (переход — отдельный NCP по решению владельца, ADR-111).", "Другие провайдеры (Kimi, OpenAI, Anthropic, Ollama) — в S16 не заводятся.", "Сравнительная оценка flash и pro (владелец отказался от неё, ADR-111)."], deliverables=["PoC report в reviews/", "adapter", "S16 report"],
   tests=["PoC критерии DOC-076 §7.", "Egress к неразрешённому хосту блокируется.", "Admin Bifrost не доступен из ingress.", "Второй профиль DeepSeek в статусе CANDIDATE не выбирается routing, вызов на него отклоняется (ADR-111)."],
-  ecc=py([E_SEC], [], [C_SR]), adrs=["ADR-031"], decide=["По итогам PoC — ACCEPT/REJECT Bifrost (решение владельца/security owner)."], docs=["DECISIONS_PENDING.md (OD-01)"], dod=["PoC критерии подтверждены; security review без открытых HIGH; решение владельца зафиксировано."]),
+  ecc=py([E_SEC], [], [C_SR]), adrs=["ADR-031"], decide=["По итогам PoC — ACCEPT/REJECT Bifrost (решение владельца/security owner)."], docs=["DECISIONS_PENDING.md (OD-01)", "Решение владельца 2026-11-16 «Бюджет и отчётность S16»: до платных проверок — план и смета по актуальным тарифам; потолок 10 USD суммарно с retries и повторными прогонами, не целевой расход; после — план/факт, billing uncertainty и рекомендации. 50 USD/мес — ориентир готового продукта."], dod=["PoC критерии подтверждены; security review без открытых HIGH; решение владельца зафиксировано."]),
 
+ # S07/S12 are DONE; PENDING_DEPS reflects ARCH-01 (ADR-114).
+ # The owner also placed SLICE-01 between S16 and S17 (ADR-115); see the prompt's start conditions.
  dict(id="S17", slug="tool_registry_tool_gateway", title="Tool Registry и Tool Gateway", spec="Spec Add. v1.20 Inc. 23", phase="D. Agent execution",
   deps=["S07", "S12"], gate="PENDING_DEPS", blockers=[], reqs=["TR MVP §9", "SEC (tools)"],
   goal="Typed tool contracts, версии, per-call Policy authorization, side-effect классификация, MCP allowlist adapter (выключен по умолчанию).",
@@ -402,7 +404,7 @@ STAGES = [
   ecc=py([E_SEC], [S_ERR], [C_SR]), adrs=["ADR-017"], decide=["MVP tool catalogue из §10 (какие инструменты реализуются в каком этапе)."], docs=[], dod=["Per-call authorization доказана."]),
 
  dict(id="S18", slug="rules_registry_rules_engine", title="Rules Registry и Rules Engine", spec="— (RULE-MVP; ADR-018)", phase="D. Agent execution",
-  deps=["S07", "S06"], gate="PENDING_DEPS", blockers=[], reqs=["RULE-MVP-01..14"],
+  deps=["S07", "S06"], gate="READY", blockers=[], reqs=["RULE-MVP-01..14"],
   goal="Версионируемые системные/организационные/проектные правила с lifecycle и детерминированным вычислением применимых правил.",
   refs=[R(AC, "§15 Архитектура управления правилами"), R(MVP, "Дополнения v0.7, v0.8 (RULE-MVP-01..14)"), R(IAM, "§2")],
   scope=["Registry: ID, версия, уровень, область, условие, действие, статус, автор, утверждающий, сроки.", "Иерархия: нижние уровни не ослабляют системные.", "Неутверждённые правила не применяются; исключения — human approval, ограничены сроком.", "Engine: детерминированный результат со структурой (DOC-009 v0.8 «Структурированный результат»)."],
@@ -411,7 +413,7 @@ STAGES = [
   ecc=py([E_TYPE], [], []), adrs=["ADR-018"], decide=["Язык условий правил (безопасный, без eval)."], docs=[], dod=["Критерии RULE-MVP покрыты тестами."]),
 
  dict(id="S19", slug="context_package_versioning", title="ContextPackageVersion (минимальный Context Builder)", spec="Spec Add. v1.20 Inc. 22 (часть)", phase="D. Agent execution",
-  deps=["S06", "S07"], gate="PENDING_DEPS", blockers=[], reqs=["PROC-MVP (immutable context)", "Context Builder критерии DOC-009 v0.4"],
+  deps=["S06", "S07"], gate="READY", blockers=[], reqs=["PROC-MVP (immutable context)", "Context Builder критерии DOC-009 v0.4"],
   goal="Immutable ContextPackageVersion из явных versioned refs с ACL-проверкой при сборке; основа для Readiness Gate.",
   refs=[R(KMR, "§5 Context engineering"), R(SC, "§9"), R(DM, "§11"), R(MVP, "Дополнение v0.4 (Context Builder)")],
   scope=["Сборка пакета из explicit refs (Requirement/Source/Artifact versions), хэш, provenance.", "ACL до включения; секреты не включаются.", "Пакет immutable; обновление источника → новый пакет."],
@@ -482,7 +484,7 @@ STAGES = [
   ecc=py([E_SEC, E_FA], [S_CF], [C_FAR, C_SR]), adrs=["ADR-029"], decide=["Endpoints, отсутствующие в OAS v1.3 → контракт до кода (NCP-06)."], docs=["decisions/NORMATIVE_CHANGE_PROPOSALS.md"], dod=["Нет автоматического approval ни одним путём."]),
 
  dict(id="S27", slug="knowledge_ingestion_indexing", title="Knowledge ingestion и indexing", spec="Spec Add. v1.20 Inc. 21", phase="E. Knowledge, Change & Governance",
-  deps=["S12", "S15"], gate="PENDING_DEPS", blockers=[], reqs=["UX-SRC-*", "KMR §3"],
+  deps=["S12", "S15"], gate="READY", blockers=[], reqs=["UX-SRC-*", "KMR §3"],
   goal="Ingestion pipeline для SourceVersion: проверка файла, извлечение, chunking, FTS (tsvector/GIN) + pgvector embeddings, provenance, ACL.",
   refs=[R(KMR, "§2, §3, §6, §7"), R(SC, "§4, §5, §6, §13, §15"), R(ACB, "§4")],
   scope=["Проверка типа/размера/целостности/безопасности до обработки.", "Extraction records с parser version; partial failure не заменяет предыдущую валидную версию.", "Embeddings через LLMGatewayPort.", "Content из источников — недоверенный."],
@@ -553,7 +555,7 @@ STAGES = [
   tests=["Feedback не меняет поведение без approval.", "Cross-tenant изоляция."], ecc=py([E_MLE, E_SEC], [], []), adrs=[], decide=["Сопоставление CI contracts с существующими агрегатами (discrepancy report до таблиц)."], docs=[], dod=["Нет автоматических изменений поведения."]),
 
  dict(id="S35", slug="web_workspace_ui_foundation", title="Web Project Workspace UI: foundation", spec="— (WS-MVP, UX; ADR-010, ADR-019)", phase="G. UI",
-  deps=["S12"], gate="PENDING_DEPS", blockers=[], reqs=["WS-MVP-*", "UX-MVP-*", "UX-START-*"],
+  deps=["S12"], gate="READY", blockers=[], reqs=["WS-MVP-*", "UX-MVP-*", "UX-START-*"],
   goal="SPA: login/MFA, проекты, Epics, Tasks, требования, источники, артефакты (read/write по реализованным API), статусы Operation, SSE.",
   refs=[R(UX, "§3, §4, §6, §7, §10, §12, §13"), R(MVP, "Дополнение v1.0 (WS-MVP)"), R(GL, "термины (UI labels)"), R(AUTH, "§6")],
   scope=["Типы из contracts/openapi; cookie+CSRF; без токенов в storage.", "Состояния loading/error/empty/permission.", "Доступность WCAG 2.2 AA."],

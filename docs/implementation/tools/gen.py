@@ -6,6 +6,16 @@ from adrs import ADRS, D
 ROOT = sys.argv[1]
 IMP = os.path.join(ROOT, "docs/implementation")
 PR = os.path.join(IMP, "increments/prompts")
+# Bootstrap generator only: later stage prompts, roadmap statuses, and ADRs are
+# maintained after review. Re-running this script would overwrite them, including
+# ADRs newer than the entries currently represented in tools/adrs.py.
+existing_outputs = [
+    os.path.join(PR, "README.md"),
+    os.path.join(IMP, "IMPLEMENTATION_ROADMAP.md"),
+    os.path.join(IMP, "ARCHITECTURE_DECISION_LOG.md"),
+]
+if any(os.path.exists(path) for path in existing_outputs):
+    raise SystemExit("refusing to overwrite existing implementation documents; update the reviewed files and stage metadata explicitly")
 os.makedirs(PR, exist_ok=True)
 BY = {s["id"]: s for s in STAGES}
 ADR_T = {a["id"]: a["title"] for a in ADRS}
