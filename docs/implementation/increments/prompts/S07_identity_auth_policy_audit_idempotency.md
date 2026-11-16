@@ -2,7 +2,7 @@
 
 **Фаза:** B. Persistence & Identity · **Соответствие Spec:** Spec Inc. 2 п.6–9 (реализация); Add. v1.3 §3.1 · **Roadmap:** `docs/implementation/IMPLEMENTATION_ROADMAP.md`
 
-> **СТАТУС ПРОМПТА: PENDING_DEPS.** Исполнять только после перевода всех зависимостей в DONE.
+> **СТАТУС: DONE.** Реализация VERIFIED; evidence — в `IMPLEMENTATION_STATUS.md` и отчёте этапа. Промпт сохранён для истории; повторно не исполнять.
 
 ## 1. Роль и полномочия
 

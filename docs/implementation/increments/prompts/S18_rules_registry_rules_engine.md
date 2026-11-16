@@ -2,7 +2,7 @@
 
 **Фаза:** D. Agent execution · **Соответствие Spec:** — (RULE-MVP; ADR-018) · **Roadmap:** `docs/implementation/IMPLEMENTATION_ROADMAP.md`
 
-> **СТАТУС ПРОМПТА: PENDING_DEPS.** Исполнять только после перевода всех зависимостей в DONE.
+> **СТАТУС ПРОМПТА: READY.** Зависимости DONE; реализация начинается только по явному поручению владельца.
 
 ## 1. Роль и полномочия
 

@@ -1,0 +1,28 @@
+# Development MCP only. Enable temporarily after explicit approval; see
+# docs/implementation/tooling/README.md. No credentials belong in this file.
+
+[mcp_servers.context7]
+url = "https://mcp.context7.com/mcp/oauth"
+enabled = false
+
+[mcp_servers.serena]
+command = "uvx"
+args = [
+  "--from", "git+https://github.com/oraios/serena@5e4f5cd173c7ff3eed37ee3f1de6c266b937c5dc",
+  "serena", "start-mcp-server",
+  "--context", "codex",
+  "--project-from-cwd",
+  "--agent-interface", "tools",
+  "--enable-web-dashboard", "false",
+  "--open-web-dashboard", "false",
+  "--enable-gui-log-window", "false",
+  "--trace-lsp-communication", "false",
+]
+enabled = false
+# Client-side allowlist: the Serena 'codex' context alone also exposes edits.
+enabled_tools = [
+  "get_symbols_overview",
+  "find_symbol",
+  "find_referencing_symbols",
+  "search_for_pattern",
+]

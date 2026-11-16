@@ -2,7 +2,7 @@
 
 **Фаза:** D. Agent execution · **Соответствие Spec:** Spec Add. v1.20 Inc. 23 · **Roadmap:** `docs/implementation/IMPLEMENTATION_ROADMAP.md`
 
-> **СТАТУС ПРОМПТА: PENDING_DEPS.** Исполнять только после перевода всех зависимостей в DONE.
+> **СТАТУС ПРОМПТА: PENDING_DEPS.** S07/S12 завершены; перед стартом нужен ARCH-01 (ADR-114). Сохраняется согласованная очередь SLICE-01 между S16 и S17 (ADR-115).
 
 ## 1. Роль и полномочия
 
@@ -28,6 +28,7 @@ Typed tool contracts, версии, per-call Policy authorization, side-effect �
 
 ## 4. Зависимости и условия старта
 
+- **Дополнительные условия:** ARCH-01 должен быть DONE (ADR-114); учитывать порядок SLICE-01 перед S17 (ADR-115). Выполнение S07/S12 само по себе не разрешает старт S17.
 - **Этапы-зависимости (должны быть DONE):** S07 (Identity, Local Auth, Policy Engine, Audit, Idempotency), S12 (Operation API, process primitives, cancellation, SSE)
 - **Решения владельца:**
 - Нет блокирующих решений владельца.

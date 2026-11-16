@@ -131,7 +131,21 @@ flowchart LR
   style S02 fill:#d4edda
   style S03 fill:#d4edda
   style S04 fill:#d4edda
-  style S05 fill:#fff3cd
+  style S05 fill:#d4edda
+  style S06 fill:#d4edda
+  style S07 fill:#d4edda
+  style S08 fill:#d4edda
+  style S09 fill:#d4edda
+  style S10 fill:#d4edda
+  style S11 fill:#d4edda
+  style S12 fill:#d4edda
+  style S13 fill:#d4edda
+  style S14 fill:#d4edda
+  style S15 fill:#d4edda
+  style S18 fill:#fff3cd
+  style S19 fill:#fff3cd
+  style S27 fill:#fff3cd
+  style S35 fill:#fff3cd
   style S16 fill:#f8d7da
   style S33 fill:#f8d7da
   style S38 fill:#f8d7da
@@ -146,21 +160,21 @@ flowchart LR
 | S02 | A. Foundation | Backend skeleton и platform primitives (без БД) | Spec Inc. 2 (п.1–5, 7–9); Process Design §22 п.1 (частично) | S01 | API-MVP (общие HTTP правила); SEC-MVP (error leakage); OBS (correlation) | DONE | [S02_backend_skeleton_platform_primitives.md](increments/prompts/S02_backend_skeleton_platform_primitives.md) |
 | S03 | A. Foundation | Local infrastructure (Docker Compose), secrets и CI baseline | — (DOC-015; добавлено ADR-010) | S02 | INF-MVP-001..041; SEC-MVP (secrets) | DONE | [S03_local_infrastructure_secrets_ci.md](increments/prompts/S03_local_infrastructure_secrets_ci.md) |
 | S04 | B. Persistence & Identity | Persistence foundation: Alembic, schemas, роли | Spec Add. v1.18–v1.19; Blueprint §14 шаги 1–3, 5 (частично) | S03 | PERSIST-001, -002 и ролевые PERSIST-*; DBM-* | DONE | [S04_persistence_foundation.md](increments/prompts/S04_persistence_foundation.md) |
-| S05 | B. Persistence & Identity | Core tenant и execution schema + RLS | Blueprint §5 PDB-0002…0007, 0009, 0010 (greenfield ADR-011); Spec Add. v1.17 | S04 | DATA-MVP; PERSIST-001..024; TX-01..TX-09 (persistence части) | READY | [S05_core_tenant_execution_schema_rls.md](increments/prompts/S05_core_tenant_execution_schema_rls.md) |
-| S06 | B. Persistence & Identity | Domain content schema: requirements, sources, artifacts, context, decisions, traceability, rules | — (DOC-005; ADR-016) | S05 | DATA-MVP; UX-REQ/UX-SRC/UX-ART (данные); RULE-MVP-02 | PENDING_DEPS | [S06_domain_content_schema.md](increments/prompts/S06_domain_content_schema.md) |
-| S07 | B. Persistence & Identity | Identity, Local Auth, Policy Engine, Audit, Idempotency | Spec Inc. 2 п.6–9 (реализация); Add. v1.3 §3.1 | S05 | AUTH-001..013; AUTH-MVP-*; SEC-001..035 (P0 части); SEC-MVP-* | PENDING_DEPS | [S07_identity_auth_policy_audit_idempotency.md](increments/prompts/S07_identity_auth_policy_audit_idempotency.md) |
-| S08 | C. Public API & Events | Read-only API vertical slices | Spec Inc. 3 | S06, S07 | API-MVP-0xx (read); SEC-001/002; WS-MVP (данные) | PENDING_DEPS | [S08_read_only_api_slices.md](increments/prompts/S08_read_only_api_slices.md) |
-| S09 | C. Public API & Events | Controlled write commands | Spec Inc. 4 | S08 | API-MVP (writes); PROC-MVP (intake/regist.); UX-SRC (upload) | PENDING_DEPS | [S09_controlled_write_commands.md](increments/prompts/S09_controlled_write_commands.md) |
-| S10 | C. Public API & Events | Outbox dispatcher, Inbox и CloudEvents | Spec Inc. 8 (часть: Outbox/CloudEvents/Inbox/DLQ) | S09 | API-MVP (events); REL-* (delivery); TX-* (outbox) | PENDING_DEPS | [S10_outbox_dispatcher_inbox_cloudevents.md](increments/prompts/S10_outbox_dispatcher_inbox_cloudevents.md) |
-| S11 | C. Public API & Events | Temporal foundation и dispatch Operation | Spec Inc. 7 (часть: Temporal), Inc. 5 (часть: start) | S10 | INF-MVP-002; PROC-MVP (durable execution) | PENDING_DEPS | [S11_temporal_foundation_operation_dispatch.md](increments/prompts/S11_temporal_foundation_operation_dispatch.md) |
-| S12 | C. Public API & Events | Operation API, process primitives, cancellation, SSE | Spec Inc. 5; Add. v1.1 Inc. 10; Add. v1.13, v1.15 | S11 | API-MVP (async ops); PROC-MVP; UX-DUR | PENDING_DEPS | [S12_operation_api_process_primitives_sse.md](increments/prompts/S12_operation_api_process_primitives_sse.md) |
-| S13 | C. Public API & Events | Observability stack и мониторинг | — (DOC-024/025/026; ADR-025) | S03, S10 | OBS-MON-*; OBS-SEC-*; OBS-ALR-* | PENDING_DEPS | [S13_observability_stack.md](increments/prompts/S13_observability_stack.md) |
-| S14 | D. Agent execution | Worker contracts: Envelope/Result/Notice | Spec Inc. 6 | S12 | API-MVP (internal contracts); PROC-MVP | PENDING_DEPS | [S14_worker_contracts_runtime_validation.md](increments/prompts/S14_worker_contracts_runtime_validation.md) |
-| S15 | D. Agent execution | LLMGatewayPort и Model Registry (провайдер-нейтрально) | Spec Add. v1.20 Inc. 20 (часть) | S11 | API-MVP (LLM adapter); SEC (LLM) | PENDING_DEPS | [S15_llm_gateway_port_model_registry.md](increments/prompts/S15_llm_gateway_port_model_registry.md) |
+| S05 | B. Persistence & Identity | Core tenant и execution schema + RLS | Blueprint §5 PDB-0002…0007, 0009, 0010 (greenfield ADR-011); Spec Add. v1.17 | S04 | DATA-MVP; PERSIST-001..024; TX-01..TX-09 (persistence части) | DONE | [S05_core_tenant_execution_schema_rls.md](increments/prompts/S05_core_tenant_execution_schema_rls.md) |
+| S06 | B. Persistence & Identity | Domain content schema: requirements, sources, artifacts, context, decisions, traceability, rules | — (DOC-005; ADR-016) | S05 | DATA-MVP; UX-REQ/UX-SRC/UX-ART (данные); RULE-MVP-02 | DONE | [S06_domain_content_schema.md](increments/prompts/S06_domain_content_schema.md) |
+| S07 | B. Persistence & Identity | Identity, Local Auth, Policy Engine, Audit, Idempotency | Spec Inc. 2 п.6–9 (реализация); Add. v1.3 §3.1 | S05 | AUTH-001..013; AUTH-MVP-*; SEC-001..035 (P0 части); SEC-MVP-* | DONE | [S07_identity_auth_policy_audit_idempotency.md](increments/prompts/S07_identity_auth_policy_audit_idempotency.md) |
+| S08 | C. Public API & Events | Read-only API vertical slices | Spec Inc. 3 | S06, S07 | API-MVP-0xx (read); SEC-001/002; WS-MVP (данные) | DONE | [S08_read_only_api_slices.md](increments/prompts/S08_read_only_api_slices.md) |
+| S09 | C. Public API & Events | Controlled write commands | Spec Inc. 4 | S08 | API-MVP (writes); PROC-MVP (intake/regist.); UX-SRC (upload) | DONE | [S09_controlled_write_commands.md](increments/prompts/S09_controlled_write_commands.md) |
+| S10 | C. Public API & Events | Outbox dispatcher, Inbox и CloudEvents | Spec Inc. 8 (часть: Outbox/CloudEvents/Inbox/DLQ) | S09 | API-MVP (events); REL-* (delivery); TX-* (outbox) | DONE | [S10_outbox_dispatcher_inbox_cloudevents.md](increments/prompts/S10_outbox_dispatcher_inbox_cloudevents.md) |
+| S11 | C. Public API & Events | Temporal foundation и dispatch Operation | Spec Inc. 7 (часть: Temporal), Inc. 5 (часть: start) | S10 | INF-MVP-002; PROC-MVP (durable execution) | DONE | [S11_temporal_foundation_operation_dispatch.md](increments/prompts/S11_temporal_foundation_operation_dispatch.md) |
+| S12 | C. Public API & Events | Operation API, process primitives, cancellation, SSE | Spec Inc. 5; Add. v1.1 Inc. 10; Add. v1.13, v1.15 | S11 | API-MVP (async ops); PROC-MVP; UX-DUR | DONE | [S12_operation_api_process_primitives_sse.md](increments/prompts/S12_operation_api_process_primitives_sse.md) |
+| S13 | C. Public API & Events | Observability stack и мониторинг | — (DOC-024/025/026; ADR-025) | S03, S10 | OBS-MON-*; OBS-SEC-*; OBS-ALR-* | DONE | [S13_observability_stack.md](increments/prompts/S13_observability_stack.md) |
+| S14 | D. Agent execution | Worker contracts: Envelope/Result/Notice | Spec Inc. 6 | S12 | API-MVP (internal contracts); PROC-MVP | DONE | [S14_worker_contracts_runtime_validation.md](increments/prompts/S14_worker_contracts_runtime_validation.md) |
+| S15 | D. Agent execution | LLMGatewayPort и Model Registry (провайдер-нейтрально) | Spec Add. v1.20 Inc. 20 (часть) | S11 | API-MVP (LLM adapter); SEC (LLM) | DONE | [S15_llm_gateway_port_model_registry.md](increments/prompts/S15_llm_gateway_port_model_registry.md) |
 | S16 | D. Agent execution | Bifrost PoC и первый утверждённый provider profile | Spec Add. v1.20 Inc. 20 (часть) | S15, S13 | DOC-076 §7 acceptance | BLOCKED | [S16_bifrost_poc_provider_profile.md](increments/prompts/S16_bifrost_poc_provider_profile.md) |
-| S17 | D. Agent execution | Tool Registry и Tool Gateway | Spec Add. v1.20 Inc. 23 | S07, S12 | TR MVP §9; SEC (tools) | PENDING_DEPS | [S17_tool_registry_tool_gateway.md](increments/prompts/S17_tool_registry_tool_gateway.md) |
-| S18 | D. Agent execution | Rules Registry и Rules Engine | — (RULE-MVP; ADR-018) | S07, S06 | RULE-MVP-01..14 | PENDING_DEPS | [S18_rules_registry_rules_engine.md](increments/prompts/S18_rules_registry_rules_engine.md) |
-| S19 | D. Agent execution | ContextPackageVersion (минимальный Context Builder) | Spec Add. v1.20 Inc. 22 (часть) | S06, S07 | PROC-MVP (immutable context); Context Builder критерии DOC-009 v0.4 | PENDING_DEPS | [S19_context_package_versioning.md](increments/prompts/S19_context_package_versioning.md) |
+| S17 | D. Agent execution | Tool Registry и Tool Gateway | Spec Add. v1.20 Inc. 23 | S07, S12 | TR MVP §9; SEC (tools) | PENDING_DEPS (ARCH-01; очередь SLICE-01 — ADR-115) | [S17_tool_registry_tool_gateway.md](increments/prompts/S17_tool_registry_tool_gateway.md) |
+| S18 | D. Agent execution | Rules Registry и Rules Engine | — (RULE-MVP; ADR-018) | S07, S06 | RULE-MVP-01..14 | READY | [S18_rules_registry_rules_engine.md](increments/prompts/S18_rules_registry_rules_engine.md) |
+| S19 | D. Agent execution | ContextPackageVersion (минимальный Context Builder) | Spec Add. v1.20 Inc. 22 (часть) | S06, S07 | PROC-MVP (immutable context); Context Builder критерии DOC-009 v0.4 | READY | [S19_context_package_versioning.md](increments/prompts/S19_context_package_versioning.md) |
 | S20 | D. Agent execution | Project/Epic intake и Manager interaction | Spec Add. v1.1 Inc. 11 | S12, S15, S19 | PROC-MVP; UX-START-*; UX-MVP-* | PENDING_DEPS | [S20_project_epic_intake_manager.md](increments/prompts/S20_project_epic_intake_manager.md) |
 | S21 | D. Agent execution | Plan & Task orchestration | Spec Add. v1.1 Inc. 12 | S20 | PROC-MVP; UX-PLAN-* | PENDING_DEPS | [S21_plan_task_orchestration.md](increments/prompts/S21_plan_task_orchestration.md) |
 | S22 | D. Agent execution | Readiness Gate | Spec Add. v1.1 Inc. 13; Add. v1.13–v1.14 | S14, S17, S18, S19, S21 | PROC-MVP (Gate); DOC-055 инварианты | PENDING_DEPS | [S22_readiness_gate.md](increments/prompts/S22_readiness_gate.md) |
@@ -168,7 +182,7 @@ flowchart LR
 | S24 | D. Agent execution | Manager–Worker coordination | Spec Add. v1.2 | S23 | PROC-MVP (coordination) | PENDING_DEPS | [S24_manager_worker_coordination.md](increments/prompts/S24_manager_worker_coordination.md) |
 | S25 | D. Agent execution | Independent QA и rework | Spec Add. v1.1 Inc. 15 | S24 | PROC-MVP (QA); UX-RESULT-* | PENDING_DEPS | [S25_independent_qa_rework.md](increments/prompts/S25_independent_qa_rework.md) |
 | S26 | E. Knowledge, Change & Governance | Requirements lifecycle, approvals, decisions & uncertainty | — (DOC-003, DOC-051; ADR-010) | S25 | UX-REQ-*; UX-DUR-*; LC-DEC-*; PROC-MVP | PENDING_DEPS | [S26_requirements_lifecycle_approvals_decisions.md](increments/prompts/S26_requirements_lifecycle_approvals_decisions.md) |
-| S27 | E. Knowledge, Change & Governance | Knowledge ingestion и indexing | Spec Add. v1.20 Inc. 21 | S12, S15 | UX-SRC-*; KMR §3 | PENDING_DEPS | [S27_knowledge_ingestion_indexing.md](increments/prompts/S27_knowledge_ingestion_indexing.md) |
+| S27 | E. Knowledge, Change & Governance | Knowledge ingestion и indexing | Spec Add. v1.20 Inc. 21 | S12, S15 | UX-SRC-*; KMR §3 | READY (embeddings — после OD-01) | [S27_knowledge_ingestion_indexing.md](increments/prompts/S27_knowledge_ingestion_indexing.md) |
 | S28 | E. Knowledge, Change & Governance | Retrieval API и полный Context Builder | Spec Add. v1.20 Inc. 22 | S27, S19 | KMR §4–§5; Context Builder критерии | PENDING_DEPS | [S28_retrieval_api_context_builder.md](increments/prompts/S28_retrieval_api_context_builder.md) |
 | S29 | E. Knowledge, Change & Governance | Connector MVP (read-only) | Spec Add. v1.20 Inc. 24; Inc. 8 (connector contracts) | S27, S17 | INT-MVP-* | PENDING_DEPS | [S29_connector_mvp_read_only.md](increments/prompts/S29_connector_mvp_read_only.md) |
 | S30 | E. Knowledge, Change & Governance | Source change, traceability и Impact Assessment | Spec Add. v1.1 Inc. 16 | S28, S29, S25 | UX-TRC-*; DOC-012 критерии | PENDING_DEPS | [S30_source_change_traceability_impact.md](increments/prompts/S30_source_change_traceability_impact.md) |
@@ -176,7 +190,7 @@ flowchart LR
 | S32 | E. Knowledge, Change & Governance | Recovery и reconciliation | Spec Add. v1.1 Inc. 18 (recovery) | S31 | REL-001..028 | PENDING_DEPS | [S32_recovery_reconciliation.md](increments/prompts/S32_recovery_reconciliation.md) |
 | S33 | F. Quality & Learning | Evaluation harness и release gates | Spec Add. v1.20 Inc. 25; Add. v1.1 Inc. 18 (evaluation) | S32, S16 | DOC-078; DOC-026 §7 | BLOCKED | [S33_evaluation_harness_release_gates.md](increments/prompts/S33_evaluation_harness_release_gates.md) |
 | S34 | F. Quality & Learning | Learning signals и curated experience | Spec Add. v1.20 Inc. 26 | S33 | DOC-079; CI-001..045 (MVP часть A0–A2) | BLOCKED (транзитивно: S16, S33) | [S34_learning_signals_curated_experience.md](increments/prompts/S34_learning_signals_curated_experience.md) |
-| S35 | G. UI | Web Project Workspace UI: foundation | — (WS-MVP, UX; ADR-010, ADR-019) | S12 | WS-MVP-*; UX-MVP-*; UX-START-* | PENDING_DEPS | [S35_web_workspace_ui_foundation.md](increments/prompts/S35_web_workspace_ui_foundation.md) |
+| S35 | G. UI | Web Project Workspace UI: foundation | — (WS-MVP, UX; ADR-010, ADR-019) | S12 | WS-MVP-*; UX-MVP-*; UX-START-* | READY | [S35_web_workspace_ui_foundation.md](increments/prompts/S35_web_workspace_ui_foundation.md) |
 | S36 | G. UI | Web Workspace UI: Manager, plan, results, traceability, artifacts | — (UX; ADR-010) | S35, S31 | UX-PLAN-*; UX-RESULT-*; UX-TRC-*; UX-ART-*; UX-DUR-*; UX-REQ-*; UX-SRC-* | PENDING_DEPS | [S36_web_workspace_ui_manager_results.md](increments/prompts/S36_web_workspace_ui_manager_results.md) |
 | S37 | H. Verification & Release | Contract & security verification, hardening | Spec Inc. 9; Add. v1.20 Inc. 27 | S32, S36, S16 | SEC-001..035; AUTH-*; THR-*; Spec §8 полностью | BLOCKED (транзитивно: S16) | [S37_contract_security_verification_hardening.md](increments/prompts/S37_contract_security_verification_hardening.md) |
 | S38 | H. Verification & Release | Performance, capacity и resilience drills | — (DOC-030..033) | S37 | PERF-001..026; REL-001..028; LT-* | BLOCKED | [S38_performance_capacity_resilience_drills.md](increments/prompts/S38_performance_capacity_resilience_drills.md) |
