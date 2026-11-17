@@ -108,5 +108,9 @@ pre-push-fast: backend-check backend-test-unit
 infra-scan-secrets:
 	cd infra && uv run --locked python scripts/scan_secrets.py
 
-pre-pr: contracts-check contracts-test backend-check backend-test infra-check infra-scan-secrets up infra-test infra-test-runtime
+pre-pr: contracts-check contracts-test renovate-check backend-check backend-test infra-check infra-scan-secrets up infra-test infra-test-runtime
 	@echo "pre-pr: all CI-equivalent checks passed. Linux CI on GitHub Actions is still the final evidence."
+
+.PHONY: renovate-check
+renovate-check:
+	bash infra/scripts/check_renovate.sh

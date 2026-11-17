@@ -36,6 +36,8 @@ git diff --check
 Основания: [настройка MCP в Codex](https://developers.openai.com/codex/mcp/), [одноразовые CLI overrides](https://developers.openai.com/codex/config-advanced/), [Context7 OAuth](https://context7.com/docs/resources/all-clients), [MCP в Claude Code](https://code.claude.com/docs/en/mcp). Параметры Serena проверены по исходникам закреплённой версии; порядок — в `SERENA.md`.
 
 ## Быстрый локальный путь и когда что запускать (CI-01)
+
+DEP-01: `make renovate-check` запускает strict validator и behavioral acceptance настоящего Renovate 44.249.0 в digest-pinned Docker image. Нужен Docker; первая загрузка образа использует registry network, сами проверки выполняются с `--network none`, read-only inputs и tmpfs. Только перечисленные конфигурационные файлы копируются в mount; `.git`, credentials, dev secrets и Docker socket не передаются контейнеру. Target включён в `pre-pr` и `infra-static` CI; быстрый Docker-free `pre-push-fast` сохраняется. Успешная проверка конфига не означает установленный GitHub App; доступ и onboarding учитываются отдельно в отчёте DEP-01.
 | Команда | Что проверяет | Время (замер 2026-11-14) | Когда |
 |---|---|---|---|
 | `make pre-push-fast` | ruff, mypy `--strict`, import-linter, тесты без Docker (unit, architecture, contract) | ≈ 8 с | перед каждым пушем и после каждой правки кода |

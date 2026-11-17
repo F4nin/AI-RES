@@ -566,4 +566,6 @@ flowchart LR
 
 ## 6. ARCH-01 — принятый мини-этап до S17 (ADR-114/120)
 
+DEP-01 отдельно выбран владельцем после ARCH-01 (2026-11-17), в пределах принятого ADR-113: [промпт](increments/prompts/DEP-01_renovate_dependency_updates.md), [отчёт](increments/DEP-01_renovate_dependency_updates_REPORT.md), уточнения — ADR-121. Установка GitHub App также прямо поручена агенту; статус её фактического выполнения учитывается отдельно. Последовательность S00–S39 и блокеры S16/SLICE-01 не меняются.
+
 После DONE CI-01 закрепить слои и независимость доменных модулей без изменений продуктового кода. Точный состав 14 модулей (9/3/2) — ADR-120. [Промпт](increments/prompts/ARCH-01_domain_import_contracts.md); [отчёт](increments/ARCH-01_domain_import_contracts_REPORT.md); текущий статус — IMPLEMENTATION_STATUS. Это исполнение принятого ADR-114, не перестановка S00–S39. Очередь S16 → SLICE-01 → S17 и её ограничения сохраняются.
