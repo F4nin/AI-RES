@@ -1,6 +1,6 @@
 # G01 — Правила и контекст: паспорт работы
 
-**Дата:** 2026-11-17 · **Группа:** IN_PROGRESS · **S19:** VERIFIED/DONE · **S18:** IN_PROGRESS. S19 closeout PR32 MERGEDd5342ac, contracts checks success.
+**Дата:** 2026-11-17 · **Группа:** DONE при merge PR33 · **S19:** VERIFIED/DONE · **S18:** VERIFIED/DONE (ADR032). S19 closeout PR32 MERGEDd5342ac, contracts checks success.
 
 ## Идентификация и полномочия
 
@@ -15,7 +15,7 @@
 | Этап | Источники / evidence | Зависимости | Реализация / готовность | Доставка |
 |---|---|---|---|---|
 | S19 | [Промпт](../increments/prompts/S19_context_package_versioning.md), [отчёт](../increments/S19_context_package_versioning_REPORT.md), [review](../reviews/S19_IMPLEMENTATION_REVIEWS.md), [ADR125](../decisions/ADR-125-context-manifest.md) | S06/S07 DONE: существующие reports, PR5/6 MERGED, Git/STATUS; canonical74/74 | VERIFIED/DONE explicit-ref slice; production caller отсутствует, G157 | [PR31](https://github.com/F4nin/AI-RES/pull/31) MERGED15:17:13UTC; head a2752087d8a40189a44667ef770c0f3665301942, merge99e5ec15cfb2343022cd972f0b66e4adfccbe435; exact-head и post-merge CI success |
-| S18 | [Промпт](../increments/prompts/S18_rules_registry_rules_engine.md); read-only план/architecture assessment подготовлены | S06/S07 DONE повторно проверены, S19 source/closeout доставлены | IN_PROGRESS; зависимости S06/S07 DONE повторно проверены, новых owner-блокеров механизма не выявлено | — |
+| S18 | [Промпт](../increments/prompts/S18_rules_registry_rules_engine.md); read-only план/architecture assessment подготовлены | S06/S07 DONE повторно проверены, S19 source/closeout доставлены | VERIFIED/DONE; localpre-pr+186targeted+3reviews+all8sourceLinuxchecksSUCCESS | [PR33](https://github.com/F4nin/AI-RES/pull/33), head7dd8475 + closing docs delta; merge/checks см. PR metadata |
 
 ## Выполненный S19 и gates
 
@@ -48,3 +48,9 @@ S18 start: branch feat/s18-rules-registry-engine от проверенного �
 
 
 S18 final source checkpoint: ADR126, migration0019 b621f4d8a905, trusted Context metadata provider1.0, exact rule/fact/time/exception snapshots, human lifecycle with defaultdeny Policy/separationNone, no SYSTEM override. Targeted186=141unit+45PG passed;3independent reviewers APPROVE/openfindings0. Исправлены2MEDIUM: evaluation context/scope mismatch и org-report read via projectgrant. Final hashes/report/review: [S18 report](../increments/S18_rules_registry_rules_engine_REPORT.md), [review](../reviews/S18_IMPLEMENTATION_REVIEWS.md). Fullpre-pr exit0 (backend1749,infra369,runtime148,contracts22,Renovate10,PoC19); finaltargeted186 иfast836/15contracts. Linux/delivery pending; G01 ещё неDONE. Original12 owner governance changes excluded. G157/G158 integration admission ограничения сохранены.
+
+Source S18:7dd847526fb7d713b6149d1dc37b12d0e9999ada,[PR33](https://github.com/F4nin/AI-RES/pull/33); exact source-head Linux push/PR ci44125407264/44125456727,contracts44125407362/44125456894 запущены, результат ещёpending. Documentation closeout войдёт в тот же PR; исходные12 governance файлов не публикуются.
+
+## Закрытие G01
+
+S19 и S18 VERIFIED/DONE, включая их отдельные reports/reviews/PR и gates. S18 source7dd8475 all8Linuxpush/PRchecksSUCCESS: backend1751/541warnings,infra-static221,runtime148,PoC19,contracts22,Renovate10;failed/errors/skipped0. Дополнительные audit/digest/hadolint/actionlint/secret scan/SBOM jobs SUCCESS, G24 report-only остаётся. Final docs-only delta входит в тот же PR33, product tree не меняется; новые checks проверяются по точному finalhead до merge. При mergePR33 этот паспорт закрывает G01 DONE; итоговый mergeSHA/post-mergeCI проверяются по PR metadata/Git, а не записываются self-reference в commit. После доставки остановиться, другие группы не начинать. Original12 owner governance changes сохранены вне stage commits. G157/G158 и production/model/security-owner release approvals остаются отдельными условиями будущих этапов.

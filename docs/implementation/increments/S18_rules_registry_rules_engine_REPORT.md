@@ -1,6 +1,6 @@
 # S18 — Rules Registry и Rules Engine: Increment Report
 
-**Дата:** 2026-11-17 · **Промпт:** [S18](prompts/S18_rules_registry_rules_engine.md) · **Статус:** TESTED; локальные gates/review завершены, Linux CI/delivery продолжаются.
+**Дата:** 2026-11-17 · **Промпт:** [S18](prompts/S18_rules_registry_rules_engine.md) · **Статус:** VERIFIED / DONE (ADR032) для механизма S18; финальная доставка и закрытие G01 — merge [PR33](https://github.com/F4nin/AI-RES/pull/33). Production binding G158 не активирован.
 
 ## 1. Что реализовано
 
@@ -66,7 +66,7 @@ Independent blind-first reviewers не являются авторами S18: co
 | G1–G6/G9 | `PATH=/tmp/arch-01-tools/node-v22.23.5-darwin-arm64/bin:/opt/homebrew/opt/openssl@3/bin:$PATH make -j1 pre-pr` | exit0; backend1749/541warnings,infra369,runtime148,contracts22,Renovate10,PoC19; failed/errors/skipped0 |
 | G7 | independent review | 3APPROVE/openfindings0, final hashes в review |
 | G8 | cached diff/check + local Markdown links | exit0;80links/0missing; original12 owner changes excluded |
-| Linux + supply chain | exact source SHA push/PR | ещё не запускались до source commit |
+| Linux + supply chain | exact source7dd8475 push/PR runs§17 | все8checks SUCCESS; backend1751/541warnings,infra-static221,runtime148,PoC19,contracts22,Renovate10; failed/errors/skipped0; audit/digests/hadolint/actionlint/scanner/SBOM success |
 
 Логи текущей сессии `/tmp/g01-s18-{fast,static,application,application-extra,exceptions,pre-pr,snapshot}.log` вспомогательные; существенные counts переносятся сюда. Generation skip отличается от acceptance skips. Temporal replay/new activity/webhook/upload/SSE/new CSRF transport неприменимы: этого кода в scope нет; общий regression сохраняется.
 
@@ -88,12 +88,24 @@ ADR126, ADL, STATUS/HANDOFF, G01 passport, REQUIREMENTS_TRACEABILITY, CONTRACT_T
 
 ## 14. Статус DoD
 
-Code/миграции/mandatory four behavioral cases TESTED;3independentAPPROVE,localpre-pr exit0. Linux CI/delivery ещё не завершены. **S18/G01 не DONE**, текущий checkpoint не является VERIFIED.
+G1–G9 и обязательные S18 cases подтверждены: localpre-pr exit0,finaltargeted186,3independentAPPROVE и все8exactsourceLinuxchecks SUCCESS. S18 VERIFIED/DONE поADR032. Эта документационная дельта в том же PR фиксирует evidence; merge разрешён после её собственных checks. G01 закрывается при mergePR33; релиз/production admission не утверждается.
 
 ## 15. Можно ли начинать следующий этап
 
-Нет: сначала завершить S18 gates/delivery и G01 evidence. После DONE G01 остановиться до нового поручения; другая группа автоматически не запускается.
+После успешных checks и mergePR33 оба этапа группы доставлены, G01 DONE. Остановиться до нового поручения; другой этап/группа автоматически не запускается.
 
 ## 16. Точный локальный checkpoint перед PR
 
 Fullpre-pr backend начал сбор tests до final namespace fix и двух дополнительных PG cases (telemetry/orgreport), поэтому1749 не подменяется1751. После final2linefix полный затронутый targeted suite186passed/0failed/0skipped, включая14application+22storage+9security+141unit; fast836/15importcontracts exit0. Runtime image в этом pre-pr собирался уже из final source. Whitespace-only EOF cleanup после review не менял semantics; cached diffcheck0. Linux exact final SHA обязан проверить весь итоговый backend заново. Snapshot generation1expectedskip не засчитывается как acceptance; subsequent fullbackend drift/empty/previous/grants/RLS прошли без skipped. Secretfiles24preserved/0written, volumes сохранены, provider calls0.
+
+## 17. Source delivery / Linux evidence
+
+Source `7dd847526fb7d713b6149d1dc37b12d0e9999ada`,29files/4151insertions/20deletions. [PR33](https://github.com/F4nin/AI-RES/pull/33), base d5342ac. Original12 owner files excluded: после source commit status содержит только исходные10tracked+2untracked governance изменений.
+
+Точные source-head runs: [push ci44125407264](https://github.com/F4nin/AI-RES/actions/runs/44125407264), [push contracts44125407362](https://github.com/F4nin/AI-RES/actions/runs/44125407362), [PR ci44125456727](https://github.com/F4nin/AI-RES/actions/runs/44125456727), [PR contracts44125456894](https://github.com/F4nin/AI-RES/actions/runs/44125456894). На checkpoint создания PR все были IN_PROGRESS. Итог: все8checks SUCCESS, exacthead7dd8475. Финальная metadata-only дельта этого же PR фиксирует подтверждённые результаты; новый docs-only PR не создаётся. После её push обязательные проверки PR повторяются по новому точному SHA; source files не меняются.
+
+## 18. Закрывающая документационная дельта в PR33
+
+Source-head push/PR workflow conclusions SUCCESS, counts подтверждены logs, а не только наличием зелёной иконки. Linux backend1751 отличается от local1749 двумя поздними cases telemetry/org-report; fullLinux включает finalnamespacefix. Security supply-chain steps SUCCESS: собственные образы прошли blocking scan; third-party report-only CVEs G24 не исчезли и не объявляются отсутствующими. Model calls0.
+
+Эта дельта меняет только implementation documentation/status/traceability. Product source, schema, locks, dependencies, contracts, tests и infra идентичны проверенному7dd8475; tree diff проверяется перед push/merge. Local cached diffcheck и ссылки проверены; полные продуктовые проверки повторяются CI на PR по текущему SHA согласно workflow. Актуальные final-head/merge SHA и заключения доступны в metadata [PR33](https://github.com/F4nin/AI-RES/pull/33); self-referential hash не записывается в собственный commit. После merge сверить remote/main tree с проверенным PR head и post-merge CI. Этот паспорт/отчёт в main является закрытием S18/G01, не новым поручением.

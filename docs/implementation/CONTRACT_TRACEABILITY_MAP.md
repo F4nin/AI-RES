@@ -1,6 +1,6 @@
 # CONTRACT_TRACEABILITY_MAP
 
-**S18, 2026-11-17:** internal schema1.0 typed rule/fact/result snapshots, owned registry→pure engine→immutable evaluation/audit, expand0019. Public API/events/Worker contracts и `contracts/` не менялись. Production management grants/catalogue/Manager transport не подключены (G158); PASS/replay не является permission. [Report](increments/S18_rules_registry_rules_engine_REPORT.md).
+**S18, 2026-11-17:** internal schema1.0 typed rule/fact/result snapshots, owned registry→pure engine→immutable evaluation/audit, expand0019. Public API/events/Worker contracts и `contracts/` не менялись. Internal mechanism VERIFIED: finaltargeted186,localpre-pr+exactsourceLinux SUCCESS; PR33 включает closing evidence. Production management grants/catalogue/Manager transport не подключены (G158); PASS/replay не является permission. [Report](increments/S18_rules_registry_rules_engine_REPORT.md).
 
 **S19 VERIFIED/DONE (2026-11-17):** internal ContextApplicationService и manifest schema1.0/explicit-refs-v1 → context package/version/items; typed VersionMetadataPort → module-owned exact version readers. Public API/events/mirror/baseline не меняются; нет нового endpoint или invented event. Strict parsing/hash/current ACL/replay/legacy guards покрыты targeted107passed; full pre-pr и exact-head/post-merge Linux CI PASS, PR31 MERGED99e5ec1. [ADR125](decisions/ADR-125-context-manifest.md), [отчёт](increments/S19_context_package_versioning_REPORT.md).
 

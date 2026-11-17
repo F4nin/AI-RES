@@ -35,3 +35,5 @@
 Не установлено текущего внешнего exploit: transport отсутствует. Это не основание оставлять внутренние namespace/integrity дефекты; оба исправлены до delivery. Default packaged management DENY и unconfigured separation denies activation сохранены. Manager DRAFT+rationale подтверждается storage acceptance, upstream Manager transport/service grants/production catalogue/OD14/pool admission остаются G158. Numeric coverage не измерялось, no secret detector perfection claim. Дополнительная security-owner/business approval этим review не выдаётся.
 
 После review удалена только лишняя пустая строка EOF repository (cached diff --check); приведённый hash относится к whitespace-only cleanup, semantics неизменны.
+
+Reviewed repository hash до whitespace cleanup: `c25e18da22c415864a46c005b7790aa428eb5a018e0580623bb8bfa3e088558c`; final69d0ae отличается только последней пустой строкой. Linux exact source7dd8475 проверил весь итоговый код: backend1751; независимый review не подменял эти тесты.
