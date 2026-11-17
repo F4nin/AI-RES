@@ -36,11 +36,14 @@ class LLMError(Exception):
     retryable: bool = False
     fallback_eligible: bool = False
 
-    def __init__(self, detail: str | None = None, *, retry_after_seconds: float | None = None) -> None:
+    def __init__(self, detail: str | None = None, *, retry_after_seconds: float | None = None, possibly_billed: bool = False) -> None:
         super().__init__(self.code.value)
         # `detail` may come from a transport: redact secret-shaped text and bound it, so an error is safe to log, trace and return
         self.detail = redact_text(detail)[:300] if detail else self.code.value.replace("_", " ").capitalize()
         self.retry_after_seconds = retry_after_seconds if retry_after_seconds is None or retry_after_seconds >= 0 else None
+        # Internal transport metadata, never a model/caller-controlled budget decision or a public error field.
+        # True means dispatch may have consumed tokens without trustworthy usage; retain the entire worst-case charge.
+        self.possibly_billed = possibly_billed
 
     def __str__(self) -> str:
         return f"{self.code.value}: {self.detail}"

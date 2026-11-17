@@ -1,0 +1,73 @@
+{
+  "version": 2,
+  "client": {
+    "initial_pool_size": 1,
+    "drop_excess_requests": true,
+    "enable_logging": false,
+    "disable_content_logging": true,
+    "retain_content_in_object_storage": false,
+    "allow_per_request_content_storage_override": false,
+    "logging_headers": [],
+    "allow_direct_keys": false,
+    "enforce_auth_on_inference": true,
+    "whitelisted_routes": [],
+    "allowed_origins": [],
+    "max_request_body_size_mb": 1
+  },
+  "config_store": {"enabled": true, "type": "sqlite", "config": {"path": "/app/data/config.db"}},
+  "logs_store": {"enabled": false},
+  "framework": {
+    "pricing": {
+      "pricing_url": "file:///etc/bifrost/pricing.json",
+      "model_parameters_url": "file:///etc/bifrost/model-parameters.json",
+      "mcp_library_url": "file:///etc/bifrost/mcp-library.json",
+      "pricing_sync_interval": 86400,
+      "live_models_sync_interval": 0,
+      "mcp_library_sync_interval": 0
+    }
+  },
+  "plugins": [],
+  "providers": {
+    "deepseek": {
+      "keys": [{
+        "id": "00000000-0000-4000-8000-000000000016",
+        "name": "s16-relay",
+        "value": "$LLM_RELAY_AUTH",
+        "models": ["deepseek-flash"],
+        "weight": 1
+      }],
+      "network_config": {
+        "base_url": "http://llm-gateway:8081",
+        "allow_private_network": true,
+        "default_request_timeout_in_seconds": 30,
+        "max_retries": 0
+      },
+      "concurrency_and_buffer_size": {"concurrency": 1, "buffer_size": 1},
+      "send_back_raw_request": false,
+      "send_back_raw_response": false,
+      "store_raw_request_response": false
+    }
+  },
+  "governance": {
+    "auth_config": {
+      "is_enabled": true,
+      "admin_username": "ai-res-poc",
+      "admin_password": "$BIFROST_ADMIN_PASSWORD",
+      "disable_auth_on_inference": false
+    },
+    "virtual_keys": [{
+      "id": "00000000-0000-4000-8000-000000000017",
+      "name": "s16-adapter",
+      "value": "sk-bf-$BIFROST_VIRTUAL_KEY",
+      "is_active": true,
+      "allow_all_providers": false,
+      "disable_content_logging": true,
+      "provider_configs": [{
+        "provider": "deepseek",
+        "allowed_models": ["deepseek-flash"],
+        "key_ids": ["00000000-0000-4000-8000-000000000016"],
+        "weight": 1
+      }]
+    }]
+  }
+}

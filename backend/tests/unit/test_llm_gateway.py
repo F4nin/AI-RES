@@ -189,6 +189,126 @@ async def test_failed_attempts_release_their_reservation_and_cancellation_does_t
     assert r.gw.ledger._accounts["run-1"].held_tokens == 0  # type: ignore[attr-defined]
 
 
+def _conservative_rig(p: ModelProfile, *, tokens: int = 102) -> Rig:
+    r = Rig(p, budget=Budget(max_total_tokens=tokens, max_cost=Decimal("0.202"), currency="EUR"))
+    r.gw.transport.conservative_usage_on_error = True  # type: ignore[attr-defined]
+    return r
+
+
+def _priced_profile(**changes: object) -> ModelProfile:
+    return profile(retry_class=RetryClass.NONE,
+                   cost_rates=CostRates(currency="EUR", input_per_million=Decimal(1000), output_per_million=Decimal(2000)), **changes)
+
+
+@pytest.mark.parametrize("error_type", [E.ProviderUnavailable, E.ProviderRejected, E.InvalidProviderOutput])
+async def test_possibly_billed_error_consumes_full_token_and_cost_reservation(error_type):  # type: ignore[no-untyped-def]
+    p = _priced_profile()
+    r = _conservative_rig(p)
+    r.script.append(error_type(possibly_billed=True))  # type: ignore[attr-defined]
+    with pytest.raises(error_type):
+        await r.gw.chat(request(p))
+    assert r.gw.ledger.usage("run-1") == (102, Decimal("0.202"))  # type: ignore[attr-defined]
+    assert r.gw.ledger._accounts["run-1"].held_tokens == 0  # type: ignore[attr-defined]
+    with pytest.raises(E.BudgetExhausted):
+        await r.gw.chat(request(p))
+    assert len(r.calls) == 1
+
+
+async def test_conservative_transport_preflight_error_does_not_spend_budget():
+    p = _priced_profile()
+    r = _conservative_rig(p)
+    r.script.append(E.GatewayUnconfigured())  # type: ignore[attr-defined]
+    with pytest.raises(E.GatewayUnconfigured):
+        await r.gw.chat(request(p))
+    assert r.gw.ledger.usage("run-1") == (0, Decimal(0))  # type: ignore[attr-defined]
+    assert r.gw.ledger._accounts["run-1"].held_tokens == 0  # type: ignore[attr-defined]
+
+
+@pytest.mark.parametrize("failure", ["timeout", "cancel", "unmapped"])
+async def test_conservative_transport_unknown_nonstream_outcome_charges_full_hold(failure):  # type: ignore[no-untyped-def]
+    p = _priced_profile(timeout_seconds=0.02)
+    r = _conservative_rig(p)
+    entered = asyncio.Event()
+
+    async def ambiguous(call: object) -> TransportResult:
+        entered.set()
+        if failure == "unmapped":
+            raise RuntimeError("unmapped synthetic transport fault")
+        await asyncio.Event().wait()
+        return ok()
+
+    r.gw.transport.complete = ambiguous  # type: ignore[attr-defined,method-assign]
+    task = asyncio.create_task(r.gw.chat(request(p)))
+    await entered.wait()
+    if failure == "cancel":
+        task.cancel()
+    expected = {"timeout": E.ProviderTimeout, "cancel": asyncio.CancelledError, "unmapped": E.ProviderUnavailable}[failure]
+    with pytest.raises(expected):
+        await task
+    assert r.gw.ledger.usage("run-1") == (102, Decimal("0.202"))  # type: ignore[attr-defined]
+    assert r.gw.ledger._accounts["run-1"].held_tokens == 0  # type: ignore[attr-defined]
+
+
+async def test_unknown_billed_retry_cannot_issue_an_unbudgeted_second_attempt():
+    p = profile(cost_rates=CostRates(currency="EUR", input_per_million=Decimal(1000), output_per_million=Decimal(2000)))
+    r = _conservative_rig(p)
+    r.script.extend([E.ProviderUnavailable(possibly_billed=True)] * 3)  # type: ignore[attr-defined]
+    with pytest.raises(E.BudgetExhausted):
+        await r.gw.chat(request(p))
+    assert len(r.calls) == 1 and r.gw.ledger.usage("run-1") == (102, Decimal("0.202"))  # type: ignore[attr-defined]
+
+
+@pytest.mark.parametrize("failure", ["typed", "empty", "timeout", "cancel", "unmapped", "preflight"])
+async def test_conservative_stream_failure_before_first_chunk_accounts_for_unknown_usage(failure):  # type: ignore[no-untyped-def]
+    p = _priced_profile(timeout_seconds=0.02)
+    r = _conservative_rig(p)
+    entered = asyncio.Event()
+    closed = []
+
+    async def stream(call):  # type: ignore[no-untyped-def]
+        entered.set()
+        try:
+            if failure == "typed":
+                raise E.InvalidProviderOutput(possibly_billed=True)
+            if failure == "preflight":
+                raise E.GatewayUnconfigured()
+            if failure == "empty":
+                return
+            if failure == "unmapped":
+                raise RuntimeError("synthetic stream fault")
+            await asyncio.Event().wait()
+            yield TextDelta("unreachable")
+        finally:
+            closed.append(True)
+
+    _custom_stream(r, stream)
+    async def collect():  # type: ignore[no-untyped-def]
+        return [c async for c in r.gw.stream_chat(request(p, stream=True))]
+    task = asyncio.create_task(collect())
+    await entered.wait()
+    if failure == "cancel":
+        task.cancel()
+    expected = {"typed": E.InvalidProviderOutput, "empty": E.InvalidProviderOutput, "timeout": E.ProviderTimeout,
+                "cancel": asyncio.CancelledError, "unmapped": RuntimeError, "preflight": E.GatewayUnconfigured}[failure]
+    with pytest.raises(expected):
+        await task
+    assert closed == [True]
+    assert r.gw.ledger.usage("run-1") == ((0, Decimal(0)) if failure == "preflight" else (102, Decimal("0.202")))  # type: ignore[attr-defined]
+    assert r.gw.ledger._accounts["run-1"].held_tokens == 0  # type: ignore[attr-defined]
+
+
+async def test_synchronous_stream_preflight_error_releases_reservation():
+    p = _priced_profile()
+    r = _conservative_rig(p)
+    def preflight(call):  # type: ignore[no-untyped-def]
+        raise E.GatewayUnconfigured()
+    _custom_stream(r, preflight)
+    with pytest.raises(E.GatewayUnconfigured):
+        [c async for c in r.gw.stream_chat(request(p, stream=True))]
+    assert r.gw.ledger.usage("run-1") == (0, Decimal(0))  # type: ignore[attr-defined]
+    assert r.gw.ledger._accounts["run-1"].held_tokens == 0  # type: ignore[attr-defined]
+
+
 # ---------- test double only in the test profile ----------
 def test_test_double_is_refused_outside_the_test_profile_at_every_barrier():
     for env in ("local", "prod"):

@@ -45,7 +45,8 @@ infra-check:
 	cd infra && uv run --locked ruff check . && \
 	uv run --locked python scripts/check_compose.py -f compose.yaml && \
 	uv run --locked python scripts/check_compose.py -f compose.yaml -f compose.dev.yaml && \
-	uv run --locked python scripts/check_compose.py -f compose.yaml -f compose.test.yaml
+	uv run --locked python scripts/check_compose.py -f compose.yaml -f compose.test.yaml && \
+	uv run --locked python scripts/check_compose.py -f compose.yaml -f compose.dev.yaml -f compose.llm-poc.yaml
 
 infra-test:
 	cd infra && uv run --locked pytest -q
@@ -108,9 +109,22 @@ pre-push-fast: backend-check backend-test-unit
 infra-scan-secrets:
 	cd infra && uv run --locked python scripts/scan_secrets.py
 
-pre-pr: contracts-check contracts-test renovate-check backend-check backend-test infra-check infra-scan-secrets up infra-test infra-test-runtime
+pre-pr: contracts-check contracts-test renovate-check backend-check backend-test infra-check infra-scan-secrets up infra-test infra-test-runtime llm-poc-up llm-poc-check
 	@echo "pre-pr: all CI-equivalent checks passed. Linux CI on GitHub Actions is still the final evidence."
 
 .PHONY: renovate-check
 renovate-check:
 	bash infra/scripts/check_renovate.sh
+
+# Isolated S16 candidate only. Starts no product stack and enables no provider calls or approved profile.
+.PHONY: llm-poc-up llm-poc-down llm-poc-check
+LLM_POC_COMPOSE := docker compose -f infra/compose.yaml -f infra/compose.dev.yaml -f infra/compose.llm-poc.yaml --profile llm-poc
+llm-poc-up: secrets-dev infra-check
+	$(LLM_POC_COMPOSE) up -d --build --wait llm-gateway bifrost-poc
+
+# Keep the normal dev services/volumes. No down --remove-orphans across the whole project.
+llm-poc-down:
+	$(LLM_POC_COMPOSE) stop bifrost-poc llm-gateway
+
+llm-poc-check:
+	infra/.venv/bin/python -B infra/scripts/check_llm_poc.py

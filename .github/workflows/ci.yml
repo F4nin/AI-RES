@@ -44,7 +44,7 @@ jobs:
       - name: placeholder secret files for `docker compose config`
         run: |
           mkdir -p infra/secrets/runtime
-          for n in postgres_superuser_password temporal_db_password checkpointer_db_password migrator_db_password api_db_password outbox_db_password consumer_db_password auditor_db_password backup_db_password minio_root_user minio_root_password cursor_hmac_key postgres_tls_ca_cert postgres_tls_server_cert postgres_tls_server_key; do
+          for n in postgres_superuser_password temporal_db_password checkpointer_db_password migrator_db_password api_db_password outbox_db_password consumer_db_password auditor_db_password backup_db_password minio_root_user minio_root_password cursor_hmac_key postgres_tls_ca_cert postgres_tls_server_cert postgres_tls_server_key bifrost_admin_password bifrost_virtual_key llm_relay_auth; do
             touch "infra/secrets/runtime/$n"
           done
       - run: make infra-check
@@ -83,9 +83,16 @@ jobs:
         env:
           AI_RES_REQUIRE_STACK: "1"
         run: make infra-test-runtime
+      - name: isolated Bifrost candidate (no provider credentials or paid calls)
+        env:
+          AI_RES_AGE_KEY_FILE: ${{ runner.temp }}/age/keys.txt
+          AI_RES_SECRETS_WORLD_READABLE: "1"
+        run: make llm-poc-up llm-poc-check
       - name: repository secret scan with the real dev secret values present
         run: cd infra && uv run --locked python scripts/scan_secrets.py
       - name: SBOM + vulnerability scan (own images blocking)
+        env:
+          AI_RES_SCAN_LLM_POC: "1"
         run: infra/scripts/supply_chain.sh
       - name: stack logs on failure
         if: failure()

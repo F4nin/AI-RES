@@ -43,7 +43,9 @@ DOMAIN_DB_PASSWORDS = [
 # S09: idempotency_keyring = one line `<key_id> <base64 of 32 bytes>` (HMAC key ring of the API, ADR-024)
 PASSWORDS = ["postgres_superuser_password", "temporal_db_password", "checkpointer_db_password", "minio_root_password", "cursor_hmac_key", *DOMAIN_DB_PASSWORDS,
              "mfa_encryption_key", "bootstrap_secret", "idempotency_keyring", "manager_signing_key", "service_public_keys",
-             "grafana_admin_password"]  # S13: random per machine; mounted only into grafana
+             "grafana_admin_password", "bifrost_admin_password", "bifrost_virtual_key", "llm_relay_auth"]
+# S16: gateway-only dev identities, not provider keys. Hex is safe to render into the ephemeral Bifrost JSON with shell builtins.
+LLM_POC_CREDENTIALS = {"bifrost_admin_password", "bifrost_virtual_key", "llm_relay_auth"}
 TLS = ["postgres_tls_ca_cert", "postgres_tls_server_cert", "postgres_tls_server_key"]
 NAMES = [*PASSWORDS[:3], "minio_root_user", *PASSWORDS[3:], *TLS]
 TLS_DAYS = "825"  # local dev certificate lifetime (WORKING)
@@ -68,6 +70,8 @@ def derive_service_public_keys(values: dict[str, str]) -> str:
 
 
 def _generate(name: str) -> str:
+    if name in LLM_POC_CREDENTIALS:
+        return secrets.token_hex(32)
     if name in SERVICE_KEYS.values():
         return base64.b64encode(secrets.token_bytes(32)).decode()
     if name == "minio_root_user":

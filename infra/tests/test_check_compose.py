@@ -234,7 +234,7 @@ def test_services_must_declare_networks():
 
 def test_egress_network_only_for_controlled_egress_services():
     assert has(run(mutate(lambda m: m["services"]["api"].update(networks={"app": None, "egress": None}))), "egress")
-    ok = mutate(lambda m: m["services"].update({"llm-gateway": good_service(networks={"app": None, "egress": None})}))
+    ok = mutate(lambda m: m["services"].update({"connector-platform": good_service(networks={"app": None, "egress": None})}))
     assert run(ok) == []
 
 

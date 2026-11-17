@@ -19,6 +19,7 @@ PUBLISH_HOST_IP = "127.0.0.1"  # local profile; a different bind needs an owner 
 OPEN_NETWORKS = {"ingress", "egress"}  # the only networks with a gateway; membership is allowlisted per service below
 INGRESS_ALLOWED = {"reverse-proxy", "frontend"}
 EGRESS_ALLOWED = {"llm-gateway", "connector-platform"}  # DOC-015 §9.1: only controlled egress services (they do not exist yet)
+LLM_POC_NETWORKS = {"llm_poc": {"bifrost-poc"}, "llm_upstream": {"bifrost-poc", "llm-gateway"}}
 DATA_ALLOWED = {"api", "platform-api", "outbox-dispatcher", "postgres", "postgres-provision", "migrate", "bootstrap", "temporal", "temporal-schema",
                 "minio", "minio-init"}
 MANAGER_WORKER_PREFIXES = ("manager-runtime", "worker-runtime")  # PERSIST-023: no network path to PostgreSQL
@@ -46,6 +47,8 @@ SECRET_ALLOWED: dict[str, set[str]] = {
     "minio": {"minio_root_user", "minio_root_password"},
     "minio-init": {"minio_root_user", "minio_root_password"},
     "grafana": {"grafana_admin_password"},  # S13: the only credential of the observability stack; no database secret, ever
+    "bifrost-poc": {"bifrost_admin_password", "bifrost_virtual_key", "llm_relay_auth"},
+    "llm-gateway": {"llm_relay_auth"},  # disabled live forwarding: no provider key is fabricated or mounted by this PoC overlay
 }
 SECRET_NAME = re.compile(r"(KEY|SECRET|TOKEN|PASSWORD|PASSWD|PWD|CREDENTIAL)", re.I)
 CREDENTIAL_URL = re.compile(r"^[a-z][a-z0-9+.-]*://[^/\s:@]+:[^/\s@]+@", re.I)
@@ -178,6 +181,15 @@ def check_service(name: str, svc: dict, dockerfiles: dict[str, list[str]], base_
     if "networks" not in svc or not svc["networks"]:
         out.append(f"{w}: must declare networks explicitly")
     nets = _networks_of(svc)
+    for network, members in LLM_POC_NETWORKS.items():
+        if network in nets and name not in members:
+            out.append(f"{w}: not allowlisted for the isolated {network} network")
+    gateway_nets = {"bifrost-poc": {"llm_poc", "llm_upstream"}, "llm-gateway": {"llm_upstream", "egress"}}
+    if name in gateway_nets:
+        if nets != gateway_nets[name]:
+            out.append(f"{w}: gateway networks must be exactly {sorted(gateway_nets[name])}")
+        if set(svc.get("profiles") or []) != {"llm-poc"}:
+            out.append(f"{w}: isolated gateway must be opt-in under only the llm-poc profile")
     if "observability" in nets and name not in OBSERVABILITY_ALLOWED:
         out.append(f"{w}: not allowlisted for the observability network")
     if name in OBSERVABILITY_BACKENDS and nets != {"observability"}:
@@ -251,6 +263,10 @@ def check_model(model: dict, dockerfiles: dict[str, list[str]], base_dir: Path |
     if not model.get("services"):
         return ["model has no services: nothing was checked"]
     out = check_ports(model) + check_networks(model) + check_proxy_trust(model)
+    gateway_services = {"bifrost-poc", "llm-gateway"}
+    present = gateway_services & set(model["services"])
+    if present and present != gateway_services:
+        out.append("isolated gateway requires both bifrost-poc and llm-gateway services")
     for name, svc in model["services"].items():
         out += check_service(name, svc, dockerfiles, base_dir)
     return out

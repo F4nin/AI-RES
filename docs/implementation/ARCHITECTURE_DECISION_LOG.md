@@ -125,6 +125,7 @@
 | ADR-117 | Git-ветка `dev` для экспериментов: создана от `main`, не часть потока этапов; в `main` — только через PR | ACCEPTED |
 | ADR-118 | CI-01 шаг 4: фикстура `migrated` клонирует БД, мигрированную один раз за сессию (CREATE DATABASE … TEMPLATE) вместо `alembic upgrade head` на каждый тест | ACCEPTED |
 | ADR-119 | CI-01 шаги 3 и 6: `ci.yml` пропускается для изменений только в `docs/implementation/**`; быстрый локальный путь `make pre-push-fast`; xdist отложен | ACCEPTED |
+| ADR-122 | S16: отключённая по умолчанию интеграция Bifrost, отдельный HTTPS relay, временный auth store и консервативный учёт неизвестного расхода | ACCEPTED (технический срез; приёмка модели/Bifrost не предоставлена) |
 
 ---
 
@@ -2207,3 +2208,25 @@
 | Влияние | Dev-time конфигурация обновлений и её CI; runtime topology/API/DB/contracts/canonical не меняются. Новые внешние сервисы кроме явно порученного Renovate App не подключаются. |
 | Тесты | Strict validator, 10 acceptance cases / 18 production extracted deps (включая HADOLINT/actionlint), pre-push-fast, pre-pr, дополнительные Linux gates; independent code/security review. |
 | Источники | [Config validation](https://docs.renovatebot.com/config-validation/), [regex manager](https://docs.renovatebot.com/modules/manager/regex/), [configuration](https://docs.renovatebot.com/configuration-options/), [minimum age](https://docs.renovatebot.com/key-concepts/minimum-release-age/), [App installation](https://docs.renovatebot.com/getting-started/installing-onboarding/). Семантика проверена по исходникам внутри pinned image. |
+
+## ADR-122 — S16: отключённая интеграция Bifrost и контролируемый egress
+
+| Поле | Значение |
+|---|---|
+| Статус | ACCEPTED — технический срез в разрешённом S16; не approval модели/Bifrost |
+| Дата | 2026-11-17 |
+| Ответственный | Implementation Lead |
+| Проблема / контекст | Нужно реализовать независимую часть S16 при нерешённом immutable pinning. Bifrost требует служебное хранилище для auth и по умолчанию получает каталоги извне; одного членства в открытой egress-сети недостаточно для allowlist |
+| Требования / источники | DOC-076 §2–7; DOC-075 §3; Security v1.2 §6/9; Secrets v1.1 §2–4; Infrastructure v1.7 §8/9; существующие ADR-031/108/109/110; NCP-16 остаётся PROPOSED |
+| Решение — транспорт | Реальный native HTTP/SSE transport за ProviderTransport, httpx из существующего lock; строгие identity/usage/finish/schema/tool проверки, bounded payloads и очистка соединений. Явные evidence bindings поступают только от доверенной composition, встроенных нет. Известные rolling DeepSeek aliases отклоняются до HTTP; fingerprint и datasheet metadata не являются pinning. Factory остаётся unconfigured |
+| Решение — топология | Opt-in compose.llm-poc.yaml/profile llm-poc: bifrost-poc только llm_poc+llm_upstream (internal); узкий llm-gateway relay только llm_upstream+egress. Runtime/app/data/ingress/admin к ним не подключены, host ports отсутствуют. Membership/секреты/opt-in пара проверяются checker. `make up` сохраняет обычный стек; полный pre-pr/CI дополнительно проверяет candidate |
+| Решение — relay | Только fixed api.deepseek.com:443 и POST /chat/completions, отдельная service auth, text-only Flash и пределы WORKING. DNS всех адресов должен быть public, connect к выбранному numeric IP с исходными Host/SNI и TLS verify; нет второго DNS, redirects или ambient proxy. Provider key заменяется только в relay. CLI требует отдельный явный live flag и ключ; поставляемый overlay не монтирует provider key и остаётся disabled |
+| Решение — служебное хранилище | Bifrost v2.5.1 требует config_store для file-seeded auth: SQLite /app/data/config.db находится только на tmpfs. Это внутренняя временная конфигурация стороннего gateway, не новая доменная БД и не источник Model Registry/domain state. Потеря при restart ожидаема; immutable source — проверенные config files + Compose secrets. Logs/content stores выключены |
+| Решение — bootstrap / каталоги | Закреплённый maximhq/bifrost:v2.5.1 с index sha256:5ec9873acaf1687556b6e4dd854b92b539d9debf87a5a683b66338648b84d3c8 (amd64/arm64); исходный release SHA 7cb75fb2f8276ca48d0792c857fecb67b8879e2f. Pricing/model parameters/MCP catalog читаются из readonly local files, discovery выключен. Peak-тарифы — metadata оператора, не billing/evaluation/approval и не замена бюджетному ledger |
+| Решение — credentials | Только 3 новых случайных dev credentials через существующий SOPS/age init без ротации прежних: Bifrost admin, scoped VK, relay auth. Shell renderer проверяет hex64 и пишет config mode0600 на tmpfs без env/argv/вывода значений. Реальный provider key не генерируется; у Runtime его нет |
+| Решение — неизвестный расход | Bifrost transport помечает post-dispatch errors possibly_billed, opt-in conservative_usage_on_error сохраняет весь резерв при timeout/cancel/невалидном ответе/обрыве до usage. Preflight без dispatch не списывается. Старый deterministic double не меняет семантику. Резерв основан на текущей оценке tokens; durable ledger и абсолютный provider billing cap этим не доказаны |
+| Альтернативы | Прямой egress у Bifrost — не ограничивает назначения; file-only auth — реальный startup показал неподдерживаемость; внешний bootstrap pricing — нарушает deny-by-default; env/argv для секретов — отвергнуты; объявить alias immutable — запрещено текущим baseline; менять gateway продукт до PoC оснований нет |
+| Проверки | HTTP/SSE/SSRF/parser/cancellation и budget negative tests; renderer/policy tests; реальный pinned container: admin/VK, Pro denied, disabled relay, отсутствие direct egress/ports и content/credentials в logs/env. Full pre-pr и Linux CI, independent reciprocal code/Python/test + отдельный security/failure review |
+| Совместимость / риски | Публичные DTO/контракты/миграции не меняются, новых Python dependencies нет. Лимиты bytes/concurrency/timeouts — WORKING dev defaults. TLS/service placement настоящего product path, provider compatibility/pinning/approval и durable budget остаются условиями будущего включения |
+| Следствие | Независимая часть интеграции реализуема и проверяема без платных вызовов; S16 не становится DONE или VERIFIED до оставшихся gates/человеческой приёмки |
+| Evidence | S16 report, S16_MODEL_PINNING_POC, S16_IMPLEMENTATION_REVIEWS; реальные команды/counts/SHA фиксируются отдельно |
