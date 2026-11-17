@@ -151,3 +151,31 @@ name = "Platform and persistence layers do not depend on the policy engine"
 type = "forbidden"
 source_modules = ["ai_res.platform", "ai_res.db"]
 forbidden_modules = ["ai_res.policy"]
+
+# ARCH-01 / ADR-120: highest layer first. ':' groups peers without imposing
+# independence on the shared layers; domain peers are checked separately below.
+[[tool.importlinter.contracts]]
+name = "Domain module layers (ARCH-01)"
+type = "layers"
+containers = ["ai_res.modules"]
+layers = [
+  "epics:model_registry:projects:readiness:readmodel:requirements:sources:tasks:worker_runs",
+  "idempotency:iam:operations",
+  "events:audit",
+]
+exhaustive = true
+
+[[tool.importlinter.contracts]]
+name = "Peer domain modules are independent (ARCH-01)"
+type = "independence"
+modules = [
+  "ai_res.modules.epics",
+  "ai_res.modules.model_registry",
+  "ai_res.modules.projects",
+  "ai_res.modules.readiness",
+  "ai_res.modules.readmodel",
+  "ai_res.modules.requirements",
+  "ai_res.modules.sources",
+  "ai_res.modules.tasks",
+  "ai_res.modules.worker_runs",
+]

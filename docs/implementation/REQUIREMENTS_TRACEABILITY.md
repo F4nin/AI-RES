@@ -41,6 +41,8 @@
 
 ## 2. Индекс требований
 
+Dev-time гарантия модульных границ (Spec §3, Domain Model v1.9 §3 и application service interfaces/domain events) → ARCH-01 / ADR-114/120 → `backend/pyproject.toml` (layers + independence), `backend/tests/architecture/test_domain_import_rules.py` (10 behavioral tests), существующий `test_project_contracts_are_kept`. Evidence/статус — [отчёт ARCH-01](increments/ARCH-01_domain_import_contracts_REPORT.md). Эта проверка статических импортов не повышает runtime-статусы требований об ACL, SQL/Worker isolation и event semantics ниже.
+
 | ID | Документ | Требование (кратко) | Приоритет/scope | Этапы | Статус |
 |---|---|---|---|---|---|
 | API-MVP-001 | DOC-009 | Contract-first и CI validation | MVP | S01, S02, S08, S09, S12 | NOT_STARTED |
