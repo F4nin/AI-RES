@@ -54,6 +54,6 @@
 | ID | Промпт | Зависимости / порядок | Готовность |
 |---|---|---|---|
 | ARCH-01 | [Контракты доменных импортов](ARCH-01_domain_import_contracts.md) | CI-01 DONE; до S17, ADR-114/120 | DONE (VERIFIED, PR #23); см. STATUS/report |
-| DEP-01 | [Renovate dependency updates](DEP-01_renovate_dependency_updates.md) | CI-01 DONE, выбран владельцем 2026-11-17; ADR-113/121 | IN_PROGRESS; config/App statuses раздельно, см. STATUS |
+| DEP-01 | [Renovate dependency updates](DEP-01_renovate_dependency_updates.md) | CI-01 DONE, выбран владельцем 2026-11-17; ADR-113/121 | Config VERIFIED (PR #25), весь этап IN_PROGRESS до подтверждения App onboarding; см. STATUS |
 
 Перечень остальных принятых мини-этапов и их текущие статусы — в STATUS и ADR-112…116. Эта запись не устанавливает новый порядок между ними.

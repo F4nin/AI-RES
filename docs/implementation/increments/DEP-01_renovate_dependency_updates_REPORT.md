@@ -1,6 +1,6 @@
 # DEP-01 — Renovate dependency updates: Increment Report
 
-**Дата:** 2026-11-17 · **Промпт:** [DEP-01](prompts/DEP-01_renovate_dependency_updates.md). **Статус:** IN_PROGRESS. Config **TESTED локально**, полный pre-pr PASS; Linux CI/доставка продолжаются. GitHub App installation **NOT VERIFIED**.
+**Дата:** 2026-11-17 · **Промпт:** [DEP-01](prompts/DEP-01_renovate_dependency_updates.md). **Конфигурация: VERIFIED**, слита PR #25, локальный pre-pr и отдельные PR/push/post-merge Linux CI success. **DEP-01 целиком: IN_PROGRESS** — подтверждение App onboarding ещё ожидается.
 
 ## 1. Реализованный scope
 
@@ -59,7 +59,10 @@ G-31 разделён: strict config checks уже выполнены, hosted Ap
 | `infra/.venv/bin/python -B docs/implementation/tools/check_prompts.py`, `infra/.venv/bin/python -B infra/scripts/scan_secrets.py` | exit 0: 40 S-промптов / 0 issues (DEP mini prompt дополнительно проверен review вручную); scan 0 findings; существующие exclusions review/ECC prose сохранены, весь diff также просмотрен вручную |
 | Полный `make -j1 pre-pr` | **exit 0**: contracts **22 passed** (6.13 s), Renovate strict + **10 acceptance passed**, backend **1301 passed**, 540 warnings (275.85 s), infra **307 passed** (133.65 s), отдельный runtime **148 passed** (128.81 s); 0 failed/errors/skipped, scan 0 findings, ruff/mypy PASS, 14 import contracts kept. Runtime 148 уже входят в infra 307 и затем повторяются; это не сумма уникальных tests. Existing dev secrets: 21 файл / 0 written. |
 | Independent reviews | code/security + финальная дельта: 0 findings |
+| PR/push Linux CI на `b5177cf` | Все **8 checks success**. PR ci44071117953: Renovate **10 passed**, backend **1301 passed**, 540 warnings (223.26 s), infra-static **159 passed** (3.39 s), runtime **148 passed** (162.55 s); contracts44071117805: **22 passed** (6.63 s). Test failed/errors/skipped0. Dependency audit: No known vulnerabilities found; расширенный digest gate, hadolint/actionlint, secret scans, SBOM/vulnerability scan success. |
+| Post-merge Linux CI на `89d5a86` | ci44073088218 и contracts44073088257 **success**: Renovate **10 passed**, backend **1301 passed**, 540 warnings (221.54 s), infra-static **159 passed** (3.35 s), runtime **148 passed** (180.24 s), contracts **22 passed** (6.46 s); test failed/errors/skipped0, все дополнительные gates success. Ожидаемый failure-only stack logs skipped не является пропуском тестов/gate. |
 | GitHub `gh api user/installations` (только lookup для разрешённой установки) | exit 1, HTTP **403**: requires access token authorized to a GitHub App; credentials не извлекались/не печатались |
+| GitHub vulnerability alerts prerequisite | `gh api --method GET repos/F4nin/AI-RES/vulnerability-alerts --silent` сначала exit1/404 (disabled); `gh api --method PUT repos/F4nin/AI-RES/vulnerability-alerts --silent` exit0; повторные GET exit0. Включены только alerts AI-RES, не автоматические Dependabot update PR и не App permissions других repositories. |
 
 Точная текущая команда полного прогона:
 
@@ -83,7 +86,9 @@ PATH="/private/tmp/arch-01-tools/node-v22.23.5-darwin-arm64/bin:/opt/homebrew/op
 
 При сохранении ограничения после готового конфига в main нужен интерактивный переход на [официальную установку Renovate](https://github.com/apps/renovate/installations/new), **Only select repositories → AI-RES → Install**. После этого проверить onboarding/dashboard и отсутствие config errors. Нового разрешения на саму установку не нужно; недостаёт механизма аутентифицированного browser consent. Ссылка/403 не доказывают фактическую установку. До этого App **NOT VERIFIED**, полный DEP-01 не DONE.
 
-Локальный Chrome найден; после доставки конфига будет проверена возможность точечного управления официальной installation page стандартным механизмом ОС. Настройки браузера/automation и глобальные permissions автоматически не расширяются. Наличие установленного браузера само по себе не доказывает доступ к аутентифицированному UI или завершённую установку.
+После merge конфига выполнена фактическая попытка: отдельный helper прошёл read-only security review (0 findings); `osacompile` вне sandbox exit0, `osascript … open` exit0 открыл official URL в отдельном Chrome window. `status` в этом же window exit1 с Chrome error12: JavaScript через AppleEvents отключён. Настройка не менялась, cookies/query/значения полей не читались. Пользователь получил конкретный интерактивный шаг; на странице product selection ему рекомендован scope **Renovate Only**, а не лицензируемый Mend Application Security. Фактический выбор/завершение onboarding и функциональная проверка ещё ожидаются; вторая ветка работ не запускается.
+
+При последующей проверке без JavaScript удалось прочитать только sanitized URL/title целевого окна: `https://developer.mend.io/github/F4nin`, title F4nin. Получить снимок этого окна стандартным `screencapture -l` не удалось (exit1); global screen/browser permissions не включались. В GitHub `gh repo view` подтвердил ADMIN/public для AI-RES; обнаруженные disabled vulnerability alerts включены и повторно проверены. Issue/PR list пока пусты: dashboard/hosted run не наблюдались. Это не доказательство отсутствия установленного App, но и не runtime PASS. Дальнейшие UI-эксперименты прекращены; для завершения запрошено одно подтверждение пользователя: Renovate Only, AI-RES Enabled, App доступ только к AI-RES.
 
 ## 13. Документы / traceability
 
@@ -91,8 +96,12 @@ PATH="/private/tmp/arch-01-tools/node-v22.23.5-darwin-arm64/bin:/opt/homebrew/op
 
 ## 14. DoD
 
-Config/target acceptance, fast tests и полный локальный pre-pr пройдены, independent review выполнено. Linux CI и доставка config ещё не завершены. App installation/hosted runtime NOT VERIFIED. Разделять эти результаты; конфигурацию не повышать до VERIFIED до Linux gates, весь DEP-01 не считать DONE до установленного App.
+Config/target acceptance, fast tests, полный локальный pre-pr, независимые review и отдельные Linux PR/push/post-merge CI пройдены: **конфигурация VERIFIED**. App installation/onboarding ещё не подтверждены; hosted run не наблюдался. До подтверждения App весь DEP-01 не DONE. Установка и фактический первый scheduled run — разные результаты.
+
+Implementation commit **b5177cf161c64c4fccb61377400ad0444e6ef6fb**, [PR #25](https://github.com/F4nin/AI-RES/pull/25); 19 файлов, 493 insertions/8 deletions. После commit рабочая дельта касается только evidence. Linux push [ci44071088445](https://github.com/F4nin/AI-RES/actions/runs/44071088445)/[contracts44071088800](https://github.com/F4nin/AI-RES/actions/runs/44071088800) и PR [ci44071117953](https://github.com/F4nin/AI-RES/actions/runs/44071117953)/[contracts44071117805](https://github.com/F4nin/AI-RES/actions/runs/44071117805) проверяются на этом exact SHA; pending jobs не считаются PASS.
+
+Все указанные runs завершены success до merge. PR #25 **MERGED 2026-11-17 11:20:10 UTC**, merge **89d5a8697c93d48e1c62ee4e344e16cb9bb36222**; после fetch `git diff --exit-code b5177cf origin/main` — exit0, trees идентичны. Отдельные post-merge [ci44073088218](https://github.com/F4nin/AI-RES/actions/runs/44073088218)/[contracts44073088257](https://github.com/F4nin/AI-RES/actions/runs/44073088257) также success на merge SHA. Итоговая ветка `docs/dep-01-closeout` меняет только implementation evidence/status; конфиг, validator, tests, Makefile/CI и pins относительно этого проверенного merge неизменны. Для docs-only checkpoint полный runtime CI не повторяется по ADR-119, contracts workflow сохраняется; локально проверяются diff, prompts и secrets. Self-referential SHA этого checkpoint в файл не записывается.
 
 ## 15. Следующий безопасный шаг
 
-Завершить config gates/доставку DEP-01, затем подтвердить установку и onboarding App доступным разрешённым механизмом либо передать точный интерактивный шаг владельцу. Не начинать PROF-01/S16/SLICE-01/другой продуктовый этап по текущему поручению. Блокировки/бюджеты/approval будущих этапов сохраняются.
+Конфигурация доставлена и проверена. Остаётся подтвердить установку и onboarding App: Renovate Only, AI-RES Enabled, доступ только к AI-RES; первый hosted run фиксировать отдельно по факту. Не начинать PROF-01/S16/SLICE-01/другой продуктовый этап по текущему поручению. Блокировки/бюджеты/approval будущих этапов сохраняются.
