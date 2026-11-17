@@ -6,7 +6,7 @@
 
 Изменены `AGENTS.md`, `CONTEXT_HANDOFF.md`, `DECISIONS_PENDING.md`, `tooling/CONTEXT_RETENTION.md`, `tooling/README.md`, журнал `ECC_USAGE.md`; добавлен этот отчёт. Постоянные правила — AGENTS §10; подробности восстановления/сохранения — существующий CONTEXT_RETENTION. Отдельный roadmap, runtime loop, hooks или конфигурация клиента не создавались.
 
-API/event contracts, миграции, данные, версии пакетов, lock-файлы, продуктовый код, `docs/architecture/`, CLAUDE/.claude/MCP-конфигурации не меняются. Статусы S00–S39/мини-этапов не повышаются. Новое owner approval удовлетворяет прежним требованиям отдельных Git/dev/MCP разрешений в том же scope; product/security approval, специальные запреты и sandbox сохранены.
+На исходном документационном этапе API/event contracts, миграции, данные, версии пакетов, lock-файлы, продуктовый код, `docs/architecture/`, CLAUDE/.claude/MCP-конфигурации не менялись. Затем владелец отдельно разрешил устранить Caddy CI blocker: однострочное изменение infrastructure index pin описано в завершающем разделе. Статусы S00–S39/мини-этапов не повышаются. Новое owner approval удовлетворяет прежним требованиям отдельных Git/dev/MCP разрешений в том же scope; product/security approval, специальные запреты и sandbox сохранены.
 
 ## Выполненные проверки
 
@@ -62,3 +62,30 @@ Git-доставка разрешена прямым решением владе
 Последующая проверка PR run `44047473294` на том же SHA: backend job — success (включая dependency audit), runtime ещё выполняется; contracts PR run `44047473298` — completed/success. Независимое read-only `permission_review` отдельно сравнило два полученных индексных JSON: прежних descriptors не удалено/изменено, добавлен только указанный Windows descriptor, 0 security findings для предложенного минимального pin diff. Это review предложения, не разрешение владельца и не новый runtime PASS.
 
 После закрытия этой задачи ожидать новой короткой команды. Для ARCH-01 заново проверить текущую реализацию, установленный import-linter, зависимости/ADR, подготовить предусмотренный промпт и выполнить один инкремент. Новые бизнес-/security-решения, внешние расходы и специальные ограничения автоматически не утверждаются.
+
+## Устранение Caddy blocker по поручению владельца — 2026-11-17
+
+Владелец прямо поручил закрыть CI blocker и спросил о фиксированной релизной версии. Рабочая база — ветка `docs/codex-autonomous-process`, HEAD `8f3d487f57347caffd45e6475e3465e9927717ce`, чистое дерево. Scope расширен только на `infra/images/caddy/Dockerfile` (одна строка FROM digest) и связанные implementation evidence/решения/контекст/ECC. Версия `2.11.9`, build-команда `setcap`, digest checker и все gates неизменны. Продуктовые API/БД/данные/lock-файлы/canonical не меняются.
+
+Повторно прочитаны `docker buildx imagetools inspect caddy:2.11.9@sha256:<старый digest> --raw` и `docker buildx imagetools inspect caddy:2.11.9 --raw` (оба exit 0). Отдельное inspect tag подтвердило текущий OCI index `sha256:4851e54a46b206517c574821bb5cc67f170d2156041e9fbc4c9193b45e84a75b`. Новый локальный протокол `caddy-blocker-fix-o404mtra/{pinned,current}.json`: 7 Linux descriptors и 7 attestations полностью совпадают; все прежние descriptors сохранены, добавлен только Windows `10.0.20348.5873` с digest `sha256:166ed6c94d1b1204a448f1254b7d68284a000cd8aa8a1993fcae364c7e5e426b`. Linux amd64 остаётся `sha256:fc9cbc100585871d18d4e451cca7021785c90a7006087427ae5ceb3e4efe6424`, arm64/v8 — `sha256:9ee998103a2bc0d4392bbe9738b4069da1562d6920b3cd8088cfd098a8270120`.
+
+Фиксированный релизный tag уже используется. Docker допускает обновление tag; digest фиксирует точный артефакт ([официальная документация Docker](https://docs.docker.com/build/building/best-practices/#pin-base-image-versions)). DOC-015 §12.2/§13.1 требует version tag + digest и проверку refresh даже без смены версии. Удалять digest, закреплять одну архитектуру вместо существующего index или отключать gate для текущего исправления не требуется. Строгий checker по-прежнему сравнивает pin с текущим tag, поэтому будущий upstream index refresh может снова потребовать контролируемого обновления. Автоматизация updates относится к существующему DEP-01/ADR-113; этот мини-этап не запускался, новая политика supply-chain не вводилась.
+
+Независимое blind-first review фактического diff выполнено повторно до написания этого раздела:
+
+- `process_review` / ECC `code-reviewer`: APPROVE, 0 findings; соответствует DOC-015 §12.2/§13.1, новый тест на конкретный digest не нужен, CI на исправленной версии обязателен.
+- `permission_review` / ECC `security-reviewer` + evidence checklist: APPROVE, 0 findings; самостоятельно сравнены повторно полученные JSON, подтвердились 7 Linux/7 attestations и только одно Windows-добавление. Runtime/registry запрос самим reviewer не выполнялся.
+
+Локальные проверки на указанном HEAD + минимальный diff (Python 3.13.5, uv 0.11.31, Darwin arm64):
+
+| Команда | Результат |
+|---|---|
+| `UV_NO_SYNC=1 UV_OFFLINE=1 UV_PYTHON_DOWNLOADS=never PYTHONDONTWRITEBYTECODE=1 make infra-verify-digests` | exit 0, 15 pinned images, 0 mismatches |
+| Те же четыре переменные + `make -j1 pre-push-fast` | exit 0, Ruff PASS, mypy 148 files PASS, 12 import contracts kept, pytest 455 passed/0 failed/errors/skipped, 4 warnings (6.47 s pytest) |
+| Те же переменные + `make infra-check` | exit 0, Ruff PASS, три Compose-комбинации по 22 services/0 violations |
+| Из `infra/`: `PATH="/opt/homebrew/opt/openssl@3/bin:$PATH" PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -B -m pytest -q tests --ignore=tests/runtime --tb=no` | разрешённый запуск вне sandbox: exit 0, 159 passed/0 failed/errors/skipped (3.49 s). PATH только процесса, используется уже установленный OpenSSL 3.6.3; глобальная конфигурация не менялась |
+| `infra/.venv/bin/python -B infra/scripts/scan_secrets.py`, `git diff --check` | exit 0, 0 findings; diff check PASS |
+
+Сохранена неудачная первая попытка infra tests в sandbox с системным LibreSSL 3.3.6: 156 passed/3 failed (Docker socket denied в двух promtool tests и неподдерживаемый Ed25519 в LibreSSL). Product/tests не исправлялись и проверки не ослаблялись; повтор теми же тестами с доступом Docker и установленным OpenSSL прошёл. Не использовались действующие секреты для генерации тестовых ключей.
+
+Полный локальный `make pre-pr` повторно не выполнялся: это не новый продуктовый этап; идентичность всех используемых Linux manifests подтверждена сравнением, прежнее runtime evidence сохраняется только для соответствующих артефактов. Новый обязательный Linux CI (build/runtime/static/contracts/audit/digests/supply-chain) на исправленном SHA проверяется до merge и отдельно от старых failed runs. Новые миграции, перезапуск основного стека, генерация его секретов и отложенные backup/drills не выполнялись.
