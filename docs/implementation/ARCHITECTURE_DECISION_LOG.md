@@ -2253,3 +2253,12 @@
 ## ADR-125 — S19: immutable manifest и внутренний Context Builder
 
 **ACCEPTED, 2026-11-17, Implementation Lead.** Полные контекст, требования/источники, альтернативы, решение, обоснование, совместимость, риски и тесты — [ADR-125](decisions/ADR-125-context-manifest.md). Manifest schema1.0 / explicit-refs-v1 из точных Requirement/Source/Artifact refs, server metadata, canonical SHA256; read Policy checks не выдают новое право на domain action. Module-owned metadata readers через typed ports; separate UoW, audit/idempotency и current ACL на retrieve/replay. Nullable builder_manifest и creation_transaction_id xid8 — expand0018 без backfill/rewrite legacy; server stamp поддерживает savepoint. Не вводит endpoint/event, model call или active rule. Future calling command обязана отдельно авторизовать свой action; S19 не соединён с production transport/Runtime. Исторические revisions и canonical не меняются. S19 VERIFIED/DONE: source PR31/merge99e5ec1, полный local pre-pr и exact-head/post-merge Linux CI PASS; подробные counts/links — S19 report.
+
+
+## ADR-126: Rules language, lifecycle и deterministic evidence
+
+| Поле | Значение |
+|---|---|
+| Дата / статус / ответственный | 2026-11-17 / ACCEPTED / Implementation Lead |
+| Контекст / требования | S18, RULE-MVP01..14, ADR018, canonical Concept§15, MVP Addenda0.7/0.8 |
+| Решение / альтернативы / обоснование / риски / тесты | [Полный ADR126](decisions/ADR-126-rules-language-and-lifecycle.md): bounded typed AST вместо eval; no SYSTEM override; separate human approval/publication; finite exact waiver; trusted context-metadata facts, immutable full snapshots/replay; Policy independent defaultdeny, owner separation unconfigured→deny; PostgreSQL RLS/CAS/audit; production binding G158 |

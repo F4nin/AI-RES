@@ -85,3 +85,10 @@ SessionStart hook `session-brief`, `CONTEXT_HANDOFF.md`, Context7 MCP (чере�
 
 
 S19 closeout: тот же независимый s19_review проверил staged docs после завершения source findings:74 local file targets/0missing; duplicate G157 MEDIUM исправлен, pool-pressure и старый runtime snapshot уточнены. Старый lock-order mutant воспроизвёл DeadlockDetected2/2. Full pre-pr и Linux head/post-merge counts/links сохранены в report; docs-only closeout не приписывает старый CI своему SHA. S18 только read-only planner и предварительный architect/security design assessment, без кода/новых production grants до закрытия S19.
+
+
+## S18 — фактическое применение, 2026-11-17
+
+Planner/TDD/type-design и Pythonpatterns/testing: отдельный bounded author types/DSL+security acceptance, RED→GREEN и strict immutable invariants. Architect: отдельный author pure engine/validation, canonical I0–I4/hierarchy/exceptions assessment; это author self-check, не independent review. Database competency: отдельный author owned storage/migration/RLS/previous-upgrade tests. Root: application composition/current Policy/session, exact refs/audit/idempotency, acceptance integration и verification-loop checklist. Native Claude slash commands/hooks не запускались; `/plan`, `/python-review`, `/code-review`, `/quality-gate` использованы как явно прочитанные процедуры, не как фактически вызванные команды. Numeric coverage не измерялось (pytest-cov вне lock); behavioral positive/negative cases и import constraints — evidence, не substitute всех gates.
+
+Independent blind-first general/code/Python/types/pr-test-analyzer/architect, security/silent-failure и новый database reviewer отделены от авторов. Финальные findings/hashes/команды — [review](reviews/S18_IMPLEMENTATION_REVIEWS.md), [report](increments/S18_rules_registry_rules_engine_REPORT.md). Финальная приёмка/доставка продолжаются; `make pre-pr`/Linux не подменяются ECC.

@@ -474,6 +474,33 @@ END $$;
 
 ALTER FUNCTION governance.guard_rule_approver() OWNER TO ai_res_owner;
 
+CREATE FUNCTION governance.guard_rule_record_scope() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE version_ref uuid; target governance.rule_versions%ROWTYPE;
+BEGIN
+  version_ref := (to_jsonb(NEW) ->> CASE TG_TABLE_NAME WHEN 'rule_validation_reports' THEN 'proposal_version_id'
+     WHEN 'rule_exceptions' THEN 'target_version_id' ELSE 'rule_version_id' END)::uuid;
+  SELECT * INTO target FROM governance.rule_versions WHERE id=version_ref;
+  IF target.id IS NULL OR target.organization_id IS DISTINCT FROM NEW.organization_id
+     OR (target.project_id IS NOT NULL AND target.project_id IS DISTINCT FROM NEW.project_id) THEN
+    RAISE EXCEPTION 'rule record is outside its target tenant scope' USING ERRCODE='integrity_constraint_violation';
+  END IF;
+  IF TG_TABLE_NAME='rule_runtime_controls' THEN
+    IF target.level IS DISTINCT FROM NEW.level THEN
+      RAISE EXCEPTION 'rule control level mismatch' USING ERRCODE='integrity_constraint_violation';
+    END IF;
+  ELSIF TG_TABLE_NAME='rule_exceptions' THEN
+    IF target.level='SYSTEM' OR NOT EXISTS (SELECT 1 FROM governance.rule_versions p WHERE p.id=NEW.permission_version_id
+      AND (p.level='SYSTEM' OR (p.organization_id=NEW.organization_id AND (p.project_id IS NULL OR p.project_id=NEW.project_id)))) THEN
+      RAISE EXCEPTION 'rule exception target or permission is outside its scope' USING ERRCODE='integrity_constraint_violation';
+    END IF;
+  END IF;
+  RETURN NEW;
+END $$;
+
+ALTER FUNCTION governance.guard_rule_record_scope() OWNER TO ai_res_owner;
+
 CREATE FUNCTION governance.guard_version_facts() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -1671,6 +1698,125 @@ ALTER TABLE ONLY governance.reviews FORCE ROW LEVEL SECURITY;
 
 ALTER TABLE governance.reviews OWNER TO ai_res_owner;
 
+CREATE TABLE governance.rule_evaluations (
+    id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    project_id uuid NOT NULL,
+    context_version_id uuid NOT NULL,
+    actor_id uuid NOT NULL,
+    evaluated_at timestamp with time zone NOT NULL,
+    engine_version text NOT NULL,
+    schema_version text NOT NULL,
+    input_snapshot jsonb NOT NULL,
+    input_hash bytea NOT NULL,
+    result jsonb NOT NULL,
+    result_hash bytea NOT NULL,
+    previous_evaluation_id uuid,
+    CONSTRAINT ck_rule_evaluations_engine CHECK ((engine_version ~ '^[A-Za-z0-9_.-]{1,80}$'::text)),
+    CONSTRAINT ck_rule_evaluations_input CHECK ((jsonb_typeof(input_snapshot) = 'object'::text)),
+    CONSTRAINT ck_rule_evaluations_input_hash CHECK ((octet_length(input_hash) = 32)),
+    CONSTRAINT ck_rule_evaluations_not_self CHECK ((previous_evaluation_id IS DISTINCT FROM id)),
+    CONSTRAINT ck_rule_evaluations_result CHECK ((jsonb_typeof(result) = 'object'::text)),
+    CONSTRAINT ck_rule_evaluations_result_hash CHECK ((octet_length(result_hash) = 32)),
+    CONSTRAINT ck_rule_evaluations_schema CHECK ((schema_version ~ '^[A-Za-z0-9_.-]{1,80}$'::text))
+);
+
+ALTER TABLE ONLY governance.rule_evaluations FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE governance.rule_evaluations OWNER TO ai_res_owner;
+
+CREATE TABLE governance.rule_exception_revocations (
+    id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    project_id uuid NOT NULL,
+    exception_id uuid NOT NULL,
+    actor_id uuid NOT NULL,
+    revoked_at timestamp with time zone NOT NULL
+);
+
+ALTER TABLE ONLY governance.rule_exception_revocations FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE governance.rule_exception_revocations OWNER TO ai_res_owner;
+
+CREATE TABLE governance.rule_exceptions (
+    id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    project_id uuid NOT NULL,
+    target_version_id uuid NOT NULL,
+    target_content_hash bytea NOT NULL,
+    target_effect_hash bytea NOT NULL,
+    permission_version_id uuid NOT NULL,
+    object_type text NOT NULL,
+    object_id uuid NOT NULL,
+    operation text NOT NULL,
+    approved_by uuid NOT NULL,
+    approved_at timestamp with time zone NOT NULL,
+    valid_from timestamp with time zone NOT NULL,
+    valid_to timestamp with time zone NOT NULL,
+    reason_code text NOT NULL,
+    risk_refs uuid[] NOT NULL,
+    compensation_refs uuid[] NOT NULL,
+    snapshot jsonb NOT NULL,
+    snapshot_hash bytea NOT NULL,
+    CONSTRAINT ck_rule_exceptions_compensation CHECK (((cardinality(compensation_refs) > 0) AND (array_position(compensation_refs, NULL::uuid) IS NULL))),
+    CONSTRAINT ck_rule_exceptions_content_hash CHECK ((octet_length(target_content_hash) = 32)),
+    CONSTRAINT ck_rule_exceptions_effect_hash CHECK ((octet_length(target_effect_hash) = 32)),
+    CONSTRAINT ck_rule_exceptions_finite_validity CHECK ((isfinite(valid_from) AND isfinite(valid_to) AND (valid_to > valid_from) AND (approved_at <= valid_from))),
+    CONSTRAINT ck_rule_exceptions_object_type CHECK ((object_type ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'::text)),
+    CONSTRAINT ck_rule_exceptions_operation CHECK ((operation ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'::text)),
+    CONSTRAINT ck_rule_exceptions_reason CHECK ((reason_code ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'::text)),
+    CONSTRAINT ck_rule_exceptions_risks CHECK (((cardinality(risk_refs) > 0) AND (array_position(risk_refs, NULL::uuid) IS NULL))),
+    CONSTRAINT ck_rule_exceptions_snapshot CHECK ((jsonb_typeof(snapshot) = 'object'::text)),
+    CONSTRAINT ck_rule_exceptions_snapshot_hash CHECK ((octet_length(snapshot_hash) = 32))
+);
+
+ALTER TABLE ONLY governance.rule_exceptions FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE governance.rule_exceptions OWNER TO ai_res_owner;
+
+CREATE TABLE governance.rule_runtime_controls (
+    id uuid NOT NULL,
+    rule_version_id uuid NOT NULL,
+    level text NOT NULL,
+    organization_id uuid,
+    project_id uuid,
+    sequence bigint NOT NULL,
+    action text NOT NULL,
+    actor_id uuid NOT NULL,
+    occurred_at timestamp with time zone NOT NULL,
+    CONSTRAINT ck_rule_controls_action CHECK ((action = ANY (ARRAY['PUBLISH'::text, 'SUSPEND'::text, 'RESUME'::text, 'RETIRE'::text]))),
+    CONSTRAINT ck_rule_controls_level CHECK ((level = ANY (ARRAY['SYSTEM'::text, 'ORGANIZATION'::text, 'PROJECT'::text]))),
+    CONSTRAINT ck_rule_controls_scope CHECK ((((level = 'SYSTEM'::text) AND (organization_id IS NULL) AND (project_id IS NULL)) OR ((level = 'ORGANIZATION'::text) AND (organization_id IS NOT NULL) AND (project_id IS NULL)) OR ((level = 'PROJECT'::text) AND (organization_id IS NOT NULL) AND (project_id IS NOT NULL)))),
+    CONSTRAINT ck_rule_controls_sequence CHECK ((sequence > 0))
+);
+
+ALTER TABLE ONLY governance.rule_runtime_controls FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE governance.rule_runtime_controls OWNER TO ai_res_owner;
+
+CREATE TABLE governance.rule_validation_reports (
+    id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    project_id uuid,
+    proposal_version_id uuid NOT NULL,
+    proposal_hash bytea NOT NULL,
+    basis_hash bytea NOT NULL,
+    basis jsonb NOT NULL,
+    result jsonb NOT NULL,
+    result_hash bytea NOT NULL,
+    actor_id uuid NOT NULL,
+    evaluated_at timestamp with time zone NOT NULL,
+    CONSTRAINT ck_rule_validation_basis CHECK ((jsonb_typeof(basis) = 'object'::text)),
+    CONSTRAINT ck_rule_validation_basis_hash CHECK ((octet_length(basis_hash) = 32)),
+    CONSTRAINT ck_rule_validation_proposal_hash CHECK ((octet_length(proposal_hash) = 32)),
+    CONSTRAINT ck_rule_validation_result CHECK ((jsonb_typeof(result) = 'object'::text)),
+    CONSTRAINT ck_rule_validation_result_hash CHECK ((octet_length(result_hash) = 32))
+);
+
+ALTER TABLE ONLY governance.rule_validation_reports FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE governance.rule_validation_reports OWNER TO ai_res_owner;
+
 CREATE TABLE governance.rule_versions (
     id uuid NOT NULL,
     rule_id uuid NOT NULL,
@@ -1717,7 +1863,9 @@ CREATE TABLE governance.rules (
     row_version bigint DEFAULT 1 NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    last_version_number integer DEFAULT 0 NOT NULL,
     CONSTRAINT ck_rules_applies_to_object_type CHECK ((applies_to_object_type ~ '^[A-Z][A-Z_]*$'::text)),
+    CONSTRAINT ck_rules_last_version_number CHECK ((last_version_number >= 0)),
     CONSTRAINT ck_rules_level CHECK ((level = ANY (ARRAY['SYSTEM'::text, 'ORGANIZATION'::text, 'PROJECT'::text]))),
     CONSTRAINT ck_rules_level_scope CHECK ((((level = 'SYSTEM'::text) AND (organization_id IS NULL) AND (project_id IS NULL)) OR ((level = 'ORGANIZATION'::text) AND (organization_id IS NOT NULL) AND (project_id IS NULL)) OR ((level = 'PROJECT'::text) AND (organization_id IS NOT NULL) AND (project_id IS NOT NULL)))),
     CONSTRAINT ck_rules_row_version CHECK ((row_version > 0)),
@@ -2808,6 +2956,21 @@ ALTER TABLE ONLY governance.change_requests
 ALTER TABLE ONLY governance.reviews
     ADD CONSTRAINT pk_reviews PRIMARY KEY (id);
 
+ALTER TABLE ONLY governance.rule_evaluations
+    ADD CONSTRAINT pk_rule_evaluations PRIMARY KEY (id);
+
+ALTER TABLE ONLY governance.rule_exception_revocations
+    ADD CONSTRAINT pk_rule_exception_revocations PRIMARY KEY (id);
+
+ALTER TABLE ONLY governance.rule_exceptions
+    ADD CONSTRAINT pk_rule_exceptions PRIMARY KEY (id);
+
+ALTER TABLE ONLY governance.rule_runtime_controls
+    ADD CONSTRAINT pk_rule_runtime_controls PRIMARY KEY (id);
+
+ALTER TABLE ONLY governance.rule_validation_reports
+    ADD CONSTRAINT pk_rule_validation_reports PRIMARY KEY (id);
+
 ALTER TABLE ONLY governance.rule_versions
     ADD CONSTRAINT pk_rule_versions PRIMARY KEY (id);
 
@@ -2831,6 +2994,18 @@ ALTER TABLE ONLY governance.change_requests
 
 ALTER TABLE ONLY governance.change_requests
     ADD CONSTRAINT uq_change_requests_organization_id_project_id_id UNIQUE (organization_id, project_id, id);
+
+ALTER TABLE ONLY governance.rule_runtime_controls
+    ADD CONSTRAINT uq_rule_controls_version_sequence UNIQUE (rule_version_id, sequence);
+
+ALTER TABLE ONLY governance.rule_evaluations
+    ADD CONSTRAINT uq_rule_evaluations_scope_id UNIQUE (organization_id, project_id, id);
+
+ALTER TABLE ONLY governance.rule_exception_revocations
+    ADD CONSTRAINT uq_rule_exception_revocations_exception UNIQUE (exception_id);
+
+ALTER TABLE ONLY governance.rule_exceptions
+    ADD CONSTRAINT uq_rule_exceptions_scope_id UNIQUE (organization_id, project_id, id);
 
 ALTER TABLE ONLY governance.rule_versions
     ADD CONSTRAINT uq_rule_versions_rule_id_version_number UNIQUE (rule_id, version_number);
@@ -3203,6 +3378,48 @@ CREATE INDEX ix_reviews_artifact_version_id ON governance.reviews USING btree (a
 
 CREATE INDEX ix_reviews_requirement_version_id ON governance.reviews USING btree (requirement_version_id) WHERE (requirement_version_id IS NOT NULL);
 
+CREATE INDEX ix_rule_evaluations_actor_id ON governance.rule_evaluations USING btree (actor_id);
+
+CREATE INDEX ix_rule_evaluations_actor_scope ON governance.rule_evaluations USING btree (organization_id, actor_id);
+
+CREATE INDEX ix_rule_evaluations_context_scope ON governance.rule_evaluations USING btree (organization_id, project_id, context_version_id);
+
+CREATE INDEX ix_rule_evaluations_context_version_id ON governance.rule_evaluations USING btree (context_version_id);
+
+CREATE INDEX ix_rule_evaluations_previous_evaluation_id ON governance.rule_evaluations USING btree (previous_evaluation_id);
+
+CREATE INDEX ix_rule_evaluations_previous_scope ON governance.rule_evaluations USING btree (organization_id, project_id, previous_evaluation_id);
+
+CREATE INDEX ix_rule_exception_revocations_actor_id ON governance.rule_exception_revocations USING btree (actor_id);
+
+CREATE INDEX ix_rule_exception_revocations_actor_scope ON governance.rule_exception_revocations USING btree (organization_id, actor_id);
+
+CREATE INDEX ix_rule_exception_revocations_exception_scope ON governance.rule_exception_revocations USING btree (organization_id, project_id, exception_id);
+
+CREATE INDEX ix_rule_exceptions_approved_by ON governance.rule_exceptions USING btree (approved_by);
+
+CREATE INDEX ix_rule_exceptions_approver_scope ON governance.rule_exceptions USING btree (organization_id, approved_by);
+
+CREATE INDEX ix_rule_exceptions_permission_version_id ON governance.rule_exceptions USING btree (permission_version_id);
+
+CREATE INDEX ix_rule_exceptions_scope ON governance.rule_exceptions USING btree (organization_id, project_id);
+
+CREATE INDEX ix_rule_exceptions_target_version_id ON governance.rule_exceptions USING btree (target_version_id);
+
+CREATE INDEX ix_rule_runtime_controls_actor_id ON governance.rule_runtime_controls USING btree (actor_id);
+
+CREATE INDEX ix_rule_runtime_controls_actor_scope ON governance.rule_runtime_controls USING btree (organization_id, actor_id);
+
+CREATE INDEX ix_rule_runtime_controls_scope ON governance.rule_runtime_controls USING btree (organization_id, project_id);
+
+CREATE INDEX ix_rule_validation_reports_actor_id ON governance.rule_validation_reports USING btree (actor_id);
+
+CREATE INDEX ix_rule_validation_reports_actor_scope ON governance.rule_validation_reports USING btree (organization_id, actor_id);
+
+CREATE INDEX ix_rule_validation_reports_proposal_version_id ON governance.rule_validation_reports USING btree (proposal_version_id);
+
+CREATE INDEX ix_rule_validation_reports_scope ON governance.rule_validation_reports USING btree (organization_id, project_id);
+
 CREATE INDEX ix_rule_versions_approver_user_id ON governance.rule_versions USING btree (approver_user_id);
 
 CREATE UNIQUE INDEX uq_baseline_items_artifact ON governance.baseline_items USING btree (baseline_id, artifact_version_id) WHERE (artifact_version_id IS NOT NULL);
@@ -3468,6 +3685,32 @@ CREATE TRIGGER trg_change_requests_touch BEFORE UPDATE ON governance.change_requ
 CREATE TRIGGER trg_reviews_append_only BEFORE DELETE OR UPDATE ON governance.reviews FOR EACH ROW EXECUTE FUNCTION platform.reject_modification();
 
 CREATE TRIGGER trg_reviews_no_truncate BEFORE TRUNCATE ON governance.reviews FOR EACH STATEMENT EXECUTE FUNCTION platform.reject_modification();
+
+CREATE TRIGGER trg_rule_controls_scope BEFORE INSERT ON governance.rule_runtime_controls FOR EACH ROW EXECUTE FUNCTION governance.guard_rule_record_scope();
+
+CREATE TRIGGER trg_rule_evaluations_append_only BEFORE DELETE OR UPDATE ON governance.rule_evaluations FOR EACH ROW EXECUTE FUNCTION platform.reject_modification();
+
+CREATE TRIGGER trg_rule_evaluations_no_truncate BEFORE TRUNCATE ON governance.rule_evaluations FOR EACH STATEMENT EXECUTE FUNCTION platform.reject_modification();
+
+CREATE TRIGGER trg_rule_exception_revocations_append_only BEFORE DELETE OR UPDATE ON governance.rule_exception_revocations FOR EACH ROW EXECUTE FUNCTION platform.reject_modification();
+
+CREATE TRIGGER trg_rule_exception_revocations_no_truncate BEFORE TRUNCATE ON governance.rule_exception_revocations FOR EACH STATEMENT EXECUTE FUNCTION platform.reject_modification();
+
+CREATE TRIGGER trg_rule_exceptions_append_only BEFORE DELETE OR UPDATE ON governance.rule_exceptions FOR EACH ROW EXECUTE FUNCTION platform.reject_modification();
+
+CREATE TRIGGER trg_rule_exceptions_no_truncate BEFORE TRUNCATE ON governance.rule_exceptions FOR EACH STATEMENT EXECUTE FUNCTION platform.reject_modification();
+
+CREATE TRIGGER trg_rule_exceptions_scope BEFORE INSERT ON governance.rule_exceptions FOR EACH ROW EXECUTE FUNCTION governance.guard_rule_record_scope();
+
+CREATE TRIGGER trg_rule_runtime_controls_append_only BEFORE DELETE OR UPDATE ON governance.rule_runtime_controls FOR EACH ROW EXECUTE FUNCTION platform.reject_modification();
+
+CREATE TRIGGER trg_rule_runtime_controls_no_truncate BEFORE TRUNCATE ON governance.rule_runtime_controls FOR EACH STATEMENT EXECUTE FUNCTION platform.reject_modification();
+
+CREATE TRIGGER trg_rule_validation_reports_append_only BEFORE DELETE OR UPDATE ON governance.rule_validation_reports FOR EACH ROW EXECUTE FUNCTION platform.reject_modification();
+
+CREATE TRIGGER trg_rule_validation_reports_no_truncate BEFORE TRUNCATE ON governance.rule_validation_reports FOR EACH STATEMENT EXECUTE FUNCTION platform.reject_modification();
+
+CREATE TRIGGER trg_rule_validation_scope BEFORE INSERT ON governance.rule_validation_reports FOR EACH ROW EXECUTE FUNCTION governance.guard_rule_record_scope();
 
 CREATE TRIGGER trg_rule_versions_approver BEFORE INSERT OR UPDATE ON governance.rule_versions FOR EACH ROW EXECUTE FUNCTION governance.guard_rule_approver();
 
@@ -3932,6 +4175,51 @@ ALTER TABLE ONLY governance.reviews
 ALTER TABLE ONLY governance.reviews
     ADD CONSTRAINT fk_reviews_requirement_version_id_requirement_versions FOREIGN KEY (organization_id, project_id, requirement_version_id) REFERENCES requirements.requirement_versions(organization_id, project_id, id) ON DELETE RESTRICT;
 
+ALTER TABLE ONLY governance.rule_runtime_controls
+    ADD CONSTRAINT fk_rule_controls_actor FOREIGN KEY (organization_id, actor_id) REFERENCES iam.users(organization_id, id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY governance.rule_runtime_controls
+    ADD CONSTRAINT fk_rule_controls_scope FOREIGN KEY (organization_id, project_id) REFERENCES project.projects(organization_id, id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY governance.rule_runtime_controls
+    ADD CONSTRAINT fk_rule_controls_version FOREIGN KEY (rule_version_id) REFERENCES governance.rule_versions(id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY governance.rule_evaluations
+    ADD CONSTRAINT fk_rule_evaluations_actor FOREIGN KEY (organization_id, actor_id) REFERENCES iam.users(organization_id, id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY governance.rule_evaluations
+    ADD CONSTRAINT fk_rule_evaluations_context FOREIGN KEY (organization_id, project_id, context_version_id) REFERENCES context.context_package_versions(organization_id, project_id, id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY governance.rule_evaluations
+    ADD CONSTRAINT fk_rule_evaluations_previous FOREIGN KEY (organization_id, project_id, previous_evaluation_id) REFERENCES governance.rule_evaluations(organization_id, project_id, id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY governance.rule_exception_revocations
+    ADD CONSTRAINT fk_rule_exception_revocations_actor FOREIGN KEY (organization_id, actor_id) REFERENCES iam.users(organization_id, id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY governance.rule_exception_revocations
+    ADD CONSTRAINT fk_rule_exception_revocations_exception FOREIGN KEY (organization_id, project_id, exception_id) REFERENCES governance.rule_exceptions(organization_id, project_id, id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY governance.rule_exceptions
+    ADD CONSTRAINT fk_rule_exceptions_approver FOREIGN KEY (organization_id, approved_by) REFERENCES iam.users(organization_id, id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY governance.rule_exceptions
+    ADD CONSTRAINT fk_rule_exceptions_permission FOREIGN KEY (permission_version_id) REFERENCES governance.rule_versions(id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY governance.rule_exceptions
+    ADD CONSTRAINT fk_rule_exceptions_scope FOREIGN KEY (organization_id, project_id) REFERENCES project.projects(organization_id, id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY governance.rule_exceptions
+    ADD CONSTRAINT fk_rule_exceptions_target FOREIGN KEY (target_version_id) REFERENCES governance.rule_versions(id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY governance.rule_validation_reports
+    ADD CONSTRAINT fk_rule_validation_actor FOREIGN KEY (organization_id, actor_id) REFERENCES iam.users(organization_id, id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY governance.rule_validation_reports
+    ADD CONSTRAINT fk_rule_validation_proposal FOREIGN KEY (proposal_version_id) REFERENCES governance.rule_versions(id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY governance.rule_validation_reports
+    ADD CONSTRAINT fk_rule_validation_scope FOREIGN KEY (organization_id, project_id) REFERENCES project.projects(organization_id, id) ON DELETE RESTRICT;
+
 ALTER TABLE ONLY governance.rule_versions
     ADD CONSTRAINT fk_rule_versions_approver_user_id_users FOREIGN KEY (approver_user_id) REFERENCES iam.users(id) ON DELETE RESTRICT;
 
@@ -4335,6 +4623,36 @@ CREATE POLICY p_reviews_owner_migration ON governance.reviews TO ai_res_owner US
 
 CREATE POLICY p_reviews_tenant_scope ON governance.reviews TO ai_res_api_group USING (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid))) WITH CHECK (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid)));
 
+CREATE POLICY p_rule_evaluations_insert ON governance.rule_evaluations FOR INSERT TO ai_res_api_group WITH CHECK (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND ((project_id IS NULL) OR (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid))));
+
+CREATE POLICY p_rule_evaluations_owner_migration ON governance.rule_evaluations TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
+
+CREATE POLICY p_rule_evaluations_select ON governance.rule_evaluations FOR SELECT TO ai_res_api_group USING (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND ((project_id IS NULL) OR (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid))));
+
+CREATE POLICY p_rule_exception_revocations_insert ON governance.rule_exception_revocations FOR INSERT TO ai_res_api_group WITH CHECK (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND ((project_id IS NULL) OR (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid))));
+
+CREATE POLICY p_rule_exception_revocations_owner_migration ON governance.rule_exception_revocations TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
+
+CREATE POLICY p_rule_exception_revocations_select ON governance.rule_exception_revocations FOR SELECT TO ai_res_api_group USING (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND ((project_id IS NULL) OR (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid))));
+
+CREATE POLICY p_rule_exceptions_insert ON governance.rule_exceptions FOR INSERT TO ai_res_api_group WITH CHECK (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND ((project_id IS NULL) OR (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid))));
+
+CREATE POLICY p_rule_exceptions_owner_migration ON governance.rule_exceptions TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
+
+CREATE POLICY p_rule_exceptions_select ON governance.rule_exceptions FOR SELECT TO ai_res_api_group USING (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND ((project_id IS NULL) OR (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid))));
+
+CREATE POLICY p_rule_runtime_controls_insert ON governance.rule_runtime_controls FOR INSERT TO ai_res_api_group WITH CHECK (((level <> 'SYSTEM'::text) AND ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND ((project_id IS NULL) OR (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid)))));
+
+CREATE POLICY p_rule_runtime_controls_owner_migration ON governance.rule_runtime_controls TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
+
+CREATE POLICY p_rule_runtime_controls_select ON governance.rule_runtime_controls FOR SELECT TO ai_res_api_group USING (((level = 'SYSTEM'::text) OR ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND ((project_id IS NULL) OR (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid)))));
+
+CREATE POLICY p_rule_validation_reports_insert ON governance.rule_validation_reports FOR INSERT TO ai_res_api_group WITH CHECK (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND ((project_id IS NULL) OR (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid))));
+
+CREATE POLICY p_rule_validation_reports_owner_migration ON governance.rule_validation_reports TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
+
+CREATE POLICY p_rule_validation_reports_select ON governance.rule_validation_reports FOR SELECT TO ai_res_api_group USING (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND ((project_id IS NULL) OR (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid))));
+
 CREATE POLICY p_rule_versions_insert ON governance.rule_versions FOR INSERT TO ai_res_api_group WITH CHECK (((level <> 'SYSTEM'::text) AND (organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND ((project_id IS NULL) OR (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid))));
 
 CREATE POLICY p_rule_versions_owner_migration ON governance.rule_versions TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
@@ -4352,6 +4670,16 @@ CREATE POLICY p_rules_read ON governance.rules FOR SELECT TO ai_res_api_group US
 CREATE POLICY p_rules_update ON governance.rules FOR UPDATE TO ai_res_api_group USING (((level <> 'SYSTEM'::text) AND (organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND ((project_id IS NULL) OR (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid)))) WITH CHECK (((level <> 'SYSTEM'::text) AND (organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND ((project_id IS NULL) OR (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid))));
 
 ALTER TABLE governance.reviews ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE governance.rule_evaluations ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE governance.rule_exception_revocations ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE governance.rule_exceptions ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE governance.rule_runtime_controls ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE governance.rule_validation_reports ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE governance.rule_versions ENABLE ROW LEVEL SECURITY;
 
@@ -4649,6 +4977,8 @@ REVOKE ALL ON FUNCTION governance.guard_baseline_item_insert() FROM PUBLIC;
 
 REVOKE ALL ON FUNCTION governance.guard_rule_approver() FROM PUBLIC;
 
+REVOKE ALL ON FUNCTION governance.guard_rule_record_scope() FROM PUBLIC;
+
 REVOKE ALL ON FUNCTION governance.guard_version_facts() FROM PUBLIC;
 
 REVOKE ALL ON FUNCTION platform.advance_by_one() FROM PUBLIC;
@@ -4780,6 +5110,16 @@ GRANT SELECT,INSERT ON TABLE governance.change_request_events TO ai_res_api_grou
 GRANT SELECT,INSERT,UPDATE ON TABLE governance.change_requests TO ai_res_api_group;
 
 GRANT SELECT,INSERT ON TABLE governance.reviews TO ai_res_api_group;
+
+GRANT SELECT,INSERT ON TABLE governance.rule_evaluations TO ai_res_api_group;
+
+GRANT SELECT,INSERT ON TABLE governance.rule_exception_revocations TO ai_res_api_group;
+
+GRANT SELECT,INSERT ON TABLE governance.rule_exceptions TO ai_res_api_group;
+
+GRANT SELECT,INSERT ON TABLE governance.rule_runtime_controls TO ai_res_api_group;
+
+GRANT SELECT,INSERT ON TABLE governance.rule_validation_reports TO ai_res_api_group;
 
 GRANT SELECT,INSERT,UPDATE ON TABLE governance.rule_versions TO ai_res_api_group;
 

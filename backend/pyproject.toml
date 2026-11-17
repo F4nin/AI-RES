@@ -159,7 +159,7 @@ name = "Domain module layers (ARCH-01)"
 type = "layers"
 containers = ["ai_res.modules"]
 layers = [
-  "artifacts:context:epics:model_registry:projects:readiness:readmodel:requirements:sources:tasks:worker_runs",
+  "artifacts:context:epics:model_registry:projects:readiness:readmodel:requirements:rules:sources:tasks:worker_runs",
   "idempotency:iam:operations",
   "events:audit",
 ]
@@ -177,7 +177,14 @@ modules = [
   "ai_res.modules.readiness",
   "ai_res.modules.readmodel",
   "ai_res.modules.requirements",
+  "ai_res.modules.rules",
   "ai_res.modules.sources",
   "ai_res.modules.tasks",
   "ai_res.modules.worker_runs",
 ]
+
+[[tool.importlinter.contracts]]
+name = "Rules calculation and DSL have no persistence or permission dependencies (S18)"
+type = "forbidden"
+source_modules = ["ai_res.modules.rules.engine", "ai_res.modules.rules.validation", "ai_res.modules.rules.language", "ai_res.modules.rules.types"]
+forbidden_modules = ["sqlalchemy", "psycopg", "alembic", "ai_res.db", "ai_res.policy", "ai_res.api", "ai_res.application", "ai_res.modules.rules.repository", "ai_res.modules.rules.registry"]

@@ -1,5 +1,7 @@
 # CONTEXT_HANDOFF — состояние для продолжения работы (обновлять в конце каждого этапа и сессии)
 
+**Текущий G01/S18 checkpoint, 2026-11-17:** S19 DONE (PR31 merge99e5ec1, closeout PR32 d5342ac); S18 TESTED, localpre-pr exit0/targeted186/3independentAPPROVE; Linux/delivery продолжаются на `feat/s18-rules-registry-engine` отd5342ac. Types/DSL/engine/validation/owned persistence/migration0019/human lifecycle/evaluation/exceptions/replay реализованы. [S18 report](increments/S18_rules_registry_rules_engine_REPORT.md), [G01 passport](groups/G01_WORK.md). Production binding/catalogue/grants и owner separation не выдавались (G158). Полный pre-pr exit0: backend1749/infra369/runtime148/contracts22/PoC19; final namespace delta+2PGcases покрыты targeted186. VERIFIED/DONE доLinux пока не заявлены. Исходные12 governance dirty изменений сохранены вне stage commit. Следующий безопасный шаг: завершить review/fixes/gates/Linux и доставить только S18; после DONE G01 остановиться.
+
 **Сверено:** 2026-11-17 по отчётам этапов, Git и фактическим локальным приёмочным проверкам Codex. Evidence и ограничения — `DECISIONS_PENDING.md`, «Локальная приёмка Codex и публикация результатов». Результат Linux CI проверять по SHA опубликованного коммита, не выводить из локального PASS. `.claude/hooks/session-brief.mjs` подставляет первые 60 строк только в Claude Code; Codex должен читать этот файл явно.
 
 ## Текущее состояние

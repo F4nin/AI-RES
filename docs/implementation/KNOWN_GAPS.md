@@ -1,5 +1,11 @@
 # KNOWN_GAPS
 
+## S18 — условия production binding
+
+| ID | Пробел / условие интеграции | Граница | Статус |
+|---|---|---|---|
+| G-158 | Rules Engine/Registry internal mechanism имеет trusted context-metadata facts и human command boundary, но production management/Manager proposal transport, service grants и active rule catalogue не установлены; OD14 separation остаётся owner policy | До подключения caller отдельно авторизовать точный domain action, human/service identity и schema/facts; неизвестные management actions DENY, separationNone blocks activation; проверить concurrency/pool pressure, не переносить fixture grants в продукт | OPEN — admission будущей интеграции, [ADR126](decisions/ADR-126-rules-language-and-lifecycle.md); [report](increments/S18_rules_registry_rules_engine_REPORT.md) |
+
 ## S19 — граница внутреннего builder
 
 | ID | Пробел / условие интеграции | Влияние | Статус / закрытие |

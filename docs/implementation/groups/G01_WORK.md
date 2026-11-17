@@ -1,6 +1,6 @@
 # G01 — Правила и контекст: паспорт работы
 
-**Дата:** 2026-11-17 · **Группа:** IN_PROGRESS · **S19:** VERIFIED/DONE · **S18:** NOT_STARTED (следующий после доставки S19 closeout).
+**Дата:** 2026-11-17 · **Группа:** IN_PROGRESS · **S19:** VERIFIED/DONE · **S18:** IN_PROGRESS. S19 closeout PR32 MERGEDd5342ac, contracts checks success.
 
 ## Идентификация и полномочия
 
@@ -15,7 +15,7 @@
 | Этап | Источники / evidence | Зависимости | Реализация / готовность | Доставка |
 |---|---|---|---|---|
 | S19 | [Промпт](../increments/prompts/S19_context_package_versioning.md), [отчёт](../increments/S19_context_package_versioning_REPORT.md), [review](../reviews/S19_IMPLEMENTATION_REVIEWS.md), [ADR125](../decisions/ADR-125-context-manifest.md) | S06/S07 DONE: существующие reports, PR5/6 MERGED, Git/STATUS; canonical74/74 | VERIFIED/DONE explicit-ref slice; production caller отсутствует, G157 | [PR31](https://github.com/F4nin/AI-RES/pull/31) MERGED15:17:13UTC; head a2752087d8a40189a44667ef770c0f3665301942, merge99e5ec15cfb2343022cd972f0b66e4adfccbe435; exact-head и post-merge CI success |
-| S18 | [Промпт](../increments/prompts/S18_rules_registry_rules_engine.md); read-only план/architecture assessment подготовлены | S06/S07 повторно проверить перед стартом, завершить docs-only S19 closeout | NOT_STARTED; исходные зависимости READY, новых owner-блокеров механизма не выявлено | — |
+| S18 | [Промпт](../increments/prompts/S18_rules_registry_rules_engine.md); read-only план/architecture assessment подготовлены | S06/S07 DONE повторно проверены, S19 source/closeout доставлены | IN_PROGRESS; зависимости S06/S07 DONE повторно проверены, новых owner-блокеров механизма не выявлено | — |
 
 ## Выполненный S19 и gates
 
@@ -39,6 +39,12 @@ Read-only planner/TDD/test-analysis и architect/security assessment не зап
 
 ## Продолжение и остановка
 
-Текущая ветка docs/s19-closeout от99e5ec1 меняет только Markdown/evidence; её точные HEAD/PR/CI/доставку проверить через Git. После closeout автоматически перейти к S18 из проверенной интегрированной базы, сохраняя G1–G9/полный pre-pr/Linux CI/independent review. Паспорт обновить при старте S18. При blocker сохранить evidence и остановить затронутую работу; другую группу не выбирать. После DONE обоих этапов проверить общий результат, сохранить links/limitations и остановиться.
+S19 source PR31 и closeout PR32 завершены. Текущая ветка feat/s18-rules-registry-engine отd5342ac содержит S18 DSL/engine/registry/persistence/human lifecycle/exceptions/current authorization/replay. Targeted186passed и3independentAPPROVE; финальный pre-pr/Linux/delivery продолжаются. Дополнительный отдельный docs-only PR не создаётся: evidence входит в S18 PR. При blocker сохранить evidence и остановить затронутую работу; другую группу не выбирать. После DONE обоих этапов проверить общий результат, сохранить links/limitations и остановиться.
 
 Время локальных suites и Linux jobs сохранено в stage report/CI; общего корректного замера группового ускорения нет. Ручное уточнение владельца об exclusive editing не расширяло scope. Конфликты shared user-doc hunks разрешены сохранением вне stage commit, не перезаписью.
+
+
+S18 start: branch feat/s18-rules-registry-engine от проверенного интегрированного d5342ac915303a1de3d15f3a911b11243d656dc3. PR32 docs-only head6d33992/contracts44116381062/44116483451success, merged15:40:53UTC. Источники S18 перечитаны, CODE root/план+архитектура согласованы в scope. ADR126 резервирует root. Pure inputs/DSL и engine/validation — два ограниченных непересекающихся автора с TDD; root owns services/composition/integration/shared docs/snapshot; отдельный database author владеет migration/repositories/storage tests, независимый новый reviewer не автор. Новых permissions/catalogue не активировать; Policy fixture-only для acceptance, packaged unknown actions DENY.
+
+
+S18 final source checkpoint: ADR126, migration0019 b621f4d8a905, trusted Context metadata provider1.0, exact rule/fact/time/exception snapshots, human lifecycle with defaultdeny Policy/separationNone, no SYSTEM override. Targeted186=141unit+45PG passed;3independent reviewers APPROVE/openfindings0. Исправлены2MEDIUM: evaluation context/scope mismatch и org-report read via projectgrant. Final hashes/report/review: [S18 report](../increments/S18_rules_registry_rules_engine_REPORT.md), [review](../reviews/S18_IMPLEMENTATION_REVIEWS.md). Fullpre-pr exit0 (backend1749,infra369,runtime148,contracts22,Renovate10,PoC19); finaltargeted186 иfast836/15contracts. Linux/delivery pending; G01 ещё неDONE. Original12 owner governance changes excluded. G157/G158 integration admission ограничения сохранены.
