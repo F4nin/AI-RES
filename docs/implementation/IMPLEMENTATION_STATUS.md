@@ -31,7 +31,7 @@
 | S16 | LLM Gateway: технический механизм подключения провайдеров; исходная live-provider приёмка отложена | TESTED local+Linux+post-merge: HTTP/SSE adapter, relay, opt-in Bifrost2.5.1; полный pre-pr exit0 (backend1461,infra369,runtime148,PoC19), все8 checks153e3bb и отдельные post-merge091b976 success. Real provider path NOT VERIFIED | DONE по прямому решению владельца2026-11-17 в уточнённом техническом scope, ADR-123. NCP-16 PROPOSED, key/live tests/Bifrost acceptance/profile approval сохраняются перед включением; 0 USD model spend. Поддержка всех провайдеров runtime не заявляется | [report](increments/S16_bifrost_poc_provider_profile_REPORT.md) |
 | S17 | Tool Registry и Tool Gateway | NOT_STARTED | PENDING_DEPS (ARCH-01; очередь SLICE-01 — ADR-115) | — |
 | S18 | Rules Registry и Rules Engine | NOT_STARTED | READY | — |
-| S19 | ContextPackageVersion (минимальный Context Builder) | TESTED local: targeted107, fast695; полный pre-pr exit0 (backend1565,infra369,runtime148,contracts22,Renovate10,PoC19), failed/skipped0; три review APPROVE. Linux CI/доставка выполняются | READY по зависимостям; G01 S19 → S18 | [report](increments/S19_context_package_versioning_REPORT.md) |
+| S19 | ContextPackageVersion (минимальный Context Builder) | VERIFIED: local pre-pr exit0 (backend1565,infra369,runtime148,contracts22,Renovate10,PoC19); targeted107; 3 independent reviews APPROVE; exact-head и post-merge Linux success | DONE (ADR-032), PR31 MERGED99e5ec1; G01 далее S18 | [report](increments/S19_context_package_versioning_REPORT.md) |
 | S20 | Project/Epic intake и Manager interaction | NOT_STARTED | PENDING_DEPS | — |
 | S21 | Plan & Task orchestration | NOT_STARTED | PENDING_DEPS | — |
 | S22 | Readiness Gate | NOT_STARTED | PENDING_DEPS | — |

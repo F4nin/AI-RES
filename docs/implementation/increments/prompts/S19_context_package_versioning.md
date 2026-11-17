@@ -2,7 +2,7 @@
 
 **Фаза:** D. Agent execution · **Соответствие Spec:** Spec Add. v1.20 Inc. 22 (часть) · **Roadmap:** `docs/implementation/IMPLEMENTATION_ROADMAP.md`
 
-> **СТАТУС ПРОМПТА: READY.** Зависимости DONE; реализация начинается только по явному поручению владельца.
+> **СТАТУС ПРОМПТА: DONE.** S19 VERIFIED/DONE, source PR31 и post-merge CI success; точное evidence — отчёт этапа. В G01 далее S18.
 
 ## 1. Роль и полномочия
 
