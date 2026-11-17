@@ -1,6 +1,6 @@
 # S19 — ContextPackageVersion: Increment Report
 
-**Дата:** 2026-11-17 · **Промпт:** [S19](prompts/S19_context_package_versioning.md) · **Статус:** TESTED локально (полный pre-pr PASS); Linux CI/доставка ещё выполняются, VERIFIED/DONE не объявлен.
+**Дата:** 2026-11-17 · **Промпт:** [S19](prompts/S19_context_package_versioning.md) · **Статус:** VERIFIED, DONE (ADR-032) для explicit-ref S19; source PR31 merged, local/Linux/post-merge gates PASS. Текущий docs closeout доставляет итоговое evidence.
 
 ## 1. Что реализовано
 
@@ -68,7 +68,7 @@ Known G72 timestamp sealing заменён xid8 в forward revision. Незав�
 | Full G1–G6 | `PATH=/tmp/arch-01-tools/node-v22.23.5-darwin-arm64/bin:/opt/homebrew/opt/openssl@3/bin:$PATH make -j1 pre-pr` | exit0; contracts22, Renovate10, backend1565/541warnings, infra369, отдельный runtime148, PoC19passed; failed/errors/skipped0; secret0; `/tmp/g01-s19-pre-pr.log` |
 | G7 | Three independent reviews + final deltas | APPROVE, openfindings0; exact hashes в review |
 | G8/G9 | documents/traceability/secret/diff checks | prompts40/issues0, secret0, staged diff check exit0; staged Markdown links74/0missing |
-| Linux CI/delivery | push/PR/full jobs exact SHA | Пока не выполнялись, требуется перед DONE |
+| Linux CI/delivery | exact-head push/PR и exact-merge jobs | success: все8 head checks и отдельные post-merge ci44112572923/contracts44112573004; counts/links §16 |
 
 TDD: pure manifest RED absent module→70passed; metadata RED absent composition→13passed. Root service RED отсутствующий модуль; integration failures выявили чувствительное audit key и неверный idempotency status (исправлены без ослабления controls), тесты fixtures исправлены для row_version/committed membership. Первые service runs6failed/6passed, затем5failed/7passed; после fixes12passed. Первый расширенный набор101passed/1failed из-за uncommitted membership fixture, исправлен; далее102passed; новые migration/telemetry и schema suites дали107passed. Ранние неудачи не скрываются и не считаются evidence финального diff. Неудачный unauthenticated psql preflight не читал/менял БД; credentials не выводились. Дополнительный in-memory old-lock-order mutant через `uv run --locked python -B` и pytest двух revoke cases: оба воспроизвели `DeadlockDetected`, pytest exit1/2failed — мутация обнаружена, wrapper exit0. Production source не менялся, тестовые контейнеры отдельные; лог `/tmp/g01-s19-lock-mutation.log`.
 
@@ -84,7 +84,7 @@ Auth/CSRF/browser/public service grants не менялись; соответс�
 
 ## 12. Не выполненные проверки, ограничения, риски
 
-Full pre-pr exit0; Linux CI/supply-chain jobs и Git delivery впереди. Infra369 уже включает runtime-набор, отдельные148 — повторное исполнение, суммы не являются числом уникальных тестов. Existing24 dev secret files сохранены,0written; volumes не удалялись. Не объявляется VERIFIED/DONE. Нет production transport/runtime wiring, source text hydration/ranking, live WorkerRun/model/quality/production acceptance. Legacy snapshots без manifest require rebuild, не получают искусственный manifest. G73 CPV FKs и прочие старые G72 вопросы не закрыты. Future invoking command должна проверять свой action, прочитанные refs не дают пользователю write permission. Pool saturation не измерялась: assessment перед production caller — G157, не объявляется пройденным S19 gate. Начальные12 governance docs сохранены вне source stage staging.
+Full local pre-pr, Linux push/PR и post-merge CI/supply-chain gates PASS, source PR31 MERGED. Infra369 уже включает runtime-набор, отдельные148 — повторное исполнение, суммы не являются числом уникальных тестов. Existing24 dev secret files сохранены,0written; volumes не удалялись. S19 explicit-ref slice VERIFIED/DONE; это не full-product acceptance. Нет production transport/runtime wiring, source text hydration/ranking, live WorkerRun/model/quality/production acceptance. Legacy snapshots без manifest require rebuild, не получают искусственный manifest. G73 CPV FKs и прочие старые G72 вопросы не закрыты. Future invoking command должна проверять свой action, прочитанные refs не дают пользователю write permission. Pool saturation не измерялась: assessment перед production caller — G157, не объявляется пройденным S19 gate. Начальные12 governance docs сохранены вне source stage staging.
 
 ## 13. Обновлённые документы и статусы
 
@@ -92,8 +92,18 @@ ADR125/ADL, STATUS/HANDOFF, ECC_USAGE, DATA-MVP011 traceability, internal manife
 
 ## 14. Статус DoD
 
-✅ internal results/test coverage, immutability/current ACL/idempotency, PostgreSQL empty/previous/savepoint/drift/grants/RLS, module boundaries, OTel/audit, independent review. ✅ полный local pre-pr, документация/secret scan. ⏳ Linux exact-SHA CI и доставка. N/A public endpoint/provider/Temporal replay новых workflows: они не введены, прежние regression suites не отключаются. Полный DoD ещё не закрыт.
+✅ internal results/test coverage, immutability/current ACL/idempotency, PostgreSQL empty/previous/savepoint/drift/grants/RLS, module boundaries, OTel/audit, independent review. ✅ полный local pre-pr, документация/secret scan. ✅ Linux exact-SHA push/PR/post-merge CI и source merge. N/A public endpoint/provider/Temporal replay новых workflows: они не введены, прежние regression suites не отключаются. Code DoD закрыт; docs-only closeout сохраняет итоговые статусы/evidence без изменения runtime.
 
 ## 15. Можно ли начинать следующий этап
 
-Нет: сначала завершить gates/доставку S19 и проверить интегрированную базу. После этого в уже порученной G01 автоматически перейти к S18 и перечитать его условия/зависимости. Другую группу не запускать, после DONE G01 остановиться.
+Да, в порученной G01 следующий S18 после доставки этого docs-only closeout и повторной проверки S06/S07/owner условий. Source S19 доставлен и post-merge CI завершён. Другую группу не запускать; после DONE G01 остановиться.
+
+## 16. Доставка и итоговое evidence
+
+Source/evidence head `a2752087d8a40189a44667ef770c0f3665301942`,32файла/1500insertions/10deletions. [PR31](https://github.com/F4nin/AI-RES/pull/31) **MERGED**15:17:13UTC, merge `99e5ec15cfb2343022cd972f0b66e4adfccbe435`. Все8 exact-head checks success: [push ci44110008365](https://github.com/F4nin/AI-RES/actions/runs/44110008365), [PR ci44110036973](https://github.com/F4nin/AI-RES/actions/runs/44110036973), [push contracts44110008513](https://github.com/F4nin/AI-RES/actions/runs/44110008513), [PR contracts44110037177](https://github.com/F4nin/AI-RES/actions/runs/44110037177).
+
+Отдельные exact-merge [ci44112572923](https://github.com/F4nin/AI-RES/actions/runs/44112572923)/[contracts44112573004](https://github.com/F4nin/AI-RES/actions/runs/44112573004) **success**. Linux backend1565/541warnings,infra-static221,runtime148,PoC19,Renovate10,contracts22; failed/errors/skipped0; дополнительные dependency audit, digests21/0mismatch, hadolint/actionlint, secret scans, SBOM/own-image vulnerability gates success. Third-party CVE policy report-only остаётся G24; это не утверждение отсутствия всех CVE.
+
+Fetch/diff a2752087 vs origin/main exit0 доказал identical trees. Branch docs/s19-closeout основана на99e5ec1 и меняет только implementation Markdown; её новый SHA не получает приписанный runtime PASS другого SHA. Source/evidence logs: `/tmp/g01-s19-linux-{push,pr,merge}.log`, `/tmp/g01-s19-contracts-pr.log`; постоянные ссылки выше. Локальный pre-pr `/tmp/g01-s19-pre-pr.log` exit0: contracts22,Renovate10,backend1565,infra369,отдельныйruntime148,PoC19; failed/errors/skipped0, secrets24/0written, scan0.
+
+Первоначальные12 governance файлов сохранены вне commit. Index/shared hunks разделены без reset/stash/перезаписи. Final docs-only проверки: check_prompts40/0, secret scan0 и diff check; отдельное final docs evidence review APPROVE/openfindings0:102 local file targets/0missing по Git index. Следующее действие — доставить этот closeout, затем S18 в том же G01.
