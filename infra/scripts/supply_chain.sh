@@ -7,7 +7,11 @@ cd "$(dirname "$0")/.."
 SYFT=anchore/syft:v1.18.1@sha256:b8c170b8e51bfc4779ec3ef4399942c57290f5ce76a9c3af564c9d00d4946a6b
 TRIVY=aquasec/trivy:0.58.1@sha256:ab70a02200597efa04748f210f793936eb647cbcdb0ea69cc30b226d6f5a22c7
 # Capture first: a failure inside process substitution would not be seen by `set -e`/pipefail and would yield an empty (vacuous) scan.
-IMAGE_LIST="$(docker compose -p ai-res -f compose.yaml config --images)"
+COMPOSE_INPUTS=(-p ai-res -f compose.yaml)
+if [ "${AI_RES_SCAN_LLM_POC:-0}" = "1" ]; then
+  COMPOSE_INPUTS+=(-f compose.llm-poc.yaml --profile llm-poc)
+fi
+IMAGE_LIST="$(docker compose "${COMPOSE_INPUTS[@]}" config --images)"
 IMAGES=(); while IFS= read -r line; do [ -n "$line" ] && IMAGES+=("$line"); done < <(printf '%s\n' "$IMAGE_LIST" | sort -u)
 EXPECTED_OWN=(ai-res/api:dev ai-res/caddy:2.11.9 ai-res/minio:RELEASE.2025-10-15T17-29-55Z ai-res/minio-mc:RELEASE.2025-08-13T08-35-41Z)
 for want in "${EXPECTED_OWN[@]}"; do

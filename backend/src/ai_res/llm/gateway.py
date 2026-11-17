@@ -5,7 +5,8 @@ Order of every call (fail closed at each step, nothing reaches the provider befo
  request validated on construction -> profile resolved (registered AND approved) -> capabilities / data classification / context window / output limit checked ->
  prompt guarded (block or redact) -> budget reserved (worst case) -> breaker consulted -> provider called under a deadline -> output validated -> usage settled.
 Retry only for retryable errors, bounded, with jitter, honouring Retry-After; a budget or policy refusal is never retried. After the attempts on a profile are used up
-by an availability failure, the next policy-approved fallback is tried (routing.fallback_candidates). Cancellation propagates and always releases the reservation.
+by an availability failure, the next policy-approved fallback is tried (routing.fallback_candidates). Cancellation propagates; transports with potentially billed
+unknown outcomes retain the full worst-case charge. Deterministic transports keep their existing no-spend failure semantics.
 Telemetry carries codes, counts and ids only: never prompt or response content.
 """
 import asyncio
@@ -296,18 +297,18 @@ class GovernedLLMGateway:
                         try:
                             response, usage = await attempt(profile)
                         except TimeoutError:
-                            error = ProviderTimeout("provider call exceeded its deadline")
+                            error = ProviderTimeout("provider call exceeded its deadline", possibly_billed=self._conservative_usage_on_error())
                         except LLMError as exc:
                             error = exc
                         except asyncio.CancelledError:
-                            await self._release_quietly(reservation)
+                            await self._finish_unknown(reservation, self._conservative_usage_on_error())
                             self._breaker.release_probe(profile.id)
                             raise
                         except Exception as exc:  # a transport that did not map its failure: never leak its text, treat as unavailability
                             _log.warning("unmapped transport failure", extra={"error_type": type(exc).__name__})
-                            error = ProviderUnavailable("provider call failed")
+                            error = ProviderUnavailable("provider call failed", possibly_billed=self._conservative_usage_on_error())
                         except BaseException:
-                            await self._release_quietly(reservation)
+                            await self._finish_unknown(reservation, self._conservative_usage_on_error())
                             self._breaker.release_probe(profile.id)
                             raise
                         else:
@@ -319,7 +320,11 @@ class GovernedLLMGateway:
                                 raise invalid from None
                             self._record(span, profile, "OK", usage, started, attempts)
                             return replace(response, attempts=attempts, fallback_used=index > 0)
-                        if isinstance(error, ProviderTimeout):  # the request reached the provider and may have been billed: charge the INPUT estimate (ADR-108)
+                        if error.possibly_billed:
+                            await self._finish_unknown(reservation, True)
+                        elif isinstance(error, ProviderTimeout) and not self._conservative_usage_on_error():
+                            # Legacy deterministic transports retain ADR-108 input-only timeout accounting.
+                            # Real adapters opt into full worst-case accounting; their typed preflight failures may explicitly prove no dispatch.
                             rates = profile.cost_rates
                             await self._settle_quietly(reservation, in_tokens, rates.cost(in_tokens, 0) if rates else None)
                         else:
@@ -345,6 +350,16 @@ class GovernedLLMGateway:
         cost = worst_case_cost(profile.cost_rates, in_tokens, max_out)
         return await self._ledger.reserve(scope, tokens=in_tokens + max_out, cost=cost,
                                           currency=profile.cost_rates.currency if profile.cost_rates else None)
+
+    def _conservative_usage_on_error(self) -> bool:
+        """Transport-only capability: a lost response/cancellation can conceal provider spend. Test doubles do not opt in."""
+        return getattr(self._transport, "conservative_usage_on_error", False) is True
+
+    async def _finish_unknown(self, reservation: Reservation, possibly_billed: bool) -> None:
+        if possibly_billed:
+            await self._settle_quietly(reservation, reservation.tokens, reservation.cost)
+        else:
+            await self._release_quietly(reservation)
 
     async def _release_quietly(self, reservation: Reservation) -> None:
         """Give the hold back without ever replacing the error being handled (a ledger fault is logged, the hold stays: the conservative side)."""
@@ -388,7 +403,8 @@ class GovernedLLMGateway:
     async def _stream(self, request: LLMRequest) -> AsyncIterator[StreamChunk]:
         """Governance runs before the first chunk. No re-routing mid-stream (the first chunk may already be with the caller). The deadline bounds PROVIDER
         time only (waiting for the next chunk), never the consumer's pauses. Tokens already generated are charged: a stream that ends without StreamEnd, fails
-        or is abandoned after the first chunk settles the worst-case hold instead of releasing it."""
+        or is abandoned after the first chunk settles the worst-case hold instead of releasing it. Real adapters with unknown billing outcomes do so even before
+        the first chunk, unless a typed preflight error proves the call was never dispatched."""
         prep = self._prepare(request)
         profile = prep.profiles[0]
         if not self._breaker.allow(profile.id):
@@ -405,8 +421,10 @@ class GovernedLLMGateway:
         settled, received, ended, verdict = False, False, False, False
         provider_time = 0.0
         outcome = "OK"
-        iterator = self._transport.stream(call).__aiter__()
+        possibly_billed = self._conservative_usage_on_error()
+        iterator: AsyncIterator[StreamChunk] | None = None
         try:
+            iterator = self._transport.stream(call).__aiter__()
             while True:
                 remaining = timeout - provider_time
                 waited = self._monotonic()
@@ -416,7 +434,7 @@ class GovernedLLMGateway:
                 except StopAsyncIteration:
                     break
                 except TimeoutError:
-                    raise ProviderTimeout("provider stream exceeded its deadline") from None
+                    raise ProviderTimeout("provider stream exceeded its deadline", possibly_billed=self._conservative_usage_on_error()) from None
                 provider_time += self._monotonic() - waited
                 if ended:
                     raise InvalidProviderOutput("provider sent data after the end of the stream")
@@ -431,8 +449,10 @@ class GovernedLLMGateway:
                     self._record_stream(profile, "OK", chunk.usage, started)
                 yield chunk
             if not ended:
-                raise InvalidProviderOutput("provider stream ended without a final usage record")
+                raise InvalidProviderOutput("provider stream ended without a final usage record",
+                                            possibly_billed=self._conservative_usage_on_error())
         except LLMError as exc:
+            possibly_billed = exc.possibly_billed
             outcome = exc.code.value
             if not verdict:
                 self._breaker.failure(profile.id) if exc.fallback_eligible else self._breaker.release_probe(profile.id)
@@ -445,15 +465,15 @@ class GovernedLLMGateway:
             if not verdict:
                 self._breaker.release_probe(profile.id)
             if not settled:
-                if received:  # tokens were generated: charge the worst case rather than let the budget be bypassed
-                    await self._settle_quietly(reservation, reservation.tokens, reservation.cost)
-                else:
-                    await self._release_quietly(reservation)
+                await self._finish_unknown(reservation, received or possibly_billed)
             if outcome != "OK":
                 self._record_stream(profile, outcome, None, started)
             aclose = getattr(iterator, "aclose", None)
             if aclose is not None:
-                await aclose()
+                try:
+                    await aclose()
+                except Exception as exc:
+                    _log.error("provider stream cleanup failed", extra={"error_type": type(exc).__name__})
 
     def _record_stream(self, profile: ModelProfile, outcome: str, usage: Usage | None, started: float) -> None:
         with _tracer.start_as_current_span("llm.stream", record_exception=False, set_status_on_exception=False) as span:

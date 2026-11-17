@@ -1,0 +1,9 @@
+{
+  "deepseek/deepseek-flash": {
+    "provider": "deepseek",
+    "mode": "chat",
+    "base_model": "deepseek-flash",
+    "input_cost_per_token": 0.0000003,
+    "output_cost_per_token": 0.0000012
+  }
+}

@@ -1,0 +1,68 @@
+# S16 opt-in candidate. The ordinary make up stack does not include this file/profile.
+# No real provider key and no live inference are enabled here; acceptance/pinning is unresolved (NCP-16).
+networks:
+  llm_poc: {internal: true}
+  llm_upstream: {internal: true}
+
+secrets:
+  bifrost_admin_password: {file: ./secrets/runtime/bifrost_admin_password}
+  bifrost_virtual_key: {file: ./secrets/runtime/bifrost_virtual_key}
+  llm_relay_auth: {file: ./secrets/runtime/llm_relay_auth}
+
+services:
+  bifrost-poc:
+    image: maximhq/bifrost:v2.5.1@sha256:5ec9873acaf1687556b6e4dd854b92b539d9debf87a5a683b66338648b84d3c8
+    profiles: [llm-poc]
+    user: "1000:1000"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 256
+    mem_limit: 512m
+    init: true
+    networks: [llm_poc, llm_upstream]
+    entrypoint: [/bin/sh, /poc/start-bifrost.sh]
+    volumes:
+      - ./llm_poc/start-bifrost.sh:/poc/start-bifrost.sh:ro
+      - ./llm_poc/config.template.json:/etc/bifrost/config.template.json:ro
+      - ./llm_poc/pricing.json:/etc/bifrost/pricing.json:ro
+      - ./llm_poc/model-parameters.json:/etc/bifrost/model-parameters.json:ro
+      - ./llm_poc/mcp-library.json:/etc/bifrost/mcp-library.json:ro
+    secrets: [bifrost_admin_password, bifrost_virtual_key, llm_relay_auth]
+    tmpfs:
+      - /app/data:uid=1000,gid=1000,mode=0700
+      - /tmp:uid=1000,gid=1000,mode=0700
+    depends_on:
+      llm-gateway: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, wget, -q, --spider, http://127.0.0.1:8080/health]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+
+  # Gateway egress boundary. Bifrost has no external route; Runtime cannot reach either gateway network.
+  llm-gateway:
+    profiles: [llm-poc]
+    build: {context: ../backend, dockerfile: Dockerfile}
+    image: ai-res/api:dev
+    user: "10001:10001"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 128
+    mem_limit: 256m
+    init: true
+    networks: [llm_upstream, egress]
+    command: [python, /poc/relay.py]
+    environment:
+      AI_RES_LLM_RELAY_AUTH_FILE: /run/secrets/llm_relay_auth
+    secrets: [llm_relay_auth]
+    volumes:
+      - ./llm_poc/relay.py:/poc/relay.py:ro
+    tmpfs:
+      - /tmp:uid=10001,gid=10001,mode=0700
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8081/health', timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      retries: 3

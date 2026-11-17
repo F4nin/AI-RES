@@ -22,7 +22,7 @@
 | S13 | Observability stack и мониторинг | [`S13_observability_stack.md`](S13_observability_stack.md) | S03, S10 | DONE | — |
 | S14 | Worker contracts: Envelope/Result/Notice | [`S14_worker_contracts_runtime_validation.md`](S14_worker_contracts_runtime_validation.md) | S12 | DONE | — |
 | S15 | LLMGatewayPort и Model Registry (провайдер-нейтрально) | [`S15_llm_gateway_port_model_registry.md`](S15_llm_gateway_port_model_registry.md) | S11 | DONE | — |
-| S16 | Bifrost PoC и первый утверждённый provider profile | [`S16_bifrost_poc_provider_profile.md`](S16_bifrost_poc_provider_profile.md) | S15, S13 | BLOCKED | Нет |
+| S16 | Bifrost PoC и первый утверждённый provider profile | [`S16_bifrost_poc_provider_profile.md`](S16_bifrost_poc_provider_profile.md) | S15, S13 | BLOCKED после начала документального PoC (G-156, NCP-16); см. STATUS/report | Продолжение после решения владельца о pinning; реализацию не считать завершённой |
 | S17 | Tool Registry и Tool Gateway | [`S17_tool_registry_tool_gateway.md`](S17_tool_registry_tool_gateway.md) | S07, S12 | PENDING_DEPS (ARCH-01; очередь SLICE-01 — ADR-115) | Нет; условия в §4 промпта |
 | S18 | Rules Registry и Rules Engine | [`S18_rules_registry_rules_engine.md`](S18_rules_registry_rules_engine.md) | S07, S06 | READY | После поручения владельца |
 | S19 | ContextPackageVersion (минимальный Context Builder) | [`S19_context_package_versioning.md`](S19_context_package_versioning.md) | S06, S07 | READY | После поручения владельца |

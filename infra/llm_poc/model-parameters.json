@@ -1,0 +1,12 @@
+{
+  "deepseek/deepseek-flash": {
+    "provider": "deepseek",
+    "mode": "chat",
+    "supported_endpoints": ["/v1/chat/completions"],
+    "supported_modalities": ["text"],
+    "supported_output_modalities": ["text"],
+    "supports_function_calling": true,
+    "supports_native_streaming": true,
+    "supports_response_schema": false
+  }
+}
