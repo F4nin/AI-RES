@@ -1,6 +1,6 @@
 # ARCH-01 — Контракты доменных импортов: Increment Report
 
-**Дата:** 2026-11-17 · **Промпт:** [ARCH-01](prompts/ARCH-01_domain_import_contracts.md) · **Статус:** TESTED локально; Linux CI и доставка ожидаются.
+**Дата:** 2026-11-17 · **Промпт:** [ARCH-01](prompts/ARCH-01_domain_import_contracts.md) · **Статус:** VERIFIED / DONE для dev-time import gate. Реализация слита PR #23; post-merge Linux CI success.
 
 ## 1. Что реализовано
 
@@ -58,7 +58,11 @@ ADR-120 ACCEPTED в пределах разрешённого уточнения
 | `UV_NO_SYNC=1 UV_OFFLINE=1 UV_PYTHON_DOWNLOADS=never PYTHONDONTWRITEBYTECODE=1 make -j1 pre-push-fast` | exit 0; ruff PASS, mypy 148 source files без ошибок, **14 kept / 0 broken**, **465 passed**, 4 warnings, 0 failed/errors/skipped, pytest 8.80 s |
 | Первый `make -j1 pre-pr` с прежним temp Node | exit 2: contracts-check обнаружил неполную временную установку npm (`Cannot find module '../lib/cli.js'`); это не PASS |
 | Повторный полный `make -j1 pre-pr` с восстановленным тем же Node | **exit 0**: contracts **22 passed** (7.81 s); backend **1301 passed**, 540 warnings (305.83 s); infra **307 passed** (155.42 s); отдельный runtime **148 passed** (141.38 s); 0 failed/errors/skipped, secret scan 0 findings; ruff/mypy PASS, 14 kept/0 broken. Runtime 148 уже входят в infra 307 и затем исполняются повторно; суммы не являются числом уникальных тестов. |
-| `git diff --check` | exit 0 на реализации; финальный повтор перед commit |
+| `git diff --check`, `git diff --cached --check` | exit 0 перед implementation commit |
+| Linux PR `ci` 44060321034 на `1a45c4e` | success: backend **1301 passed**, 540 warnings (213.22 s); infra-static **159 passed** (4.77 s); runtime **148 passed** (142.62 s); 0 test failed/errors/skipped; ruff/mypy и 14 import contracts PASS; dependency audit: No known vulnerabilities found |
+| Linux PR `contracts` 44060321079 и push `ci`/`contracts` 44060255903/44060255864 | success; PR contracts **22 passed** (6.51 s); все восемь PR/push checks этого точного SHA успешны |
+| Linux дополнительные gates, `ci` 44060321034 | dependency audit, registry digest-check, hadolint, actionlint, repository/dev-secret scan, SBOM/vulnerability scan — success. Ожидаемый failure-only шаг stack logs пропущен, это не пропуск тестов/обязательного gate |
+| Post-merge `ci` 44061994966 / `contracts` 44061994778 на `fe8b79b` | **success**: backend **1301 passed**, 540 warnings (277.99 s); infra-static **159 passed** (10.48 s); runtime **148 passed** (152.29 s); contracts **22 passed** (7.21 s); 0 test failed/errors/skipped. Dependency audit, digests, hadolint/actionlint, secret scans, SBOM/vulnerability scan — success. |
 
 Восстановлен только временный инструмент из сохранённого `node-v22.23.5-darwin-arm64.tar.gz`: SHA-256 `e7131995759b61a0170b646010d2ad35a5d37b4cb0d471f3e8317eac6f742f3d` совпал с сохранённым SHASUMS256; npm 10.9.9 проверен. Загрузка/изменение зависимостей проекта не потребовались. Raw local logs в системном temp не являются единственным evidence; постоянная сводка здесь, опубликованные CI URL будут ниже.
 
@@ -101,8 +105,14 @@ Dev-time gate контролирует статические импорты; н
 
 ## 14. DoD и доставка
 
-Реализация, целевые тесты, быстрый слой, полный локальный pre-pr и два review выполнены. Linux CI по точному опубликованному SHA и Git-доставка ещё не завершены; VERIFIED/DONE пока не присвоены. Существующие Spectral warnings/baseline сохранены; нулевое число warnings не заявляется. Dev-стек поднят штатно, existing secrets сохранены (21 файл, 0 written), volumes не удалялись.
+Реализация, целевые тесты, быстрый слой, полный локальный pre-pr, два review и все обязательные Linux gates выполнены. **VERIFIED/DONE** относится только к архитектурному gate ARCH-01. Существующие Spectral warnings/baseline сохранены; нулевое число warnings не заявляется. Dev-стек поднят штатно, existing secrets сохранены (21 файл, 0 written), volumes не удалялись.
+
+Опубликованный implementation commit: `1a45c4e874bec82ea073faad618113eaa2235dac`, [PR #23](https://github.com/F4nin/AI-RES/pull/23). На этом SHA **success** push [ci 44060255903](https://github.com/F4nin/AI-RES/actions/runs/44060255903) / [contracts 44060255864](https://github.com/F4nin/AI-RES/actions/runs/44060255864) и PR [ci 44060321034](https://github.com/F4nin/AI-RES/actions/runs/44060321034) / [contracts 44060321079](https://github.com/F4nin/AI-RES/actions/runs/44060321079). `gh pr view 23 --json headRefOid,statusCheckRollup` подтвердил все восемь success checks перед merge с `--match-head-commit`.
+
+PR #23 **MERGED** 2026-11-17 10:08:12 UTC: `fe8b79b02863cf223f61f1a0916aec62877aa738`. После `git fetch origin main` команда `git diff --exit-code 1a45c4e874bec82ea073faad618113eaa2235dac origin/main` — exit 0: trees идентичны. Отдельный post-merge [ci 44061994966](https://github.com/F4nin/AI-RES/actions/runs/44061994966) / [contracts 44061994778](https://github.com/F4nin/AI-RES/actions/runs/44061994778) на `fe8b79b` **success**, результаты получены отдельно и не приписываются CI исходного head.
+
+Итоговый checkpoint `docs/arch-01-closeout` касается только четырёх implementation-документов (HANDOFF, STATUS, этот отчёт, prompts/README). Контракты/тесты/runtime-файлы относительно `fe8b79b` неизменны. Для этой docs-only дельты полный runtime CI не повторяется по действующему ADR-119; `contracts` сохраняется. Локально `git diff --check`, `check_prompts.py` (40/0 issues), `scan_secrets.py` (0 findings) — exit 0. История Git и checks PR/merge подтверждают актуальный SHA документационного checkpoint; self-referential hash в этот файл не записывается.
 
 ## 15. Следующий безопасный шаг
 
-Завершить gates и доставку ARCH-01, затем остановиться. S17 всё ещё ждёт очередь S16/SLICE-01; прочие блокеры не сняты. Следующий инкремент выбирается по ROADMAP/ADR и новой команде владельца; при отсутствии приоритета между DEP-01, PROF-01 и прочими READY-кандидатами требуется выбор владельца.
+ARCH-01 завершён; остановиться до новой команды. S17 всё ещё ждёт очередь S16/SLICE-01; прочие блокеры не сняты. Следующий инкремент выбирается по ROADMAP/ADR и новой команде владельца; при отсутствии приоритета между DEP-01, PROF-01 и прочими READY-кандидатами требуется выбор владельца.
