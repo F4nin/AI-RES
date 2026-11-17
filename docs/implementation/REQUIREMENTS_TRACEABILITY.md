@@ -41,6 +41,8 @@
 
 ## 2. Индекс требований
 
+Dev-time управляемые dependency updates (DOC-015 v1.7 §12–14) → DEP-01 / ADR-113/121 → `renovate.json`, `make renovate-check`, `infra/tests/renovate/check.mjs` (strict config + 10 behavioral checks, 18 custom deps), shell/workflow registry digest scan. Evidence и отдельные статусы config/App — [отчёт DEP-01](increments/DEP-01_renovate_dependency_updates_REPORT.md). Настройка не доказывает устранение существующих vulnerabilities (G-24) или production/release acceptance.
+
 Dev-time гарантия модульных границ (Spec §3, Domain Model v1.9 §3 и application service interfaces/domain events) → ARCH-01 / ADR-114/120 → `backend/pyproject.toml` (layers + independence), `backend/tests/architecture/test_domain_import_rules.py` (10 behavioral tests), существующий `test_project_contracts_are_kept`. Evidence/статус — [отчёт ARCH-01](increments/ARCH-01_domain_import_contracts_REPORT.md). Эта проверка статических импортов не повышает runtime-статусы требований об ACL, SQL/Worker isolation и event semantics ниже.
 
 | ID | Документ | Требование (кратко) | Приоритет/scope | Этапы | Статус |

@@ -7,7 +7,10 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-SOURCES = [*ROOT.glob("infra/compose*.yaml"), *ROOT.glob("infra/images/**/Dockerfile"), *ROOT.glob("backend/Dockerfile")]
+SOURCES = [
+    *ROOT.glob("infra/compose*.yaml"), *ROOT.glob("infra/images/**/Dockerfile"), *ROOT.glob("backend/Dockerfile"),
+    *ROOT.glob("infra/scripts/*.sh"), *ROOT.glob(".github/workflows/*.yml"),
+]
 PIN = re.compile(r"([A-Za-z0-9][A-Za-z0-9./_-]*:[A-Za-z0-9._-]+)@(sha256:[0-9a-f]{64})")
 
 

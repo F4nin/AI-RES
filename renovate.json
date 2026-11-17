@@ -5,11 +5,105 @@
   "platformAutomerge": false,
   "separateMajorMinor": true,
   "separateMultipleMajor": true,
-  "dependencyDashboard": true,
+  "dependencyDashboard": { "enabled": true },
+  "enabledManagers": ["docker-compose", "dockerfile", "github-actions", "npm", "pep621", "nvm", "custom.regex"],
+  "timezone": "Europe/Moscow",
+  "schedule": ["* 0-5 * * 1"],
+  "minimumReleaseAge": "14 days",
+  "minimumReleaseAgeBehaviour": "timestamp-required",
+  "internalChecksFilter": "strict",
+  "prConcurrentLimit": 3,
+  "prHourlyLimit": 2,
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "schedule": [],
+    "minimumReleaseAge": null,
+    "groupName": null,
+    "automerge": false
+  },
   "labels": ["dependencies"],
   "packageRules": [
     { "matchUpdateTypes": ["major"], "addLabels": ["breaking-review-required"] },
-    { "matchManagers": ["dockerfile", "docker-compose"], "groupName": "container images", "matchUpdateTypes": ["minor", "patch", "digest"] },
-    { "matchPackageNames": ["temporalio/server", "temporalio/admin-tools", "temporalio/ui", "postgres"], "addLabels": ["stateful-component-compat-review"] }
+    { "matchDatasources": ["docker"], "groupName": "container images", "matchUpdateTypes": ["minor", "patch", "digest"] },
+    { "matchPackageNames": ["temporalio/server", "temporalio/admin-tools", "temporalio/ui", "postgres", "minio/minio", "minio/mc"], "addLabels": ["stateful-component-compat-review"] },
+    { "description": "Own images are local builds; their upstream versions are tracked by custom managers", "matchManagers": ["docker-compose"], "matchPackageNames": ["/^ai-res\//"], "enabled": false },
+    { "matchPackageNames": ["minio/minio"], "groupName": "MinIO server source and image references" },
+    { "matchPackageNames": ["minio/mc"], "groupName": "MinIO client source and image references" },
+    {
+      "matchPackageNames": ["minio/minio", "minio/mc"],
+      "versioning": "regex:^RELEASE\\.(?<major>\\d{4})-(?<minor>\\d{2})-(?<patch>\\d{2})T(?<build>\\d{2})-(?<revision>\\d{2})-(?<prerelease>\\d{2})Z$",
+      "ignoreUnstable": false
+    },
+    { "matchManagers": ["custom.regex"], "matchFileNames": ["infra/images/minio/Dockerfile"], "matchPackageNames": ["minio/minio", "minio/mc"], "pinDigests": true },
+    { "matchManagers": ["custom.regex"], "matchFileNames": ["infra/compose.yaml", "infra/scripts/supply_chain.sh", "infra/tests/runtime/test_stack.py"], "matchPackageNames": ["caddy", "minio/minio", "minio/mc"], "pinDigests": false }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^\\.github/workflows/.*\\.ya?ml$/"],
+      "matchStrings": [
+        "UV_VERSION: \"(?<currentValue>[0-9.]+)\"",
+        "uses: astral-sh/setup-uv@[^\\n]+\\n\\s+with: \\{ version: \"(?<currentValue>[0-9.]+)\" \\}"
+      ],
+      "depNameTemplate": "uv",
+      "packageNameTemplate": "astral-sh/uv",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.*)$",
+      "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^\\.github/workflows/.*\\.ya?ml$/"],
+      "matchStrings": [
+        "HADOLINT: (?<depName>hadolint/hadolint):(?<currentValue>[A-Za-z0-9._-]+)@(?<currentDigest>sha256:[a-f0-9]{64})",
+        "(?<depName>rhysd/actionlint):(?<currentValue>[A-Za-z0-9._-]+)@(?<currentDigest>sha256:[a-f0-9]{64})"
+      ],
+      "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^infra/scripts/(supply_chain|check_renovate)\\.sh$/"],
+      "matchStrings": [
+        "(?:^|\\n)SYFT=(?<depName>[a-z0-9./_-]+):(?<currentValue>v?[0-9.]+)@(?<currentDigest>sha256:[a-f0-9]{64})(?:\\n|$)",
+        "(?:^|\\n)TRIVY=(?<depName>[a-z0-9./_-]+):(?<currentValue>v?[0-9.]+)@(?<currentDigest>sha256:[a-f0-9]{64})(?:\\n|$)",
+        "(?:^|\\n)RENOVATE_IMAGE=(?<depName>[a-z0-9./_-]+):(?<currentValue>v?[0-9.]+)@(?<currentDigest>sha256:[a-f0-9]{64})(?:\\n|$)"
+      ],
+      "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^infra/images/minio/Dockerfile$/"],
+      "matchStrings": ["ARG MINIO_TAG=(?<currentValue>RELEASE\\.[0-9TZ-]+)\\nARG MINIO_COMMIT=(?<currentDigest>[a-f0-9]{40})(?:\\n|$)"],
+      "depNameTemplate": "minio/minio",
+      "datasourceTemplate": "github-tags"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^infra/images/minio/Dockerfile$/"],
+      "matchStrings": ["ARG MC_TAG=(?<currentValue>RELEASE\\.[0-9TZ-]+)\\nARG MC_COMMIT=(?<currentDigest>[a-f0-9]{40})(?:\\n|$)"],
+      "depNameTemplate": "minio/mc",
+      "datasourceTemplate": "github-tags"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^infra/(compose\\.yaml|scripts/supply_chain\\.sh|tests/runtime/test_stack\\.py)$/"],
+      "matchStrings": ["ai-res/minio:(?<currentValue>RELEASE\\.[0-9TZ-]+)"],
+      "depNameTemplate": "minio/minio",
+      "datasourceTemplate": "github-tags"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^infra/(compose\\.yaml|scripts/supply_chain\\.sh|tests/runtime/test_stack\\.py)$/"],
+      "matchStrings": ["ai-res/minio-mc:(?<currentValue>RELEASE\\.[0-9TZ-]+)"],
+      "depNameTemplate": "minio/mc",
+      "datasourceTemplate": "github-tags"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^infra/(compose\\.yaml|scripts/supply_chain\\.sh|tests/runtime/test_stack\\.py)$/"],
+      "matchStrings": ["ai-res/caddy:(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+)"],
+      "depNameTemplate": "caddy",
+      "datasourceTemplate": "docker"
+    }
   ]
 }
