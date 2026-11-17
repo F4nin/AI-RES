@@ -37,6 +37,8 @@ ECC 2.2.3 (manual project-local install) — dev-time инструментари
 
 ## 2. Журнал использования
 
+DEP-01 docs-only закрытие (2026-11-17): `verification-loop` повторно прочитан и применён исполнителем как checklist точности evidence, scope/diff, prompts и secrets; runtime/config не меняются, отдельный reviewer не требуется по AGENTS §7. DONE отражает прямое решение владельца; hosted App не объявляется VERIFIED. Ссылки и команды — DEP report §16.
+
 DEP-01 (2026-11-17): `planner` — отдельное read-only исследование до реализации (native pep621/uv.lock, custom pins, source/image связность и ограничения security alerts). `verification-loop` — явно прочитанный checklist исполнителя. `code-reviewer` + `security-reviewer` — два отдельных blind-first read-only review и отдельный проход финальной дельты HADOLINT/actionlint: 0 findings. Реальные методы применения — Codex agents/checklist, нативные Claude slash commands/hooks не запускались. `plugin-management` — прочитанный skill и фактический поиск доступного механизма установки App; неподключённые GitHub/TinyFish не считаются доступными и не подключались. Обязательный набор промпта применён; runtime DB/Temporal review неприменимы. Evidence — [DEP-01 review](reviews/DEP-01_REVIEWS.md) и отчёт.
 
 | Этап | Инструмент | Зачем | Результат |

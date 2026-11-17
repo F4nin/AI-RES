@@ -239,7 +239,7 @@ Dev-time гарантия модульных границ (Spec §3, Domain Mode
 | INF-MVP-030 | DOC-009 | Передавать runtime secrets через Compose secrets | MVP | S03; S11; S13; S32 | TESTED (S03) |
 | INF-MVP-031 | DOC-009 | Фиксировать container images по digest | MVP | S03; S11; S13; S32 | TESTED (S03) |
 | INF-MVP-032 | DOC-009 | Формировать Release Manifest | MVP | S03; S11; S13; S32 | PARTIAL (S03: формат+генератор) |
-| INF-MVP-033 | DOC-009 | Использовать Renovate для предложений обновлений | MVP | S03; S11; S13; S32 | PARTIAL (S03: конфиг не проверен приложением Renovate, G-31) |
+| INF-MVP-033 | DOC-009 | Использовать Renovate для предложений обновлений | MVP | S03; S11; S13; S32 | PARTIAL (DEP-01 DONE: config VERIFIED pinned Renovate + pre-pr/CI; hosted App evidence NOT VERIFIED, G-31) |
 | INF-MVP-034 | DOC-009 | Проверять обновления до развёртывания | MVP | S03; S11; S13; S32 | NOT_STARTED |
 | INF-MVP-035 | DOC-009 | Разделять процедуры миграций | MVP | S03; S11; S13; S32 | NOT_STARTED |
 | INF-MVP-036 | DOC-009 | Поддержать безопасный rollback/forward-fix | MVP | S03; S11; S13; S32 | NOT_STARTED |
