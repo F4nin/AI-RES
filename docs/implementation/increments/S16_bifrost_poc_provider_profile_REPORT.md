@@ -1,6 +1,6 @@
 # S16 — Bifrost PoC и первый provider profile: Increment Report
 
-**Дата:** 2026-11-17 · **Промпт:** [S16](prompts/S16_bifrost_poc_provider_profile.md). **Реализация независимого среза:** TESTED локально (`pre-pr` exit0), ожидается кодовый Linux CI. **Приёмка полного S16:** BLOCKED (immutable pinning / NCP-16 и реальные provider-проверки). **IMPLEMENTATION NOT VERIFIED для реального DeepSeek; S16 не DONE.**
+**Дата:** 2026-11-17 · **Промпт:** [S16](prompts/S16_bifrost_poc_provider_profile.md). **Реализация независимого среза:** TESTED локально и Linux CI; доставлена PR #28. **Приёмка полного S16:** BLOCKED (immutable pinning / NCP-16 и реальные provider-проверки). **IMPLEMENTATION NOT VERIFIED для реального DeepSeek; S16 не DONE.**
 
 ## 1. Что реализовано
 
@@ -54,7 +54,7 @@ Model pinning исследован без ложного immutable claim. В р�
 
 ## 9. Тесты и проверки
 
-База чистый `main`/`origin/main` `37b9a37edb04d31b448c44e9b64052b19cb411d7`, сверена fetch/diff. Текущий implementation run — `72865e824c055aa426a4b8dbface1044a723e051` + описанный рабочий diff; опубликованный кодовый SHA будет зафиксирован после commit. Среда Darwin25.6.0 arm64, Python3.13.5, uv0.11.31, временный Node22.23.5/npm10.9.9 и установленный OpenSSL3 через PATH только процесса.
+База чистый `main`/`origin/main` `37b9a37edb04d31b448c44e9b64052b19cb411d7`, сверена fetch/diff. Локальные implementation checks выполнены на `72865e824c055aa426a4b8dbface1044a723e051` + кодовый diff, затем опубликованный без последующих code edits как `153e3bb330951d9ea761d72b56e28468f48ddbae`. Linux push/PR CI относится к точному `153e3bb`. Merge `091b97681d9ca182c916bbf57bbe4b710b69b817`: `git diff --exit-code 153e3bb origin/main` exit0 после fetch, trees идентичны. Среда локальных проверок Darwin25.6.0 arm64, Python3.13.5, uv0.11.31, временный Node22.23.5/npm10.9.9 и установленный OpenSSL3 через PATH только процесса. Linux — GitHub-hosted Ubuntu runner, pinned workflow/lock dependencies.
 
 | Gate / команда | Фактический результат |
 |---|---|
@@ -71,7 +71,16 @@ Model pinning исследован без ложного immutable claim. В р�
 | Secret scan после исправления | `PYTHONDONTWRITEBYTECODE=1 infra/.venv/bin/python -B infra/scripts/scan_secrets.py` exit0/0findings |
 | Prompts / ссылки | check_prompts.py exit0:40prompts/0issues; read-only local link/anchor check16Markdown files/106links/0issues |
 | Remote digests | `make infra-verify-digests` exit0:21pinned images/0mismatch |
-| Linux CI кодового SHA / additional jobs | Ещё не опубликован код. Ранние docs-only contracts runs ниже не считаются CI реализации |
+| Linux push/PR CI точного `153e3bb` | Все8 checks success: backend1461/540warnings, infra-static221, runtime148, PoC19, contracts22, Renovate10 passed; failed/errors/skipped0. Дополнительные dependency audit, secret scan,21 remote digests, hadolint/actionlint, SBOM/image scan success. Runs и ограничение third-party scan — §16 |
+| Post-merge CI точного `091b976` | ci44092373653/contracts44092373554 success: backend1461/540warnings,infra-static221,runtime148,PoC19,contracts22,Renovate10passed;failed/errors/skipped0; audit/digests/secret/hadolint/actionlint/SBOM gates success. Third-party counts совпали с PR CI |
+
+Точная заключительная команда локального полного прогона:
+
+```sh
+PATH="/private/tmp/arch-01-tools/node-v22.23.5-darwin-arm64/bin:/opt/homebrew/opt/openssl@3/bin:$PATH" UV_NO_SYNC=1 UV_OFFLINE=1 UV_PYTHON_DOWNLOADS=never PYTHONDONTWRITEBYTECODE=1 make -j1 pre-pr > /private/tmp/s16-pre-pr-final.log 2>&1
+```
+
+Evidence-only closeout на базе091b976: `infra/.venv/bin/python -B docs/implementation/tools/check_prompts.py` exit0/40prompts/0issues; read-only local link/anchor check8Markdown/92links/0issues; `infra/.venv/bin/python -B infra/scripts/scan_secrets.py` exit0/0findings; `git diff --check` exit0. Runtime/API/migration gates повторно не запускаются для восьми implementation Markdown файлов: code/config/contracts неизменны, полнота подтверждается diff относительно проверенного code merge. Это не новый runtime verification полного S16.
 
 ## 10. Security / authorization cases
 
@@ -81,9 +90,11 @@ Model pinning исследован без ложного immutable claim. В р�
 
 [Протокол](../reviews/S16_IMPLEMENTATION_REVIEWS.md). Отдельный security/failure reviewer всего среза и reciprocal code/Python/test review исключали собственные файлы авторов. Исправлены MEDIUM invalid-Unicode parsing и порядок no-paid preflight. Открытых CRITICAL/HIGH/MEDIUM/LOW на проверенном отключённом срезе0. Это не owner/security acceptance настоящего provider path. Финальные numerical/evidence-only docs updates отдельно не объявляются повторным runtime review.
 
+Итоговые8 implementation Markdown дополнительно проверены отдельным `s16_docs_review` read-only относительно091b976: APPROVE/0findings. Проверяющий сам сверил GitHub PR/head/merge/8checks и tree equality; post-merge CI на момент review ещё in_progress, успех не заявлялся. Собственный adapter и runtime не входили в это docs review.
+
 ## 12. Не выполненные проверки, ограничения, риски
 
-NCP-16, реальная immutable identity, DeepSeek compatibility/structured output/tool calling/stream/cancel/429/billing и human acceptance остаются невыполненными. API Chat provider не следует считать поддерживающим native json_schema только по fixtures Bifrost: реальная feature mapping ещё проверяется до включения профиля. G-145 durable budget/placement, G-146 audited profile approval, G-149 Collector LLM metadata, G-150 classification из ContextPackage и G-151 vocabularies сохраняются. Input token estimate остаётся WORKING, unknown reservation не равен точному billing. Локальная модель отложена; LangGraph runtime S23 не реализован. GitHub при push сообщил два существующих открытых lodash alerts (high/medium) в `contracts/package-lock.json`, read-only API подтвердил; зависимости не менялись, это не новый чистый dependency audit и не scope их обновления.
+NCP-16, реальная immutable identity, DeepSeek compatibility/structured output/tool calling/stream/cancel/429/billing и human acceptance остаются невыполненными. API Chat provider не следует считать поддерживающим native json_schema только по fixtures Bifrost: реальная feature mapping ещё проверяется до включения профиля. G-145 durable budget/placement, G-146 audited profile approval, G-149 Collector LLM metadata, G-150 classification из ContextPackage и G-151 vocabularies сохраняются. Input token estimate остаётся WORKING, unknown reservation не равен точному billing. Локальная модель отложена; LangGraph runtime S23 не реализован. GitHub при push сообщил два существующих открытых lodash alerts (high/medium) в `contracts/package-lock.json`, read-only API подтвердил; зависимости не менялись, это не scope их обновления. Linux backend locked-runtime audit не нашёл известных уязвимостей; это не распространяется на npm lock или весь стек. Third-party scan по ADR-043 остаётся report-only: Bifrost0 fixable HIGH/CRITICAL, другие закреплённые образы имеют findings, G-24 открыт; зелёный CI не означает отсутствие всех CVE или release acceptance.
 
 ## 13. Обновлённые документы и статусы
 
@@ -92,14 +103,18 @@ Scope в §3; implementation sources/status/traceability обновляются 
 ## 14. Статус DoD
 
 - Выполнен независимый кодовый срез adapter/relay/Compose/negative tests/no-paid live PoC, ADR/runbook/план расходов, независимые review.
-- Финальные локальные gates PASS; новый кодовый Linux CI ожидается и сохраняется по факту.
+- Финальные локальные gates и все8 кодовых Linux push/PR checks PASS; независимый отключённый срез доставлен. Post-merge evidence сохраняется отдельно.
 - Не выполнены полный DOC-076 §7 live-provider suite, точный profile approval path/metadata и human Bifrost/model acceptance. **S16 не DONE, реальный provider path NOT VERIFIED.**
 - N/A для этой дельты: публичные contract/API/event изменения, Alembic migration/RLS изменения.
 
 ## 15. Можно ли начинать следующий этап
 
-Нет автоматического перехода. Дальше продолжается тот же S16: решение NCP-16, защищённый provider-key setup, точный допуск изолированных реальных тестов по подготовленной смете, оставшиеся tests/review/gates, затем human acceptance. Технические доработки и sandbox escalation не являются разрешением ослабить BASELINED.
+Нет автоматического перехода. Дальше продолжается тот же S16: решение NCP-16, защищённый provider-key setup, изолированные реальные тесты по подготовленной смете в уже установленном общем лимите10USD, оставшиеся tests/review/gates, затем human acceptance. Технические доработки и sandbox escalation не являются разрешением ослабить BASELINED; повторного разрешения на согласованные Git/dev/test действия не требуется.
 
 ## 16. Доставка
 
-[PR #28](https://github.com/F4nin/AI-RES/pull/28), ветка `feat/s16-bifrost-poc`. Первый head `72865e8` содержал только документальный pinning checkpoint; [contracts push44079543077](https://github.com/F4nin/AI-RES/actions/runs/44079543077)/[PR44079591347](https://github.com/F4nin/AI-RES/actions/runs/44079591347) success,22passed в каждом,0failed/skipped; PR-only baseline guard на push неприменим. Эти runs не доказывают последующий код. Кодовый head, новый полный CI и итоговый PR state фиксируются после фактической публикации. Merge независимого отключённого среза допускается после его review/pre-pr/точного Linux CI по AGENTS§10; это не acceptance Bifrost/model и не DONE полного S16. Приёмка остаётся BLOCKED до решения NCP-16 и оставшихся provider/human gates.
+[PR #28](https://github.com/F4nin/AI-RES/pull/28) **MERGED** 2026-11-17 13:24:12 UTC, head `153e3bb330951d9ea761d72b56e28468f48ddbae`, merge `091b97681d9ca182c916bbf57bbe4b710b69b817`; trees идентичны. Все8 push/PR checks head153e3bb success: [ci push44088750057](https://github.com/F4nin/AI-RES/actions/runs/44088750057)/[PR44088757779](https://github.com/F4nin/AI-RES/actions/runs/44088757779), [contracts push44088749897](https://github.com/F4nin/AI-RES/actions/runs/44088749897)/[PR44088757869](https://github.com/F4nin/AI-RES/actions/runs/44088757869). В каждом соответствующем job backend1461, infra-static221, runtime148, PoC19, contracts22, Renovate10 passed; failed/errors/skipped0. SBOM own images:0 HIGH/CRITICAL; third-party Bifrost0 fixable HIGH/CRITICAL, прочие: Grafana150,Loki58,Tempo90,Collector83,Postgres26,Alertmanager97,Prometheus110,Temporal admin-tools367/server146/UI117. Это вывод scan с `--ignore-unfixed`/существующими исключениями, не полное отсутствие уязвимостей. Report-only policy ADR-043/G-24 не менялась. Подробные artifacts `releases/scan/*.json` приложены к runtime run.
+
+Отдельные post-merge [ci44092373653](https://github.com/F4nin/AI-RES/actions/runs/44092373653)/[contracts44092373554](https://github.com/F4nin/AI-RES/actions/runs/44092373554) точного merge091b976 **success**; результаты в §9, SBOM counts совпали с push/PR. Итоговая ветка `docs/s16-foundation-evidence`, [PR #29](https://github.com/F4nin/AI-RES/pull/29), меняет только implementation evidence/status; runtime относительно merge091b976 не меняется. Первый docs checkpoint26eebcf: contracts push44093472909/PR44093532161 success; итоговый HEAD/чистоту/доставку docs checkpoint восстанавливать через Git, не приписывать ему runtime CI другого SHA. Numeric-only post-merge evidence update повторно проходит deterministic docs/secret/diff и contracts CI; новых security/code изменений нет.
+
+Первый head `72865e8` содержал только документальный pinning checkpoint; [contracts push44079543077](https://github.com/F4nin/AI-RES/actions/runs/44079543077)/[PR44079591347](https://github.com/F4nin/AI-RES/actions/runs/44079591347) success,22passed в каждом. Исторические docs-only runs не доказывают код. Merge отключённого среза выполнен после его review/pre-pr/точного Linux CI по AGENTS§10; это не acceptance Bifrost/model и не DONE полного S16. Приёмка остаётся BLOCKED до решения NCP-16 и оставшихся provider/human gates.
