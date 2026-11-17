@@ -2167,3 +2167,21 @@
 | Влияние на компоненты/контракты | `ci.yml`, `Makefile`, `tooling/README.md`; код и контракты не затронуты |
 | Риски и компромиссы | Скан секретов по `docs/implementation/**` откладывается до следующего пуша с другими файлами (или `make infra-scan-secrets`/`pre-pr` локально); если на `main` включат обязательные проверки, документационные PR останутся с «ожидающим» статусом — тогда перейти на джоб `changes`; `pre-push-fast` не заменяет интеграционные тесты с PostgreSQL |
 | Затронутые тесты | `actionlint` (pinned) проходит; `make pre-push-fast` — 455 passed за 5,9 с; проверка поведения фильтра путей возможна только на GitHub (после пуша) |
+
+
+## ADR-120 — ARCH-01: точный состав слоёв и независимых доменных модулей; exhaustive-классификация
+
+| Поле | Значение |
+|---|---|
+| Статус | ACCEPTED |
+| Дата | 2026-11-17 |
+| Ответственный | Implementation Lead (уточнение в пределах ADR-114) |
+| Проблема и контекст | На базе `4bdd904` существуют 14 дочерних модулей `ai_res.modules`, а не 15 из предварительного ADR-114. Граф имеет 17 межмодульных import edges, 9 направлений, циклов нет; разрешённый `sources → operations` должен сохраниться. Новые модули не должны оставаться вне gate. |
+| Связанные требования | ADR-114; Spec v1.22 §3; Domain Model v1.9 §3 и application service interfaces/domain events; architecture-constraints.md |
+| Документы и разделы | `backend/pyproject.toml`; `backend/tests/architecture/test_domain_import_rules.py`; промпт ARCH-01 |
+| Альтернативы | Один `layers` с независимыми siblings (`\|`) — не выбран: вводит независимость shared-слоёв, которой ADR-114 не требовал; неполный список без exhaustive — новые модули могли бы остаться без классификации; изменение продуктового кода — не требуется |
+| Решение | `layers` сверху вниз: (1) `epics`, `model_registry`, `projects`, `readiness`, `readmodel`, `requirements`, `sources`, `tasks`, `worker_runs`; (2) `idempotency`, `iam`, `operations`; (3) `events`, `audit`. Внутри групп используется `:`; отдельный `independence` запрещает все прямые и непрямые зависимости между девятью верхними модулями. `containers = ["ai_res.modules"]`, `exhaustive = true`: любой незаявленный непосредственный потомок блокирует lint. Тест сверяет полное покрытие верхнего слоя списком independence. Новых ignore/exhaustive_ignores нет. |
+| Обоснование | Фиксирует текущую форму без runtime-изменений и без дополнительных ограничений shared-слоёв. Точное поведение проверено по установленным import-linter 2.16 / grimp 3.19 (из существующего lock) и синтетическими behavioral tests с production-опциями. Справка: [layers](https://import-linter.readthedocs.io/en/v2.9/contract_types/layers/); установленный исходник — `importlinter/contracts/layers.py`, `independence.py`. |
+| Влияние на компоненты/контракты | Только dev-time import gate и architecture tests; прежние 12 контрактов сохраняются. API, events, ORM, миграции, зависимости, CI и runtime topology не меняются. |
+| Риски и компромиссы | Не контролирует динамические импорты, общие таблицы, event semantics или runtime authorization. Будущие модули требуют классификации; список равноправных модулей расширяется одновременно с верхним слоем. Shared-слои внутри себя не объявляются независимыми. |
+| Затронутые тесты | Реальный project lint; synthetic разрешённый граф, обратные импорты через обе границы, peer-импорты в обоих направлениях, непрямые нарушения, новый незаявленный модуль и полнота peer-покрытия; `make backend-check`, `make pre-push-fast`, `make pre-pr`, Linux CI. |
