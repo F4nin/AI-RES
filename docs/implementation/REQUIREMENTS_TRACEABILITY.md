@@ -468,7 +468,7 @@ Dev-time гарантия модульных границ (Spec §3, Domain Mode
 | RULE-MVP-02 | DOC-009 | Реестр правил | Обязательно | S18 | VERIFIED — S18 internal mechanism; production binding G158 |
 | RULE-MVP-03 | DOC-009 | Иерархия правил | Обязательно | S18 | VERIFIED — S18 internal mechanism; production binding G158 |
 | RULE-MVP-04 | DOC-009 | Жизненный цикл | Обязательно | S18 | VERIFIED — S18 internal mechanism; production binding G158 |
-| RULE-MVP-05 | DOC-009 | Предложение Manager Обязательно | Manager создаёт | S18 | VERIFIED — S18 internal mechanism; production binding G158 |
+| RULE-MVP-05 | DOC-009 | Предложение Manager Обязательно | Manager создаёт | S18 | PARTIAL — MANAGER DRAFT/rationale persistence VERIFIED; authenticated runtime Manager intake G158 |
 | RULE-MVP-06 | DOC-009 | Автоматическая валидация | Обязательно, | S18 | VERIFIED — S18 internal mechanism; production binding G158 |
 | RULE-MVP-07 | DOC-009 | Детерминированное исполнение | Обязательно | S18 | VERIFIED — S18 internal mechanism; production binding G158 |
 | RULE-MVP-08 | DOC-009 | Конфликт правил | Обязательно | S18 | VERIFIED — S18 internal mechanism; production binding G158 |
