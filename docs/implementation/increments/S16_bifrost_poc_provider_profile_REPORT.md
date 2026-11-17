@@ -1,6 +1,6 @@
 # S16 — Bifrost PoC и первый provider profile: Increment Report
 
-**Дата:** 2026-11-17 · **Промпт:** [S16](prompts/S16_bifrost_poc_provider_profile.md). **Реализация независимого среза:** TESTED локально и Linux CI; доставлена PR #28. **Приёмка полного S16:** BLOCKED (immutable pinning / NCP-16 и реальные provider-проверки). **IMPLEMENTATION NOT VERIFIED для реального DeepSeek; S16 не DONE.**
+**Дата:** 2026-11-17 · **Промпт:** [S16](prompts/S16_bifrost_poc_provider_profile.md). **S16 DONE по прямому решению владельца в уточнённом техническом scope (ADR-123).** Механизм gateway/adapter/relay/isolated PoC TESTED локально и Linux CI, доставлен PR #28. **Реальный DeepSeek path IMPLEMENTATION NOT VERIFIED; включение/приёмка профиля BLOCKED.** Исходные live-provider gates сохранены как отложенная приёмка, §17; закрытие этапа не означает их PASS.
 
 ## 1. Что реализовано
 
@@ -43,6 +43,8 @@ Registry v4.1: 74 records / 74 unique IDs / 74 unique paths, missing0 (read-only
 ## 6. Решения, принятые самостоятельно
 
 **ADR-122 ACCEPTED:** отключённая интеграция, relay topology, ephemeral config/auth store, локальные каталоги и консервативный неизвестный расход. Технический мандат в действующем scope; это не human acceptance Bifrost, не APPROVED модель и не исключение из pinning baseline. NCP-16 остаётся PROPOSED.
+
+**ADR-123 ACCEPTED по решению владельца:** технический milestone S16 закрыт по основному механизму взаимодействия с LLM. Реальная приёмка конкретного провайдера отложена; решение не заявляется самостоятельным техническим approval исполнителя. Поддержка разных провайдеров обеспечивается нейтральным портом/адаптерной архитектурой; работа всех провайдеров этим PoC не проверена.
 
 ## 7. Устранённые несогласованности / NCP
 
@@ -98,18 +100,18 @@ NCP-16, реальная immutable identity, DeepSeek compatibility/structured o
 
 ## 13. Обновлённые документы и статусы
 
-Scope в §3; implementation sources/status/traceability обновляются по фактическим gates. Canonical, Registry и contracts не редактировались. PROF-01 не запускался; работа остаётся в S16, SLICE-01/S17 не разблокированы.
+Scope в §3; implementation sources/status/traceability обновлены по фактическим gates и последующему owner decision ADR-123. Canonical, Registry и contracts не редактировались. PROF-01/SLICE-01/S17 не запускались; S16 закрыт в техническом scope, очередь ADR-115 сохраняется. SLICE-01 остаётся без допуска реального профиля, а не из-за незавершённого технического S16.
 
 ## 14. Статус DoD
 
 - Выполнен независимый кодовый срез adapter/relay/Compose/negative tests/no-paid live PoC, ADR/runbook/план расходов, независимые review.
 - Финальные локальные gates и все8 кодовых Linux push/PR checks PASS; независимый отключённый срез доставлен. Post-merge evidence сохраняется отдельно.
-- Не выполнены полный DOC-076 §7 live-provider suite, точный profile approval path/metadata и human Bifrost/model acceptance. **S16 не DONE, реальный provider path NOT VERIFIED.**
+- Не выполнены полный DOC-076 §7 live-provider suite, точный profile approval path/metadata и human Bifrost/model acceptance. **Реальный provider path NOT VERIFIED.** После прямого решения владельца технический S16 DONE, эти исходные условия перенесены в обязательный допуск профиля (§17), без отметки PASS.
 - N/A для этой дельты: публичные contract/API/event изменения, Alembic migration/RLS изменения.
 
 ## 15. Можно ли начинать следующий этап
 
-Нет автоматического перехода. Дальше продолжается тот же S16: решение NCP-16, защищённый provider-key setup, изолированные реальные тесты по подготовленной смете в уже установленном общем лимите10USD, оставшиеся tests/review/gates, затем human acceptance. Технические доработки и sandbox escalation не являются разрешением ослабить BASELINED; повторного разрешения на согласованные Git/dev/test действия не требуется.
+Нет автоматического перехода. S16 закрыт по прямому решению владельца; не переоткрывать его только из-за отложенной live-provider приёмки. Следующая работа выбирается по новой команде и существующему ROADMAP/ADR-115. До включения реального профиля остаются решение pinning/NCP-16, защищённый provider-key setup, реальная совместимость/usage/ошибки, остальные gates и human acceptance. Ключ позволяет выполнить полезные реальные тесты; письмо в поддержку не является обязательным условием закрытия технического этапа. Лимит10USD не переносится автоматически на иной инкремент и не увеличивается; BASELINED не ослаблен.
 
 ## 16. Доставка
 
@@ -117,4 +119,20 @@ Scope в §3; implementation sources/status/traceability обновляются 
 
 Отдельные post-merge [ci44092373653](https://github.com/F4nin/AI-RES/actions/runs/44092373653)/[contracts44092373554](https://github.com/F4nin/AI-RES/actions/runs/44092373554) точного merge091b976 **success**; результаты в §9, SBOM counts совпали с push/PR. Итоговая ветка `docs/s16-foundation-evidence`, [PR #29](https://github.com/F4nin/AI-RES/pull/29), меняет только implementation evidence/status; runtime относительно merge091b976 не меняется. Первый docs checkpoint26eebcf: contracts push44093472909/PR44093532161 success; итоговый HEAD/чистоту/доставку docs checkpoint восстанавливать через Git, не приписывать ему runtime CI другого SHA. Numeric-only post-merge evidence update повторно проходит deterministic docs/secret/diff и contracts CI; новых security/code изменений нет.
 
-Первый head `72865e8` содержал только документальный pinning checkpoint; [contracts push44079543077](https://github.com/F4nin/AI-RES/actions/runs/44079543077)/[PR44079591347](https://github.com/F4nin/AI-RES/actions/runs/44079591347) success,22passed в каждом. Исторические docs-only runs не доказывают код. Merge отключённого среза выполнен после его review/pre-pr/точного Linux CI по AGENTS§10; это не acceptance Bifrost/model и не DONE полного S16. Приёмка остаётся BLOCKED до решения NCP-16 и оставшихся provider/human gates.
+Первый head `72865e8` содержал только документальный pinning checkpoint; [contracts push44079543077](https://github.com/F4nin/AI-RES/actions/runs/44079543077)/[PR44079591347](https://github.com/F4nin/AI-RES/actions/runs/44079591347) success,22passed в каждом. Исторические docs-only runs не доказывают код. Merge отключённого среза выполнен после его review/pre-pr/точного Linux CI по AGENTS§10; это не acceptance Bifrost/model. Позднее владелец закрыл технический milestone S16 (ADR-123), сохранив live-provider admission BLOCKED до решения pinning и оставшихся provider/human gates.
+
+## 17. Закрытие владельцем и отложенная приёмка
+
+Владелец прямо поручил закрыть этап: основной результат — механизм взаимодействия LLM Gateway с разными провайдерами для данных AI RES. **S16 DONE по owner decision, технический scope TESTED; real provider NOT VERIFIED.** Включены port/registry основы S15 и доставленный S16 adapter/relay/isolated candidate. Другие провайдеры не добавлены и не проверены; текущий relay ограничен Flash. Runtime продукта ещё не подключён к реальной модели.
+
+| Исходное условие S16 | Фактический статус после закрытия milestone |
+|---|---|
+| Immutable model identity / NCP-16 | OPEN / PROPOSED; исключение B не принято. Требуется перед допуском профиля по действующей нормативной семантике |
+| Provider key и реальные compatibility/structured/tools/stream/cancel/errors/usage/billing | NOT EXECUTED; ключ позволит проверять эти свойства. Документальный pinning sub-PoC и fixtures не заменяют live evidence |
+| Approval path, classifications/egress vocabulary, rate limits, durable budget, observability | G-144/145/146/149/150/151/152 сохраняют отдельные статусы; не закрываются DONE milestone |
+| Bifrost ACCEPT/REJECT и APPROVED model profile | NOT GRANTED; отдельные человеческие решения и audit по canonical требованиям перед production-like включением |
+| Следующие этапы и расходы | Не запускаются автоматически. SLICE-01 требует реального допущенного профиля и собственного допуска/бюджета; очередь не переставляется |
+
+Owner closeout на базе чистого main288be77444a1ff347dd5fb4b985df178f6e238a6 (fetch подтвердил origin/main) изменяет только implementation Markdown; code/config/API/contracts/migrations/data неизменны. Повтор полного runtime pre-pr неприменим к этой документационной дельте; прежний code/post-merge CI в §9/16 относится только к указанным SHA. Для closeout выполняются deterministic prompts/links/secret/diff checks, независимое review границ приёмки и новый contracts CI. Точные результаты/доставку closeout установить по проверенному head/PR, без self-referential SHA в собственном commit.
+
+Фактические локальные проверки owner closeout (Darwin arm64, существующий infra Python3.13.5): `infra/.venv/bin/python -B docs/implementation/tools/check_prompts.py` exit0/40prompts/0issues; read-only `/private/tmp/s16-closeout-links.py` exit0/15Markdown/152local links/0issues; `infra/.venv/bin/python -B infra/scripts/scan_secrets.py` exit0/0findings; `git diff --check` exit0; diff вне docs/implementation относительно288be77 exit0. Отдельный security reviewer APPROVE/openfindings0 после исправления одного MEDIUM по отображению ROADMAP; протокол в S16_IMPLEMENTATION_REVIEWS. Новый runtime/paid test не запускался, расход0USD. Эти результаты не повышают real-provider coverage.

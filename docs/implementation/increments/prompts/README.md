@@ -22,7 +22,7 @@
 | S13 | Observability stack и мониторинг | [`S13_observability_stack.md`](S13_observability_stack.md) | S03, S10 | DONE | — |
 | S14 | Worker contracts: Envelope/Result/Notice | [`S14_worker_contracts_runtime_validation.md`](S14_worker_contracts_runtime_validation.md) | S12 | DONE | — |
 | S15 | LLMGatewayPort и Model Registry (провайдер-нейтрально) | [`S15_llm_gateway_port_model_registry.md`](S15_llm_gateway_port_model_registry.md) | S11 | DONE | — |
-| S16 | Bifrost PoC и первый утверждённый provider profile | [`S16_bifrost_poc_provider_profile.md`](S16_bifrost_poc_provider_profile.md) | S15, S13 | IN_PROGRESS: отключённый срез TESTED local+Linux, PR #28 MERGED; полная приёмка BLOCKED (G-156, NCP-16); см. STATUS/report | Продолжение real-provider части после решения владельца о pinning и подготовки key/tests/approval; не DONE |
+| S16 | LLM Gateway: технический механизм подключения провайдеров | [`S16_bifrost_poc_provider_profile.md`](S16_bifrost_poc_provider_profile.md) | S15, S13 | DONE по решению владельца2026-11-17, ADR-123; технический срез TESTED local+Linux, PR #28 MERGED | Real-provider admission NOT VERIFIED/BLOCKED; исходные live/approval gates отложены, report§17. Не повторять закрытый milestone |
 | S17 | Tool Registry и Tool Gateway | [`S17_tool_registry_tool_gateway.md`](S17_tool_registry_tool_gateway.md) | S07, S12 | PENDING_DEPS (ARCH-01; очередь SLICE-01 — ADR-115) | Нет; условия в §4 промпта |
 | S18 | Rules Registry и Rules Engine | [`S18_rules_registry_rules_engine.md`](S18_rules_registry_rules_engine.md) | S07, S06 | READY | После поручения владельца |
 | S19 | ContextPackageVersion (минимальный Context Builder) | [`S19_context_package_versioning.md`](S19_context_package_versioning.md) | S06, S07 | READY | После поручения владельца |
@@ -40,12 +40,12 @@
 | S31 | Artifact, Change Request и Baseline lifecycle | [`S31_artifact_cr_baseline_lifecycle.md`](S31_artifact_cr_baseline_lifecycle.md) | S30, S26 | PENDING_DEPS | Нет (после DONE зависимостей) |
 | S32 | Recovery и reconciliation | [`S32_recovery_reconciliation.md`](S32_recovery_reconciliation.md) | S31 | PENDING_DEPS | Нет (после DONE зависимостей) |
 | S33 | Evaluation harness и release gates | [`S33_evaluation_harness_release_gates.md`](S33_evaluation_harness_release_gates.md) | S32, S16 | BLOCKED | Нет |
-| S34 | Learning signals и curated experience | [`S34_learning_signals_curated_experience.md`](S34_learning_signals_curated_experience.md) | S33 | BLOCKED (транзитивно: S16, S33) | Нет |
+| S34 | Learning signals и curated experience | [`S34_learning_signals_curated_experience.md`](S34_learning_signals_curated_experience.md) | S33 | BLOCKED (S33 и допуск реального профиля OD-01/21; технический S16 DONE) | Нет |
 | S35 | Web Project Workspace UI: foundation | [`S35_web_workspace_ui_foundation.md`](S35_web_workspace_ui_foundation.md) | S12 | READY | После поручения владельца |
 | S36 | Web Workspace UI: Manager, plan, results, traceability, artifacts | [`S36_web_workspace_ui_manager_results.md`](S36_web_workspace_ui_manager_results.md) | S35, S31 | PENDING_DEPS | Нет (после DONE зависимостей) |
-| S37 | Contract & security verification, hardening | [`S37_contract_security_verification_hardening.md`](S37_contract_security_verification_hardening.md) | S32, S36, S16 | BLOCKED (транзитивно: S16) | Нет |
+| S37 | Contract & security verification, hardening | [`S37_contract_security_verification_hardening.md`](S37_contract_security_verification_hardening.md) | S32, S36, S16 | BLOCKED (зависимости и real-provider/security acceptance OD-01/21; технический S16 DONE) | Нет |
 | S38 | Performance, capacity и resilience drills | [`S38_performance_capacity_resilience_drills.md`](S38_performance_capacity_resilience_drills.md) | S37 | BLOCKED | Нет |
-| S39 | UI/UX acceptance, runbooks и productization | [`S39_ui_ux_acceptance_runbooks_productization.md`](S39_ui_ux_acceptance_runbooks_productization.md) | S37, S36 | BLOCKED (транзитивно: S16) | Нет |
+| S39 | UI/UX acceptance, runbooks и productization | [`S39_ui_ux_acceptance_runbooks_productization.md`](S39_ui_ux_acceptance_runbooks_productization.md) | S37, S36 | BLOCKED (S37/S36 и допуск реального профиля; технический S16 DONE) | Нет |
 
 При изменении статуса этапа сверять индекс с `IMPLEMENTATION_STATUS.md`. `READY` означает выполненные предпосылки, но не заменяет явное поручение владельца на реализацию. Для ещё не начатого этапа отдельно проверять зависимости и решения владельца.
 

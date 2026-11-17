@@ -2,7 +2,7 @@
 
 **Фаза:** D. Agent execution · **Соответствие Spec:** Spec Add. v1.20 Inc. 20 (часть) · **Roadmap:** `docs/implementation/IMPLEMENTATION_ROADMAP.md`
 
-> **СТАТУС ПРОМПТА: BLOCKED.** Не исполнять, пока не сняты блокировки (см. «Зависимости и условия старта»).
+> **СТАТУС ПРОМПТА: DONE по прямому решению владельца2026-11-17 в уточнённом техническом scope (ADR-123).** Реализован основной механизм gateway/adapter/relay/isolated PoC, TESTED local+Linux+post-merge. Real provider NOT VERIFIED; production-like Bifrost/profile admission остаётся BLOCKED. Ниже сохранён исходный расширенный scope/DoD; его live-provider/approval пункты отложены как обязательные условия включения, а не помечены PASS. Не повторять закрытый S16; [актуальный отчёт§17](../S16_bifrost_poc_provider_profile_REPORT.md#17-закрытие-владельцем-и-отложенная-приёмка).
 
 ## 1. Роль и полномочия
 
@@ -133,6 +133,8 @@ PoC Bifrost за `LLMGatewayPort` по DOC-076 §7, security review, один у
 - DECISIONS_PENDING.md (OD-01)
 
 ## 13. Definition of Done
+
+**Уточнение владельца2026-11-17, ADR-123:** milestone закрыт по техническому механизму взаимодействия с провайдерами. Перечень ниже — исходный полный DoD; реальная compatibility/pinning/usage и Bifrost/profile human acceptance ещё не выполнены и сохраняются как gates перед включением реальной модели. DONE технического этапа не является VERIFIED полного provider path и не принимает NCP-16.
 
 - PoC критерии подтверждены; security review без открытых HIGH; решение владельца зафиксировано.
 - Все пункты «Результаты» созданы; функциональность не замаскирована заглушками (test double допускается только по ADR-022 и с явной маркировкой).

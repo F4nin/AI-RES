@@ -73,7 +73,7 @@ Dev-time гарантия модульных границ (Spec §3, Domain Mode
 | API-MVP-024 | DOC-009 | Temporal contracts | MVP | S01, S02, S08, S09, S12 | NOT_STARTED |
 | API-MVP-025 | DOC-009 | Temporal compatibility | MVP | S01, S02, S08, S09, S12 | NOT_STARTED |
 | API-MVP-026 | DOC-009 | LangGraph contract | MVP | S01, S02, S08, S09, S12 | NOT_STARTED |
-| API-MVP-027 | DOC-009 | LLM Gateway Adapter | MVP | S01, S02, S08, S09, S12 | PARTIAL (S15 port/registry; S16 HTTP/SSE transport+relay и isolated Bifrost TESTED local+Linux153e3bb,19 no-paid runtime checks, PR #28 MERGED091b976; real provider/pinning/approval BLOCKED G-156/NCP-16; [отчёт](increments/S16_bifrost_poc_provider_profile_REPORT.md)) |
+| API-MVP-027 | DOC-009 | LLM Gateway Adapter | MVP | S01, S02, S08, S09, S12 | PARTIAL (S15 port/registry; технический S16 DONE по owner decision ADR-123: HTTP/SSE transport+relay/isolated Bifrost TESTED local+Linux153e3bb,19checks, PR #28 MERGED091b976; real provider/pinning/approval NOT VERIFIED/BLOCKED G-156/NCP-16. Functional coverage не повышено по административному DONE; [отчёт](increments/S16_bifrost_poc_provider_profile_REPORT.md)) |
 | API-MVP-028 | DOC-009 | CloudEvents envelope | MVP | S01, S02, S08, S09, S12 | NOT_STARTED |
 | API-MVP-029 | DOC-009 | Transactional Outbox | MVP | S01, S02, S08, S09, S12 | NOT_STARTED |
 | API-MVP-030 | DOC-009 | Event ordering/replay | MVP | S01, S02, S08, S09, S12 | NOT_STARTED |

@@ -2228,5 +2228,22 @@
 | Альтернативы | Прямой egress у Bifrost — не ограничивает назначения; file-only auth — реальный startup показал неподдерживаемость; внешний bootstrap pricing — нарушает deny-by-default; env/argv для секретов — отвергнуты; объявить alias immutable — запрещено текущим baseline; менять gateway продукт до PoC оснований нет |
 | Проверки | HTTP/SSE/SSRF/parser/cancellation и budget negative tests; renderer/policy tests; реальный pinned container: admin/VK, Pro denied, disabled relay, отсутствие direct egress/ports и content/credentials в logs/env. Full pre-pr и Linux CI, independent reciprocal code/Python/test + отдельный security/failure review |
 | Совместимость / риски | Публичные DTO/контракты/миграции не меняются, новых Python dependencies нет. Лимиты bytes/concurrency/timeouts — WORKING dev defaults. TLS/service placement настоящего product path, provider compatibility/pinning/approval и durable budget остаются условиями будущего включения |
-| Следствие | Независимая часть интеграции реализуема и проверяема без платных вызовов; S16 не становится DONE или VERIFIED до оставшихся gates/человеческой приёмки |
+| Следствие | Независимая часть интеграции реализуема и проверяема без платных вызовов. Первоначальное условие полного DONE впоследствии уточнено прямым решением владельца в ADR-123: технический milestone закрыт, реальные provider/security/profile gates сохранены |
 | Evidence | S16 report, S16_MODEL_PINNING_POC, S16_IMPLEMENTATION_REVIEWS; реальные команды/counts/SHA фиксируются отдельно |
+
+## ADR-123 — S16: закрытие технического milestone по решению владельца
+
+| Поле | Значение |
+|---|---|
+| Статус | ACCEPTED — прямое решение владельца, 2026-11-17 |
+| Ответственный | Владелец проекта; Implementation Lead документирует решение |
+| Проблема / контекст | Технический gateway срез доставлен PR #28, evidence PR #29. Владелец поручил закрыть этап, считая основным результатом механизм взаимодействия LLM Gateway с будущими разными провайдерами. Первоначальный S16 одновременно включал foundation и приёмку первого real-provider profile |
+| Требования / источники | Последнее прямое поручение владельца; AGENTS §1/§8/§10; ADR-031/032/111/122; DOC-076 §2–7 и NCP-16 сохраняются |
+| Решение | S16 DONE по прямому решению владельца в уточнённом техническом scope: существующий provider-neutral port/registry + новый HTTP/SSE Bifrost transport, guarded relay, opt-in isolated candidate, failure/budget semantics и проверки. Техническое evidence TESTED local+Linux+post-merge; real DeepSeek path IMPLEMENTATION NOT VERIFIED. Это точечное owner-уточнение milestone/DoD ADR-032, не новый общий способ обходить gates |
+| Отложенная исходная приёмка | Immutable identity/pinning; защищённое подключение ключа; реальная compatibility/usage/billing; audited approval path и словари профиля; применимые rate limits/observability; Bifrost ACCEPT/REJECT и human approval профиля. Не считать эти пункты PASS по факту DONE технического S16 |
+| Сохраняемые границы | Factory unconfigured, bindings пусты, aliases отклоняются; supplied relay disabled без provider key/live flag. NCP-16 PROPOSED; никакого автоматического APPROVED, расширения egress/данных/бюджета, принятия rolling alias или production-like deployment. Ключ полезен для реальных технических тестов, но сам по себе не доказывает pinning |
+| Следующая работа | Не переоткрывать S16 только из-за отложенной приёмки. Следующий инкремент — по новой команде/существующему ROADMAP; очередь ADR-115 не меняется. SLICE-01/вызовы продукта требуют реального допущенного профиля и своих бюджетных/прочих условий, DONE S16 их не подменяет |
+| Альтернативы | Держать весь milestone IN_PROGRESS до неизвестного provider snapshot — отвергнуто решением владельца; объявить весь исходный live-provider DoD VERIFIED — не соответствует evidence; молча принять NCP-16B — не разрешено |
+| Влияние / совместимость | Только implementation docs/status/traceability. Canonical/Registry/contracts, API/events, dependencies, code/config, миграции и данные не меняются |
+| Риски / ограничения | DONE управленческого milestone могут ошибочно прочитать как включённую модель или поддержку всех провайдеров. Поэтому live-provider admission и coverage остаются PARTIAL/NOT VERIFIED во всех entrypoints; общие product/release требования не снимаются |
+| Проверки / evidence | Код153e3bb, merge091b976: полный local pre-pr и отдельные Linux push/PR/post-merge checks PASS, report содержит counts/links. Docs-only owner closeout: prompts/links/secrets/diff, независимое read-only review границ приёмки и contracts CI точного SHA; runtime повторно не запускается при неизменном code/config |
