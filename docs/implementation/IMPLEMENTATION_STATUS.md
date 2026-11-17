@@ -4,7 +4,7 @@
 
 Статусы реализации: NOT_STARTED · IN_PROGRESS · IMPLEMENTED · TESTED · VERIFIED · BLOCKED · DEFERRED. IMPLEMENTED ≠ TESTED ≠ VERIFIED. DONE (для старта зависимых этапов) — по ADR-032.
 
-**ARCH-01, 2026-11-17:** TESTED локально, полный pre-pr и два независимых review выполнены; Linux CI/доставка ожидаются. Подробности и проверенные версии — в строке мини-этапа и его отчёте. Общая историческая сверка выше не переиздаётся этим дополнением.
+**ARCH-01, 2026-11-17:** VERIFIED/DONE для dev-time import gate; локальный pre-pr, два независимых review, все восемь checks PR/push и отдельный post-merge Linux CI прошли. PR #23 слит; точные SHA/counts/ссылки — в отчёте. Общая историческая сверка выше не переиздаётся этим дополнением.
 
 Готовность и разрешение владельца различаются: READY означает выполненные предпосылки для старта в указанном scope, но не поручение на реализацию. Несколько этапов могут быть READY одновременно; их статус реализации остаётся NOT_STARTED. Для S27 сохраняются ограничения на embeddings (OD-01/ADR-022) и подключение реальных Operation (OD-19/G-107).
 
@@ -52,7 +52,7 @@
 | S39 | UI/UX acceptance, runbooks и productization | BLOCKED | BLOCKED (транзитивно: S16) | — |
 | CI-01 | Ускорение CI и локального прогона тестов (мини-этап вне нумерации S, ADR-112) | VERIFIED (2026-11-14): `make pre-pr` exit 0; Linux CI зелёный на ветке и PR #20 (ci 25 → 9,4 мин); фильтр путей проверен; 2 слепых review без CRITICAL/HIGH; локальная ссылка `origin/main` содержит merge PR #20 (`0556444`); актуальность remote не проверялась | DONE (ADR-032); [промпт](increments/prompts/CI-01_faster_ci_pipeline.md) | [report](increments/CI-01_faster_ci_pipeline_REPORT.md) |
 | DEP-01 | Renovate: настройка конфига и автоматические PR обновлений (мини-этап вне нумерации S, ADR-113) | NOT_STARTED | PENDING_DEPS (после CI-01); приложение устанавливает владелец после VERIFIED | — |
-| ARCH-01 | Контракты import-linter между доменными модулями (мини-этап вне нумерации S, ADR-114/120) | TESTED локально (2026-11-17): два контракта, 10 новых architecture tests; pre-push-fast 465 passed; полный pre-pr exit 0: backend 1301, contracts 22, infra 307, отдельный runtime 148 passed, 0 failed/errors/skipped; два независимых review — 0 findings | Linux CI и доставка ожидаются; до S17 | [report](increments/ARCH-01_domain_import_contracts_REPORT.md) |
+| ARCH-01 | Контракты import-linter между доменными модулями (мини-этап вне нумерации S, ADR-114/120) | VERIFIED (2026-11-17): 14 kept/0 broken, 10 новых тестов; локальный pre-pr exit 0: backend 1301, contracts 22, infra 307, отдельный runtime 148 passed, 0 failed/errors/skipped; два независимых review — 0 findings. Linux CI зелёный на `1a45c4e` (PR #23: ci 44060321034/44060255903, contracts 44060321079/44060255864). MERGED `fe8b79b`, отдельные post-merge ci 44061994966 / contracts 44061994778 также success: backend 1301, infra-static 159, runtime 148, contracts 22; все дополнительные gates success | DONE (ADR-032); очередь S16/SLICE-01 перед S17 сохраняется | [report](increments/ARCH-01_domain_import_contracts_REPORT.md) |
 | PROF-01 | Профили запуска Compose: dev-минимум и полный, метрики/дашборды в обоих (мини-этап вне нумерации S, ADR-116) | NOT_STARTED | PENDING_DEPS (после CI-01) | — |
 | SLICE-01 | Тонкий экспериментальный прогон Requirements Worker с реальной моделью (мини-этап между S16 и S17, ADR-115) | NOT_STARTED | BLOCKED (транзитивно: S16; лимит 10 USD относится к S16 и не разрешает расходы SLICE-01) | — |
 
