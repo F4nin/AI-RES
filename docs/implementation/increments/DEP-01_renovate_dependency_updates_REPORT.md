@@ -1,6 +1,6 @@
 # DEP-01 — Renovate dependency updates: Increment Report
 
-**Дата:** 2026-11-17 · **Промпт:** [DEP-01](prompts/DEP-01_renovate_dependency_updates.md). **Конфигурация: VERIFIED**, слита PR #25, локальный pre-pr и отдельные PR/push/post-merge Linux CI success. **DEP-01 целиком: IN_PROGRESS** — подтверждение App onboarding ещё ожидается.
+**Дата:** 2026-11-17 · **Промпт:** [DEP-01](prompts/DEP-01_renovate_dependency_updates.md). **DEP-01: DONE по прямому решению владельца о закрытии этапа. Конфигурация: VERIFIED**, слита PR #25, локальный pre-pr и отдельные PR/push/post-merge Linux CI success. Hosted App installation/onboarding и первый run **NOT VERIFIED**, follow-up G-31 сохраняется отдельно.
 
 ## 1. Реализованный scope
 
@@ -84,7 +84,7 @@ PATH="/private/tmp/arch-01-tools/node-v22.23.5-darwin-arm64/bin:/opt/homebrew/op
 
 Владелец прямо разрешил установку App агенту **только** на AI-RES. Доступный GitHub CLI credential получил 403 на installation API; подключённого браузерного инструмента нет. Plugin discovery проведён; GitHub/TinyFish доступны для отдельного подключения, но сейчас не подключены; cloud browser и передача ему credentials не авторизованы автоматически установкой Renovate. Не создавался App/token, не запускался self-hosted бот как подмена, не менялись другие repositories.
 
-При сохранении ограничения после готового конфига в main нужен интерактивный переход на [официальную установку Renovate](https://github.com/apps/renovate/installations/new), **Only select repositories → AI-RES → Install**. После этого проверить onboarding/dashboard и отсутствие config errors. Нового разрешения на саму установку не нужно; недостаёт механизма аутентифицированного browser consent. Ссылка/403 не доказывают фактическую установку. До этого App **NOT VERIFIED**, полный DEP-01 не DONE.
+При сохранении ограничения после готового конфига в main нужен интерактивный переход на [официальную установку Renovate](https://github.com/apps/renovate/installations/new), **Only select repositories → AI-RES → Install**. После этого проверить onboarding/dashboard и отсутствие config errors. Нового разрешения на саму установку не нужно; недостаёт механизма аутентифицированного browser consent. Ссылка/403 не доказывают фактическую установку. App **NOT VERIFIED**; последующим прямым решением владельца инкремент закрыт с сохранением этого ограничения отдельно (раздел 14).
 
 После merge конфига выполнена фактическая попытка: отдельный helper прошёл read-only security review (0 findings); `osacompile` вне sandbox exit0, `osascript … open` exit0 открыл official URL в отдельном Chrome window. `status` в этом же window exit1 с Chrome error12: JavaScript через AppleEvents отключён. Настройка не менялась, cookies/query/значения полей не читались. Пользователь получил конкретный интерактивный шаг; на странице product selection ему рекомендован scope **Renovate Only**, а не лицензируемый Mend Application Security. Фактический выбор/завершение onboarding и функциональная проверка ещё ожидаются; вторая ветка работ не запускается.
 
@@ -96,7 +96,7 @@ PATH="/private/tmp/arch-01-tools/node-v22.23.5-darwin-arm64/bin:/opt/homebrew/op
 
 ## 14. DoD
 
-Config/target acceptance, fast tests, полный локальный pre-pr, независимые review и отдельные Linux PR/push/post-merge CI пройдены: **конфигурация VERIFIED**. App installation/onboarding ещё не подтверждены; hosted run не наблюдался. До подтверждения App весь DEP-01 не DONE. Установка и фактический первый scheduled run — разные результаты.
+Config acceptance, fast tests, полный локальный pre-pr, независимые review и отдельные Linux PR/push/post-merge CI пройдены: **конфигурация VERIFIED**. После сообщения об оставшемся App confirmation владелец поручил: «надо переводить в выполненный этап», сохранить контекст и перейти к следующему этапу после очистки окна. **DEP-01 закрыт DONE по этому решению**, прежнее удержание IN_PROGRESS снято. Это решение о закрытии не трактуется как подтверждение выбранного продукта/Enabled/permissions в Mend: App installation/onboarding и первый hosted run остаются NOT VERIFIED в G-31, без повторных UI-экспериментов. Установка и фактический первый scheduled run — разные результаты.
 
 Implementation commit **b5177cf161c64c4fccb61377400ad0444e6ef6fb**, [PR #25](https://github.com/F4nin/AI-RES/pull/25); 19 файлов, 493 insertions/8 deletions. После commit рабочая дельта касается только evidence. Linux push [ci44071088445](https://github.com/F4nin/AI-RES/actions/runs/44071088445)/[contracts44071088800](https://github.com/F4nin/AI-RES/actions/runs/44071088800) и PR [ci44071117953](https://github.com/F4nin/AI-RES/actions/runs/44071117953)/[contracts44071117805](https://github.com/F4nin/AI-RES/actions/runs/44071117805) проверяются на этом exact SHA; pending jobs не считаются PASS.
 
@@ -104,4 +104,10 @@ Implementation commit **b5177cf161c64c4fccb61377400ad0444e6ef6fb**, [PR #25](htt
 
 ## 15. Следующий безопасный шаг
 
-Конфигурация доставлена и проверена. Остаётся подтвердить установку и onboarding App: Renovate Only, AI-RES Enabled, доступ только к AI-RES; первый hosted run фиксировать отдельно по факту. Не начинать PROF-01/S16/SLICE-01/другой продуктовый этап по текущему поручению. Блокировки/бюджеты/approval будущих этапов сохраняются.
+DEP-01 DONE; не возобновлять реализацию закрытого этапа при восстановлении контекста. App follow-up G-31: при доступном evidence подтвердить Renovate Only, AI-RES Enabled, доступ только к AI-RES, затем отдельно первый hosted run. Новую браузерную автоматизацию не запускать автоматически. После новой команды владельца выбрать следующий допустимый этап по ROADMAP/ADR и фактическим зависимостям; S16/SLICE-01 сохраняют свои блокеры/бюджеты/approval. В рамках этого закрытия следующий инкремент не запускается.
+
+## 16. Checkpoint перед очисткой контекста
+
+Проверки docs-only diff: `git diff --check` exit0; `infra/.venv/bin/python -B docs/implementation/tools/check_prompts.py` exit0, 40 prompts/0 issues; `infra/.venv/bin/python -B infra/scripts/scan_secrets.py` exit0, 0 findings. Просмотрен весь diff; только 9 implementation Markdown файлов, сторонние изменения отсутствуют.
+
+База закрытия — чистый `main` **61b0bcd8f5b10bb7e3b6f0c5b7d57a1add425133**, сверенный fetch с origin/main. [PR #26](https://github.com/F4nin/AI-RES/pull/26) уже доставил предыдущее evidence; его post-merge [contracts44076186958](https://github.com/F4nin/AI-RES/actions/runs/44076186958) success. Новая ветка `docs/dep-01-done` меняет только implementation status/handoff/report/prompt/traceability/решение владельца. Runtime, API, contracts, migrations и security policies неизменны. ECC verification-loop применён исполнителем как checklist scope/evidence/diff/secrets; отдельный reviewer для узкого docs-only закрытия не требуется по AGENTS §7, прежние независимые code/security reviews реализации сохраняются. Полный pre-pr повторно не запускается: код/config совпадают с уже проверенным merge; применимы diff/prompts/secret checks и contracts CI. Текущий SHA доставки устанавливать через Git, не сохранять self-referential hash.
