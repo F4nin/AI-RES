@@ -73,7 +73,7 @@ Dev-time гарантия модульных границ (Spec §3, Domain Mode
 | API-MVP-024 | DOC-009 | Temporal contracts | MVP | S01, S02, S08, S09, S12 | NOT_STARTED |
 | API-MVP-025 | DOC-009 | Temporal compatibility | MVP | S01, S02, S08, S09, S12 | NOT_STARTED |
 | API-MVP-026 | DOC-009 | LangGraph contract | MVP | S01, S02, S08, S09, S12 | NOT_STARTED |
-| API-MVP-027 | DOC-009 | LLM Gateway Adapter | MVP | S01, S02, S08, S09, S12 | PARTIAL (S15 TESTED локально: LLMGatewayPort, Model Registry, routing/fallback, бюджет; провайдерский адаптер и Bifrost — S16, OD-01) |
+| API-MVP-027 | DOC-009 | LLM Gateway Adapter | MVP | S01, S02, S08, S09, S12 | PARTIAL (S15 TESTED локально: LLMGatewayPort, Model Registry, routing/fallback, бюджет; S16 начат: документальный pinning PoC, приёмка BLOCKED G-156/NCP-16; адаптер/Bifrost runtime NOT VERIFIED, [отчёт](increments/S16_bifrost_poc_provider_profile_REPORT.md)) |
 | API-MVP-028 | DOC-009 | CloudEvents envelope | MVP | S01, S02, S08, S09, S12 | NOT_STARTED |
 | API-MVP-029 | DOC-009 | Transactional Outbox | MVP | S01, S02, S08, S09, S12 | NOT_STARTED |
 | API-MVP-030 | DOC-009 | Event ordering/replay | MVP | S01, S02, S08, S09, S12 | NOT_STARTED |

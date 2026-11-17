@@ -1,5 +1,13 @@
 # DECISIONS_PENDING — только решения владельца проекта / security owner
 
+## S16 начат: решение по model pinning — 2026-11-17
+
+Владелец явно выбрал S16 после ARCH-01/DEP-01. Документальная часть PoC выполнена: публичный DeepSeek Chat API документирует rolling aliases, а immutable selector не подтверждён. `system_fingerprint` описывает наблюдаемый backend, не закрепляет модель. Это не доказательство невозможности private snapshot endpoint. Приёмка/включение профиля BLOCKED; широкая реализация адаптера отложена до решения о семантике identity. Расход этого исследования 0 USD, платных вызовов 0; лимит S16 10 USD сохранён.
+
+**Вопрос в существующем OD-01/OD-21:** [NCP-16](decisions/NORMATIVE_CHANGE_PROPOSALS.md#ncp-16--deepseek-flash-и-immutable-model-pinning) готов к решению: **A** — сохранить immutable baseline и получить доказательство поддерживаемого закрепления у DeepSeek; **B** — явно разрешить для Flash первого среза rolling alias с наблюдаемой metadata, обнаружением дрейфа и повторной человеческой приёмкой. B не обеспечивает воспроизводимость старой модели и требует согласованного изменения canonical/Registry; сейчас только PROPOSED. Отправка писем/обращений провайдеру не поручена. До выбора ничего не APPROVED и baseline не ослаблен.
+
+[Evidence и матрица NOT RUN](reviews/S16_MODEL_PINNING_POC.md), [отчёт S16](increments/S16_bifrost_poc_provider_profile_REPORT.md), G-156. Local model отложена по DOC-075 §3.1 и существующему решению Ollama-last; нового owner-блокера по ней нет. Следующий шаг — продолжение того же S16 после решения, не повтор ARCH-01/DEP-01 и не переход на другой этап автоматически.
+
 Постоянные разрешения Codex для новых инкрементов согласованы 2026-11-17: см. завершающий раздел «Постоянный процесс разработки Codex». Исторические требования отдельного Git/dev/MCP разрешения удовлетворяются этим решением только в совпадающем scope; прежние approval продукта и ограничения специальных задач сохраняются.
 
 Технические решения, принятые Implementation Lead в пределах полномочий, сюда не входят — см. `ARCHITECTURE_DECISION_LOG.md`. Прежние DP-01, DP-02, DP-03, DP-05, DP-10 закрыты как ACCEPTED (ADR-008, ADR-011/012, ADR-016, ADR-014, ADR-015) по делегированию из Master Implementation Initialization.

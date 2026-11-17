@@ -1,5 +1,7 @@
 # CONTRACT_TRACEABILITY_MAP
 
+**S16 preflight, 2026-11-17:** внутренний LLM-контракт DOC-006 §11 / DOC-076 §3 остаётся прежним; документальная проверка показала неподтверждённый immutable selector DeepSeek (G-156, [NCP-16](decisions/NORMATIVE_CHANGE_PROPOSALS.md#ncp-16--deepseek-flash-и-immutable-model-pinning)). Публичные/внутренние схемы и реализации не менялись, новые операции/поля не добавлены. Провайдерский адаптер и фактическая version identity не верифицированы; покрытие контрактов этим checkpoint не повышается. [Отчёт S16](increments/S16_bifrost_poc_provider_profile_REPORT.md).
+
 Связь: публичный API (DOC-050 `AI_RES_Public_API_v1.3.yaml`) ↔ доменные агрегаты (DOC-005) ↔ физические таблицы (DOC-065 DDL / ADR-016) ↔ события (DOC-008 `AI_RES_Domain_Events_AsyncAPI_v1.6.yaml`) ↔ инкремент ↔ тесты.
 Статус реализации всех строк: **NOT_STARTED**. Этапы — по `IMPLEMENTATION_ROADMAP.md` (ADR-010). Зеркало контрактов в `contracts/` — ADR-009 (S01). Таблицы с пометкой «ADR-016» не имеют физического DDL в baseline. Статусы источников в Registry: DOC-050 Public API — **WORKING**, DOC-065 DDL — **WORKING**, DOC-008 AsyncAPI — BASELINED.
 

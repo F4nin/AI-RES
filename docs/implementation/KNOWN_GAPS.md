@@ -1,5 +1,13 @@
 # KNOWN_GAPS
 
+## S16 — model pinning, 2026-11-17
+
+| ID | Пробел | Влияние | Статус / закрытие |
+|---|---|---|---|
+| G-156 | Public DeepSeek API документирует rolling Flash alias без подтверждённого immutable selector. Запись текущей версии в Model Registry и `system_fingerprint` не обеспечивают требуемую DOC-075/076 воспроизводимость | Блокирует приёмку и включение первого профиля S16. Конфигурационная identity в текущем gateway не является evidence реальной версии; сейчас real transport не подключён, нового runtime-дефекта этим не заявлено | OPEN / BLOCKED по приёмке; [NCP-16](decisions/NORMATIVE_CHANGE_PROPOSALS.md#ncp-16--deepseek-flash-и-immutable-model-pinning), OD-01/21. Закрытие: доказанный поддерживаемый immutable selector либо явное owner-approved изменение гарантии с canonical update и соответствующими тестами. [Evidence](reviews/S16_MODEL_PINNING_POC.md); отсутствие public docs не исключает private endpoint |
+
+Документальная часть PoC выполнена; модель/Bifrost runtime не проверены, платных вызовов 0. Предшествующие gaps ниже сохраняют свои статусы; S16 не DONE.
+
 Пробелы реализации, инструментария и рисков. Нормативные расхождения S00 — `increments/S00_repository_reconnaissance_REPORT.md` §4 (DR-xx); предложения по их устранению — `decisions/NORMATIVE_CHANGE_PROPOSALS.md`.
 
 | ID | Пробел | Влияние | Статус / план |
