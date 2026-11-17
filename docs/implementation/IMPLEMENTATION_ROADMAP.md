@@ -39,7 +39,7 @@ flowchart LR
   S13["S13 Observability stack и мониторинг"]
   S14["S14 Worker contracts: Envelope/Result/Noti"]
   S15["S15 LLMGatewayPort и Model Registry (прова"]
-  S16["S16 Bifrost PoC и первый утверждённый prov"]
+  S16["S16 Gateway foundation DONE; live-profile gates OPEN"]
   S17["S17 Tool Registry и Tool Gateway"]
   S18["S18 Rules Registry и Rules Engine"]
   S19["S19 ContextPackageVersion (минимальный Con"]
@@ -146,7 +146,7 @@ flowchart LR
   style S19 fill:#fff3cd
   style S27 fill:#fff3cd
   style S35 fill:#fff3cd
-  style S16 fill:#f8d7da
+  style S16 fill:#d4edda
   style S33 fill:#f8d7da
   style S38 fill:#f8d7da
 ```
@@ -171,7 +171,7 @@ flowchart LR
 | S13 | C. Public API & Events | Observability stack и мониторинг | — (DOC-024/025/026; ADR-025) | S03, S10 | OBS-MON-*; OBS-SEC-*; OBS-ALR-* | DONE | [S13_observability_stack.md](increments/prompts/S13_observability_stack.md) |
 | S14 | D. Agent execution | Worker contracts: Envelope/Result/Notice | Spec Inc. 6 | S12 | API-MVP (internal contracts); PROC-MVP | DONE | [S14_worker_contracts_runtime_validation.md](increments/prompts/S14_worker_contracts_runtime_validation.md) |
 | S15 | D. Agent execution | LLMGatewayPort и Model Registry (провайдер-нейтрально) | Spec Add. v1.20 Inc. 20 (часть) | S11 | API-MVP (LLM adapter); SEC (LLM) | DONE | [S15_llm_gateway_port_model_registry.md](increments/prompts/S15_llm_gateway_port_model_registry.md) |
-| S16 | D. Agent execution | Bifrost PoC и первый утверждённый provider profile | Spec Add. v1.20 Inc. 20 (часть) | S15, S13 | DOC-076 §7 acceptance | BLOCKED | [S16_bifrost_poc_provider_profile.md](increments/prompts/S16_bifrost_poc_provider_profile.md) |
+| S16 | D. Agent execution | LLM Gateway: технический механизм подключения провайдеров; live-profile приёмка отложена | Spec Add. v1.20 Inc. 20 (часть) | S15, S13 | Технический срез TESTED; DOC-076 §7 live/approval gates остаются перед включением | DONE по решению владельца2026-11-17, ADR-123 | [S16_bifrost_poc_provider_profile.md](increments/prompts/S16_bifrost_poc_provider_profile.md) |
 | S17 | D. Agent execution | Tool Registry и Tool Gateway | Spec Add. v1.20 Inc. 23 | S07, S12 | TR MVP §9; SEC (tools) | PENDING_DEPS (ARCH-01; очередь SLICE-01 — ADR-115) | [S17_tool_registry_tool_gateway.md](increments/prompts/S17_tool_registry_tool_gateway.md) |
 | S18 | D. Agent execution | Rules Registry и Rules Engine | — (RULE-MVP; ADR-018) | S07, S06 | RULE-MVP-01..14 | READY | [S18_rules_registry_rules_engine.md](increments/prompts/S18_rules_registry_rules_engine.md) |
 | S19 | D. Agent execution | ContextPackageVersion (минимальный Context Builder) | Spec Add. v1.20 Inc. 22 (часть) | S06, S07 | PROC-MVP (immutable context); Context Builder критерии DOC-009 v0.4 | READY | [S19_context_package_versioning.md](increments/prompts/S19_context_package_versioning.md) |
@@ -189,12 +189,12 @@ flowchart LR
 | S31 | E. Knowledge, Change & Governance | Artifact, Change Request и Baseline lifecycle | Spec Add. v1.1 Inc. 17 | S30, S26 | UX-ART-*; DOC-013 критерии | PENDING_DEPS | [S31_artifact_cr_baseline_lifecycle.md](increments/prompts/S31_artifact_cr_baseline_lifecycle.md) |
 | S32 | E. Knowledge, Change & Governance | Recovery и reconciliation | Spec Add. v1.1 Inc. 18 (recovery) | S31 | REL-001..028 | PENDING_DEPS | [S32_recovery_reconciliation.md](increments/prompts/S32_recovery_reconciliation.md) |
 | S33 | F. Quality & Learning | Evaluation harness и release gates | Spec Add. v1.20 Inc. 25; Add. v1.1 Inc. 18 (evaluation) | S32, S16 | DOC-078; DOC-026 §7 | BLOCKED | [S33_evaluation_harness_release_gates.md](increments/prompts/S33_evaluation_harness_release_gates.md) |
-| S34 | F. Quality & Learning | Learning signals и curated experience | Spec Add. v1.20 Inc. 26 | S33 | DOC-079; CI-001..045 (MVP часть A0–A2) | BLOCKED (транзитивно: S16, S33) | [S34_learning_signals_curated_experience.md](increments/prompts/S34_learning_signals_curated_experience.md) |
+| S34 | F. Quality & Learning | Learning signals и curated experience | Spec Add. v1.20 Inc. 26 | S33 | DOC-079; CI-001..045 (MVP часть A0–A2) | BLOCKED (S33 и допуск реального профиля OD-01/21; технический S16 DONE) | [S34_learning_signals_curated_experience.md](increments/prompts/S34_learning_signals_curated_experience.md) |
 | S35 | G. UI | Web Project Workspace UI: foundation | — (WS-MVP, UX; ADR-010, ADR-019) | S12 | WS-MVP-*; UX-MVP-*; UX-START-* | READY | [S35_web_workspace_ui_foundation.md](increments/prompts/S35_web_workspace_ui_foundation.md) |
 | S36 | G. UI | Web Workspace UI: Manager, plan, results, traceability, artifacts | — (UX; ADR-010) | S35, S31 | UX-PLAN-*; UX-RESULT-*; UX-TRC-*; UX-ART-*; UX-DUR-*; UX-REQ-*; UX-SRC-* | PENDING_DEPS | [S36_web_workspace_ui_manager_results.md](increments/prompts/S36_web_workspace_ui_manager_results.md) |
-| S37 | H. Verification & Release | Contract & security verification, hardening | Spec Inc. 9; Add. v1.20 Inc. 27 | S32, S36, S16 | SEC-001..035; AUTH-*; THR-*; Spec §8 полностью | BLOCKED (транзитивно: S16) | [S37_contract_security_verification_hardening.md](increments/prompts/S37_contract_security_verification_hardening.md) |
+| S37 | H. Verification & Release | Contract & security verification, hardening | Spec Inc. 9; Add. v1.20 Inc. 27 | S32, S36, S16 | SEC-001..035; AUTH-*; THR-*; Spec §8 полностью | BLOCKED (зависимости и real-provider/security acceptance OD-01/21; технический S16 DONE) | [S37_contract_security_verification_hardening.md](increments/prompts/S37_contract_security_verification_hardening.md) |
 | S38 | H. Verification & Release | Performance, capacity и resilience drills | — (DOC-030..033) | S37 | PERF-001..026; REL-001..028; LT-* | BLOCKED | [S38_performance_capacity_resilience_drills.md](increments/prompts/S38_performance_capacity_resilience_drills.md) |
-| S39 | H. Verification & Release | UI/UX acceptance, runbooks и productization | Spec Add. v1.20 Inc. 28; Add. v1.3 §6 | S37, S36 | UX критерии §15; DOC-029 deliverables | BLOCKED (транзитивно: S16) | [S39_ui_ux_acceptance_runbooks_productization.md](increments/prompts/S39_ui_ux_acceptance_runbooks_productization.md) |
+| S39 | H. Verification & Release | UI/UX acceptance, runbooks и productization | Spec Add. v1.20 Inc. 28; Add. v1.3 §6 | S37, S36 | UX критерии §15; DOC-029 deliverables | BLOCKED (S37/S36 и допуск реального профиля; технический S16 DONE) | [S39_ui_ux_acceptance_runbooks_productization.md](increments/prompts/S39_ui_ux_acceptance_runbooks_productization.md) |
 
 ## 4. Детали этапов
 
@@ -343,6 +343,8 @@ flowchart LR
 - **Применяемые ADR:** ADR-022, ADR-031
 
 ### S16 — Bifrost PoC и первый утверждённый provider profile
+
+**Закрыт по решению владельца2026-11-17, ADR-123:** результат этапа уточнён до технического механизма LLM Gateway/подключения провайдеров, TESTED local+Linux+post-merge. Исходное название и требования ниже сохранены для traceability. Real-provider compatibility/pinning/usage, audited model approval и Bifrost acceptance отложены как gates перед включением; не объявлены выполненными. Canonical baseline/очередь следующих этапов не меняются, NCP-16 PROPOSED. [Отчёт§17](increments/S16_bifrost_poc_provider_profile_REPORT.md#17-закрытие-владельцем-и-отложенная-приёмка).
 
 - **Spec:** Spec Add. v1.20 Inc. 20 (часть) · **Зависимости:** S15, S13 · **Блокеры владельца:** OD-01 (провайдер/модель и разрешение на передачу данных проекта внешнему провайдеру)
 - **Цель:** PoC Bifrost за `LLMGatewayPort` по DOC-076 §7, security review, один утверждённый model profile для первого vertical slice.
@@ -566,6 +568,6 @@ flowchart LR
 
 ## 6. ARCH-01 — принятый мини-этап до S17 (ADR-114/120)
 
-DEP-01 отдельно выбран владельцем после ARCH-01 (2026-11-17), в пределах принятого ADR-113: [промпт](increments/prompts/DEP-01_renovate_dependency_updates.md), [отчёт](increments/DEP-01_renovate_dependency_updates_REPORT.md), уточнения — ADR-121. Установка GitHub App также прямо поручена агенту; статус её фактического выполнения учитывается отдельно. Последовательность S00–S39 и блокеры S16/SLICE-01 не меняются.
+DEP-01 отдельно выбран владельцем после ARCH-01 (2026-11-17), в пределах принятого ADR-113: [промпт](increments/prompts/DEP-01_renovate_dependency_updates.md), [отчёт](increments/DEP-01_renovate_dependency_updates_REPORT.md), уточнения — ADR-121. Установка GitHub App также прямо поручена агенту; статус её фактического выполнения учитывается отдельно. Последовательность S00–S39 не меняется. Позднее технический S16 закрыт владельцем (ADR-123); блокеры допуска реальной модели/SLICE-01 сохраняются независимо от DONE milestone.
 
 После DONE CI-01 закрепить слои и независимость доменных модулей без изменений продуктового кода. Точный состав 14 модулей (9/3/2) — ADR-120. [Промпт](increments/prompts/ARCH-01_domain_import_contracts.md); [отчёт](increments/ARCH-01_domain_import_contracts_REPORT.md); текущий статус — IMPLEMENTATION_STATUS. Это исполнение принятого ADR-114, не перестановка S00–S39. Очередь S16 → SLICE-01 → S17 и её ограничения сохраняются.

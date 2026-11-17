@@ -23,7 +23,7 @@
 
 ## NCP-16 — DeepSeek Flash и immutable model pinning
 
-**PROPOSED, 2026-11-17.** Владелец разрешил S16; это не approval изменения гарантии. [Документальное evidence](../reviews/S16_MODEL_PINNING_POC.md), [отчёт](../increments/S16_bifrost_poc_provider_profile_REPORT.md). Решение — владелец/security owner лично. Пока оно не принято, действуют текущие DOC-075/076/078, профиль не включается, S16 BLOCKED.
+**PROPOSED, 2026-11-17.** Технический milestone S16 впоследствии закрыт прямым решением владельца (ADR-123); это не approval изменения гарантии. [Документальное evidence](../reviews/S16_MODEL_PINNING_POC.md), [отчёт](../increments/S16_bifrost_poc_provider_profile_REPORT.md). Решение о нормативном исключении — владелец/security owner лично. Пока оно не принято и immutable evidence отсутствует, действуют текущие DOC-075/076/078: включение реального профиля BLOCKED, технический S16 DONE. Переписка с поддержкой — возможный источник evidence варианта A, не обязательное условие закрытия этапа и не порученное внешнее действие.
 
 Ожидается: alias для routing допустим, но evaluation/release используют immutable version, Run фиксирует фактическую identity. Наблюдается: публичная спецификация Chat API перечисляет aliases, changelog меняет модель за alias, fingerprint — metadata backend, не selector. Отсутствие публичного механизма не исключает частного endpoint/договора; такой механизм не продемонстрирован. Ни один платный запрос для этого вывода не выполнялся.
 

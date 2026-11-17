@@ -33,3 +33,11 @@
 ## Пределы review
 
 Условие immutable pinning, реальная provider compatibility/feature mapping, stage-wide durable billing cap и human acceptance не доказаны fixtures. Secret-free admin/VK runtime и network isolation относятся к отключённому PoC. Тарифы локального каталога — operator metadata, не invoice/approval. До live testing нужно закрыть условия [плана](S16_PAID_TEST_PLAN.md), не обходя CANDIDATE/approval. Полный stage status остаётся ниже VERIFIED.
+
+## Owner closeout — последующее документационное review, 2026-11-17
+
+Владелец прямо поручил закрыть технический milestone S16 по основному механизму LLM Gateway/подключения провайдеров. ADR-123 фиксирует DONE по owner decision, сохраняя TESTED evidence и NOT VERIFIED реального provider path.
+
+Отдельный `s16_security` read-only: blind-first оценка scope/approval границ до авторской дельты, затем actual review14Markdown относительно288be77 и delta recheck. Обнаружен один MEDIUM: ROADMAP S34/S39 и цвет/подпись S16 продолжали обозначать закрытый технический этап как blocker. Исправлены причины блокировок и caption/color, edges/dependencies/очередь не менялись. Финальный verdict **APPROVE, open CRITICAL0/HIGH0/MEDIUM0/LOW0**, diff check exit0. Собственных правок, runtime/paid calls и чтения secret values reviewer не выполнял.
+
+Проверены: точечное owner-уточнение ADR-032, сохранение исходного невыполненного DoD в report§17, NCP-16 PROPOSED, отсутствие claims real-provider VERIFIED/APPROVED profile/Bifrost ACCEPT, сохранение live/SLICE/release gates. После verdict добавлены только этот протокол и точные результаты docs checks; это не новое runtime/security approval продукта.
