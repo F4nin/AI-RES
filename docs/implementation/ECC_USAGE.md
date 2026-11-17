@@ -1,5 +1,15 @@
 # ECC_USAGE — использование Everything Claude Code
 
+## Постоянный процесс Codex — 2026-11-17
+
+Дополнение по отдельному поручению устранить Caddy CI blocker: `verification-loop` применён как checklist точного scope/registry comparison/digests/static/fast-tests/CI. Повторные отдельные blind-first reviewers `process_review` (`code-reviewer`) и `permission_review` (`security-reviewer` + evidence checklist) проверили однострочный index pin и неизменность Linux artifacts; оба APPROVE/0 findings. Тест на конкретное значение digest не добавлялся; существующие validators и новый CI сохраняются. Evidence/команды/counts/неудачная sandbox/LibreSSL попытка — завершающий раздел [отчёта](reviews/CODEX_PROCESS_REVIEW.md).
+
+Окончательный выбор официального release variant `2.11.9-alpine` повторно проверен теми же двумя независимыми read-only reviewers blind-first: все 7 Linux descriptors и 7 attestations прежние, Windows исключены из выбранного индекса, поддержка multiarch и gates сохранены; оба APPROVE/0 findings. Успешный промежуточный CI `b02634f` отделён от обязательного нового CI окончательного FROM.
+
+Документационная задача по семи решениям владельца, без запуска продуктового инкремента. `doc-updater` применён основным исполнителем как checklist сверки существующих документов с Git/кодом; `verification-loop` — явно прочитанный checklist применимых проверок (diff/ссылки/secret scan/быстрый слой, без переноса чужих команд или coverage-порога). Skill `openai-docs` прочитан для оценки механизма подстановки инструкций; вывод об усечении основан на фактически полученном reviewer фрагменте, не на обещании универсального лимита клиента.
+
+Отдельные read-only агенты: `process_review` использовал `code-reviewer` + checklist `doc-updater` для независимой согласованности и dry run; `permission_review` — `security-reviewer` + evidence/severity `code-reviewer` для постоянных полномочий и approval границ. Blind-first: первоначальные выводы до авторского отчёта. Один MEDIUM по видимости §10 в автофрагменте исправлен bootstrap-указанием в начале AGENTS; повторная проверка — открытых findings нет. Runtime/API/DB review неприменимы: эти поверхности не менялись. Tests/CI не заменяются ECC; продуктовые статусы не повышены. Evidence, команды, counts и ограничения — [reviews/CODEX_PROCESS_REVIEW.md](reviews/CODEX_PROCESS_REVIEW.md).
+
 ECC 2.2.3 (manual project-local install) — dev-time инструментарий (ADR-007; оценка — `reviews/ECC_TRUST_ASSESSMENT.md`). Иерархия: Registry/нормативные документы → `CLAUDE.md` и `.claude/rules/*.md` → ECC (`.claude/rules/ecc-precedence.md`). ECC agents — инструменты разработки, не Runtime Workers AI RES; не заменяют QA Worker и human approval.
 
 Инвентарь (проверено 2026-11-10): 71 agents, 59 skills, 98 commands в `.claude/`; `.claude/rules/ecc/` (development-workflow, git-workflow, python-patterns); hooks не включены; MCP не подключены; нативных плагинов нет. Проектные `.claude/agents/` или `skills/` AI RES не создавались — потребности нет (существующие покрывают компетенции; пробелы ниже компенсируются процессом).
