@@ -1,5 +1,11 @@
 # ECC_USAGE — использование Everything Claude Code
 
+## G01 / S19 — 2026-11-17, выполнение
+
+Отдельный `s19_plan`: planner + tdd-guide/pr-test-analyzer для плана; затем ограниченное авторство pure manifest/tests (python-patterns, python-testing, tdd-workflow как прочитанные checklists) и passport/ADR. `g01_architecture`: read-only нормативная разведка/architect, затем ограниченное авторство module-owned metadata readers, platform port, composition и их PG tests. Эти авторы не считаются независимыми reviewers своего кода. Root: TDD service/migration/negative suites, существующие команды Make/CI и verification-loop checklist; нативные Claude slash commands/hooks не запускались.
+
+Отдельные blind-first/read-only `s19_review` (code-reviewer/python-reviewer/architect/pr-test-analyzer/type-design-analyzer), `s19_security` (security-reviewer/silent-failure-hunter), `s19_database` (database-reviewer/silent-failure-hunter, без Supabase). Initial findings: duplicate-ref integrity, failure audit и lock inversion; исправления и финальная дельта рассмотрены, openfindings0, APPROVE. Обязательные компетенции покрыты отдельными заданиями/checklists; команды /plan, /code-review, /python-review, /quality-gate, /test-coverage не объявляются нативно выполненными. Coverage-порог не заменяет DoD; pytest-cov отсутствует в lock, новую зависимость ради метрики не добавляли. [Review](reviews/S19_IMPLEMENTATION_REVIEWS.md), [report](increments/S19_context_package_versioning_REPORT.md).
+
 ## Постоянный процесс Codex — 2026-11-17
 
 Дополнение по отдельному поручению устранить Caddy CI blocker: `verification-loop` применён как checklist точного scope/registry comparison/digests/static/fast-tests/CI. Повторные отдельные blind-first reviewers `process_review` (`code-reviewer`) и `permission_review` (`security-reviewer` + evidence checklist) проверили однострочный index pin и неизменность Linux artifacts; оба APPROVE/0 findings. Тест на конкретное значение digest не добавлялся; существующие validators и новый CI сохраняются. Evidence/команды/counts/неудачная sandbox/LibreSSL попытка — завершающий раздел [отчёта](reviews/CODEX_PROCESS_REVIEW.md).

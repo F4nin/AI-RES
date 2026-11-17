@@ -126,6 +126,7 @@
 | ADR-118 | CI-01 шаг 4: фикстура `migrated` клонирует БД, мигрированную один раз за сессию (CREATE DATABASE … TEMPLATE) вместо `alembic upgrade head` на каждый тест | ACCEPTED |
 | ADR-119 | CI-01 шаги 3 и 6: `ci.yml` пропускается для изменений только в `docs/implementation/**`; быстрый локальный путь `make pre-push-fast`; xdist отложен | ACCEPTED |
 | ADR-122 | S16: отключённая по умолчанию интеграция Bifrost, отдельный HTTPS relay, временный auth store и консервативный учёт неизвестного расхода | ACCEPTED (технический срез; приёмка модели/Bifrost не предоставлена) |
+| ADR-125 | S19: ref-only immutable manifest, module-owned metadata ports, internal builder, current ACL, xid8 sealing | ACCEPTED |
 
 ---
 
@@ -2247,3 +2248,8 @@
 | Влияние / совместимость | Только implementation docs/status/traceability. Canonical/Registry/contracts, API/events, dependencies, code/config, миграции и данные не меняются |
 | Риски / ограничения | DONE управленческого milestone могут ошибочно прочитать как включённую модель или поддержку всех провайдеров. Поэтому live-provider admission и coverage остаются PARTIAL/NOT VERIFIED во всех entrypoints; общие product/release требования не снимаются |
 | Проверки / evidence | Код153e3bb, merge091b976: полный local pre-pr и отдельные Linux push/PR/post-merge checks PASS, report содержит counts/links. Docs-only owner closeout: prompts/links/secrets/diff, независимое read-only review границ приёмки и contracts CI точного SHA; runtime повторно не запускается при неизменном code/config |
+
+
+## ADR-125 — S19: immutable manifest и внутренний Context Builder
+
+**ACCEPTED, 2026-11-17, Implementation Lead.** Полные контекст, требования/источники, альтернативы, решение, обоснование, совместимость, риски и тесты — [ADR-125](decisions/ADR-125-context-manifest.md). Manifest schema1.0 / explicit-refs-v1 из точных Requirement/Source/Artifact refs, server metadata, canonical SHA256; read Policy checks не выдают новое право на domain action. Module-owned metadata readers через typed ports; separate UoW, audit/idempotency и current ACL на retrieve/replay. Nullable builder_manifest и creation_transaction_id xid8 — expand0018 без backfill/rewrite legacy; server stamp поддерживает savepoint. Не вводит endpoint/event, model call или active rule. Future calling command обязана отдельно авторизовать свой action; S19 не соединён с production transport/Runtime. Исторические revisions и canonical не меняются. Gates/evidence — S19 report, статус ещё IN_PROGRESS.

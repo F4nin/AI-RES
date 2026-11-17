@@ -1,5 +1,13 @@
 # KNOWN_GAPS
 
+## S19 — граница внутреннего builder
+
+| ID | Пробел / условие интеграции | Влияние | Статус / закрытие |
+|---|---|---|---|
+| G-157 | S19 internal ContextApplicationService не имеет production transport/runtime caller. Read Policy checks проверяют только inclusion/read derived exact-ref metadata. Будущая вызывающая команда обязана отдельно авторизовать свой domain action; READ_ONLY_VIEWER нельзя открыть произвольный rebuild на основании read grant | Transport/wiring S20/S22/S28 должны сохранить эту границу без новых неутверждённых permissions; перед production caller также проверить pool-pressure/saturation, поскольку final local Policy использует отдельное соединение | OPEN — проверка в момент реальной интеграции, не текущий установленный exploit; [review](reviews/S19_IMPLEMENTATION_REVIEWS.md), ADR125 |
+
+G72 context sealing исправлен forward0018 в S19, но остальной объём G72 и отсутствующие CPV FK G73 не закрываются. Legacy snapshots без builder_manifest не гидратируются новым сервисом без rebuild; содержимое не переписывается.
+
 ## S16 — model pinning, 2026-11-17
 
 | ID | Пробел | Влияние | Статус / закрытие |

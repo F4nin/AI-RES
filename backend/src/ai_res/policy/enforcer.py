@@ -9,6 +9,7 @@
 from dataclasses import replace
 from uuid import UUID
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from ai_res.db.session import UnitOfWork
@@ -26,6 +27,20 @@ class PolicyEnforcer:
     @property
     def config(self) -> PolicyConfig | None:
         return self._config
+
+    async def lock_subject_grants(self, session: AsyncSession, actor_id: UUID, organization_id: UUID, project_id: UUID) -> None:
+        """Lock policy-owned subject/grant facts before the final local decision.
+
+        FOR SHARE conflicts with revocation/role UPDATE until the protected UoW
+        finishes. It does not authorize anything: callers must still authorize.
+        """
+        params = {"u": actor_id, "o": organization_id, "p": project_id}
+        for sql in (
+            "SELECT id FROM organization.memberships WHERE user_id=:u AND organization_id=:o FOR SHARE",
+            "SELECT id FROM iam.users WHERE id=:u AND organization_id=:o FOR SHARE",
+            "SELECT id FROM project.project_memberships WHERE user_id=:u AND organization_id=:o AND project_id=:p FOR SHARE",
+        ):
+            await session.execute(text(sql), params)
 
     def _audit_record(self, request: PolicyRequest, decision: PolicyDecision) -> AuditRecord:
         outcome = AuditOutcome.SUCCEEDED if decision.effect is Effect.ALLOW else AuditOutcome.DENIED

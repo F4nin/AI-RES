@@ -159,7 +159,7 @@ name = "Domain module layers (ARCH-01)"
 type = "layers"
 containers = ["ai_res.modules"]
 layers = [
-  "epics:model_registry:projects:readiness:readmodel:requirements:sources:tasks:worker_runs",
+  "artifacts:context:epics:model_registry:projects:readiness:readmodel:requirements:sources:tasks:worker_runs",
   "idempotency:iam:operations",
   "events:audit",
 ]
@@ -169,6 +169,8 @@ exhaustive = true
 name = "Peer domain modules are independent (ARCH-01)"
 type = "independence"
 modules = [
+  "ai_res.modules.artifacts",
+  "ai_res.modules.context",
   "ai_res.modules.epics",
   "ai_res.modules.model_registry",
   "ai_res.modules.projects",

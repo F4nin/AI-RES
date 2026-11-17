@@ -333,19 +333,30 @@ ALTER FUNCTION context.assert_package_version_complete() OWNER TO ai_res_owner;
 CREATE FUNCTION context.guard_item_insert() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
-DECLARE c timestamptz;
-BEGIN  -- sealed after the creating transaction; a rule item must be an APPROVED rule version VISIBLE to this tenant (RLS: SYSTEM or own organization/project)
-  SELECT created_at INTO c FROM context.context_package_versions WHERE id = NEW.context_package_version_id;
-  IF c IS NULL OR c <> now() THEN
-    RAISE EXCEPTION 'context package version % is sealed: items can only be added in the transaction that creates it', NEW.context_package_version_id USING ERRCODE = 'integrity_constraint_violation';
+DECLARE creator xid8;
+BEGIN
+  SELECT creation_transaction_id INTO creator FROM context.context_package_versions WHERE id = NEW.context_package_version_id;
+  IF creator IS NULL OR creator <> pg_current_xact_id() THEN
+    RAISE EXCEPTION 'context package version is sealed' USING ERRCODE = 'integrity_constraint_violation';
   END IF;
-  IF NEW.rule_version_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM governance.rule_versions r WHERE r.id = NEW.rule_version_id AND r.status = 'APPROVED') THEN
-    RAISE EXCEPTION 'rule version % is not an approved rule version of this tenant', NEW.rule_version_id USING ERRCODE = 'integrity_constraint_violation';
+  IF NEW.rule_version_id IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM governance.rule_versions r WHERE r.id = NEW.rule_version_id AND r.status = 'APPROVED') THEN
+    RAISE EXCEPTION 'rule version is not approved or visible' USING ERRCODE = 'integrity_constraint_violation';
   END IF;
   RETURN NEW;
 END $$;
 
 ALTER FUNCTION context.guard_item_insert() OWNER TO ai_res_owner;
+
+CREATE FUNCTION context.stamp_creation_transaction() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  NEW.creation_transaction_id := pg_current_xact_id();
+  RETURN NEW;
+END $$;
+
+ALTER FUNCTION context.stamp_creation_transaction() OWNER TO ai_res_owner;
 
 CREATE FUNCTION execution.guard_check_result_insert() RETURNS trigger
     LANGUAGE plpgsql
@@ -1170,6 +1181,9 @@ CREATE TABLE context.context_package_versions (
     content_digest bytea NOT NULL,
     created_by uuid,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
+    builder_manifest jsonb,
+    creation_transaction_id xid8,
+    CONSTRAINT ck_context_package_versions_builder_manifest CHECK ((jsonb_typeof(builder_manifest) = 'object'::text)),
     CONSTRAINT ck_context_package_versions_content_digest CHECK ((octet_length(content_digest) = 32)),
     CONSTRAINT ck_context_package_versions_item_count CHECK ((item_count > 0)),
     CONSTRAINT ck_context_package_versions_version_number CHECK ((version_number > 0))
@@ -3355,6 +3369,8 @@ CREATE TRIGGER trg_context_package_versions_append_only BEFORE DELETE OR UPDATE 
 
 CREATE CONSTRAINT TRIGGER trg_context_package_versions_complete AFTER INSERT ON context.context_package_versions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION context.assert_package_version_complete('id');
 
+CREATE TRIGGER trg_context_package_versions_creation_transaction BEFORE INSERT ON context.context_package_versions FOR EACH ROW EXECUTE FUNCTION context.stamp_creation_transaction();
+
 CREATE TRIGGER trg_context_package_versions_no_truncate BEFORE TRUNCATE ON context.context_package_versions FOR EACH STATEMENT EXECUTE FUNCTION platform.reject_modification();
 
 CREATE CONSTRAINT TRIGGER trg_context_package_versions_version_number AFTER INSERT ON context.context_package_versions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION platform.assert_version_number_contiguous('context_package_id', 'context.context_packages', 'context.context_package_versions', 'context_package_id');
@@ -4614,6 +4630,8 @@ REVOKE ALL ON FUNCTION audit.assert_replay_count_step() FROM PUBLIC;
 REVOKE ALL ON FUNCTION context.assert_package_version_complete() FROM PUBLIC;
 
 REVOKE ALL ON FUNCTION context.guard_item_insert() FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION context.stamp_creation_transaction() FROM PUBLIC;
 
 REVOKE ALL ON FUNCTION execution.guard_check_result_insert() FROM PUBLIC;
 

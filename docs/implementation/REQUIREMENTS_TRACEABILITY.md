@@ -162,7 +162,7 @@ Dev-time гарантия модульных границ (Spec §3, Domain Mode
 | DATA-MVP-008 | DOC-009 | Единый Artifact Registry с версиями | MVP | S05, S06 | NOT_STARTED |
 | DATA-MVP-009 | DOC-009 | Точное версионирование Approval и Baseline | MVP | S05, S06 | NOT_STARTED |
 | DATA-MVP-010 | DOC-009 | Разделение Worker Definition, Runtime и Run | MVP | S05, S06 | NOT_STARTED |
-| DATA-MVP-011 | DOC-009 | Неизменяемая версия Context Package | MVP | S05, S06 | NOT_STARTED |
+| DATA-MVP-011 | DOC-009 | Неизменяемая версия Context Package | MVP | S05, S06, S19 | PARTIAL — S19 internal explicit-ref builder; immutable manifest/PG sealing/source update/ACL tests, targeted107 passed. Stage gates/доставка ещё выполняются; полный Context Builder S28 |
 | DATA-MVP-012 | DOC-009 | Типизированная Traceability | MVP | S05, S06 | NOT_STARTED |
 | DATA-MVP-013 | DOC-009 | Разделение видов зависимостей | MVP | S05, S06 | NOT_STARTED |
 | DATA-MVP-014 | DOC-009 | Transactional Outbox | MVP | S05, S06 | NOT_STARTED |
