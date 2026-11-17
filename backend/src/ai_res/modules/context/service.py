@@ -62,6 +62,13 @@ class ContextApplicationService:
             action, kind = _ACTIONS[item.ref.kind.value]
             await self._policy.authorize(self._request(actor, project, action, kind, item.object_id, mfa=mfa), session=s, conceal=True)
 
+    async def revalidate(self, session: AsyncSession, actor: AuthenticatedSession, project: UUID,
+                         snapshot: ContextPackageSnapshot, *, mfa: bool) -> None:
+        """Recheck all exact refs in a composing command's authorized transaction."""
+        if snapshot.manifest.organization_id != actor.organization_id or snapshot.manifest.project_id != project:
+            raise ProblemError(ErrorCode.RESOURCE_NOT_FOUND, "Resource not found.")
+        await self._authorize_manifest(session, actor, project, snapshot.manifest, mfa)
+
     async def build(self, actor: AuthenticatedSession, project: UUID, refs: tuple[ContextRef, ...], *, key: str,
                     package_id: UUID | None = None, expected_version: int | None = None) -> ContextPackageSnapshot:
         try:

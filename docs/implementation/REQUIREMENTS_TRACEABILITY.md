@@ -464,20 +464,20 @@ Dev-time гарантия модульных границ (Spec §3, Domain Mode
 | REL-026 | DOC-032 | Recovery audit | — | S32, S38 | NOT_STARTED |
 | REL-027 | DOC-032 | Degraded mode visibility | — | S32, S38 | NOT_STARTED |
 | REL-028 | DOC-032 | Security boundary | — | S32, S38 | NOT_STARTED |
-| RULE-MVP-01 | DOC-009 | Разделение ответственности | Обязательно | S18 | NOT_STARTED |
-| RULE-MVP-02 | DOC-009 | Реестр правил | Обязательно | S18 | NOT_STARTED |
-| RULE-MVP-03 | DOC-009 | Иерархия правил | Обязательно | S18 | NOT_STARTED |
-| RULE-MVP-04 | DOC-009 | Жизненный цикл | Обязательно | S18 | NOT_STARTED |
-| RULE-MVP-05 | DOC-009 | Предложение Manager Обязательно | Manager создаёт | S18 | NOT_STARTED |
-| RULE-MVP-06 | DOC-009 | Автоматическая валидация | Обязательно, | S18 | NOT_STARTED |
-| RULE-MVP-07 | DOC-009 | Детерминированное исполнение | Обязательно | S18 | NOT_STARTED |
-| RULE-MVP-08 | DOC-009 | Конфликт правил | Обязательно | S18 | NOT_STARTED |
-| RULE-MVP-09 | DOC-009 | Безопасный формат | Обязательно | S18 | NOT_STARTED |
-| RULE-MVP-10 | DOC-009 | Исключения | Обязательно | S18 | NOT_STARTED |
-| RULE-MVP-11 | DOC-009 | Аудит и воспроизводимость | Обязательно | S18 | NOT_STARTED |
-| RULE-MVP-12 | DOC-009 | Независимая авторизация | Обязательно | S18 | NOT_STARTED |
-| RULE-MVP-13 | DOC-009 | Simulation/dry run | Желательно для | S18 | NOT_STARTED |
-| RULE-MVP-14 | DOC-009 | Визуальный конструктор правил | Позже | S18 | NOT_STARTED |
+| RULE-MVP-01 | DOC-009 | Разделение ответственности | Обязательно | S18 | VERIFIED — S18 internal mechanism; production binding G158 |
+| RULE-MVP-02 | DOC-009 | Реестр правил | Обязательно | S18 | VERIFIED — S18 internal mechanism; production binding G158 |
+| RULE-MVP-03 | DOC-009 | Иерархия правил | Обязательно | S18 | VERIFIED — S18 internal mechanism; production binding G158 |
+| RULE-MVP-04 | DOC-009 | Жизненный цикл | Обязательно | S18 | VERIFIED — S18 internal mechanism; production binding G158 |
+| RULE-MVP-05 | DOC-009 | Предложение Manager Обязательно | Manager создаёт | S18 | PARTIAL — MANAGER DRAFT/rationale persistence VERIFIED; authenticated runtime Manager intake G158 |
+| RULE-MVP-06 | DOC-009 | Автоматическая валидация | Обязательно, | S18 | VERIFIED — S18 internal mechanism; production binding G158 |
+| RULE-MVP-07 | DOC-009 | Детерминированное исполнение | Обязательно | S18 | VERIFIED — S18 internal mechanism; production binding G158 |
+| RULE-MVP-08 | DOC-009 | Конфликт правил | Обязательно | S18 | VERIFIED — S18 internal mechanism; production binding G158 |
+| RULE-MVP-09 | DOC-009 | Безопасный формат | Обязательно | S18 | VERIFIED — S18 internal mechanism; production binding G158 |
+| RULE-MVP-10 | DOC-009 | Исключения | Обязательно | S18 | VERIFIED — S18 internal mechanism; production binding G158 |
+| RULE-MVP-11 | DOC-009 | Аудит и воспроизводимость | Обязательно | S18 | VERIFIED — S18 internal mechanism; production binding G158 |
+| RULE-MVP-12 | DOC-009 | Независимая авторизация | Обязательно | S18 | VERIFIED — S18 internal mechanism; production binding G158 |
+| RULE-MVP-13 | DOC-009 | Simulation/dry run | Желательно для | S18 | IMPLEMENTED — pure evaluation/authorized validation, без publication |
+| RULE-MVP-14 | DOC-009 | Визуальный конструктор правил | Позже | S36 | DEFERRED — UI вне S18 |
 | SEC-001 | DOC-020 | Каждый API endpoint, работающий с объектом, MUST выполнять object-level authorization | P0 | S02–S37 (по области); S37 верификация | PARTIAL (S07: Policy Engine + enforcer + conceal-404 протестированы; применение к доменным endpoint — S08+); S08: object-level ACL на всех 12 GET, IDOR → один 404 (ADR-075) |
 | SEC-002 | DOC-020 | ACL MUST применяться до retrieval, graph traversal, cache response, summarization и export | P0 | S02–S37 (по области); S37 верификация | NOT_STARTED; S08: object-level ACL на всех 12 GET, IDOR → один 404 (ADR-075) |
 | SEC-003 | DOC-020 | Каждая Worker Run MUST иметь scoped grants с expiry; права не наследуются автоматически | P0 | S02–S37 (по области); S37 верификация | NOT_STARTED |

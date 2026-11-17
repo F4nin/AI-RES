@@ -126,6 +126,8 @@
 | ADR-118 | CI-01 шаг 4: фикстура `migrated` клонирует БД, мигрированную один раз за сессию (CREATE DATABASE … TEMPLATE) вместо `alembic upgrade head` на каждый тест | ACCEPTED |
 | ADR-119 | CI-01 шаги 3 и 6: `ci.yml` пропускается для изменений только в `docs/implementation/**`; быстрый локальный путь `make pre-push-fast`; xdist отложен | ACCEPTED |
 | ADR-122 | S16: отключённая по умолчанию интеграция Bifrost, отдельный HTTPS relay, временный auth store и консервативный учёт неизвестного расхода | ACCEPTED (технический срез; приёмка модели/Bifrost не предоставлена) |
+| ADR-124 | Группы G01–G08 как уровень поручения с сохранением S00–S39 | ACCEPTED; порядок приёмки уточнён ADR127 |
+| ADR-127 | Группа: реализация всех Sxx → общая отладка/проверки/review → один PR | ACCEPTED, прямое решение владельца |
 | ADR-125 | S19: ref-only immutable manifest, module-owned metadata ports, internal builder, current ACL, xid8 sealing | ACCEPTED |
 
 ---
@@ -2249,7 +2251,42 @@
 | Риски / ограничения | DONE управленческого milestone могут ошибочно прочитать как включённую модель или поддержку всех провайдеров. Поэтому live-provider admission и coverage остаются PARTIAL/NOT VERIFIED во всех entrypoints; общие product/release требования не снимаются |
 | Проверки / evidence | Код153e3bb, merge091b976: полный local pre-pr и отдельные Linux push/PR/post-merge checks PASS, report содержит counts/links. Docs-only owner closeout: prompts/links/secrets/diff, независимое read-only review границ приёмки и contracts CI точного SHA; runtime повторно не запускается при неизменном code/config |
 
+## ADR-124 — Группы разработки с сохранением градации этапов
+
+| Поле | Значение |
+|---|---|
+| Статус / дата | ACCEPTED, 2026-11-17; порядок per-stage приёмки/доставки SUPERSEDED ADR127 |
+| Ответственный | Владелец проекта принимает подход; Implementation Lead определяет карту в рамках поручения и документирует |
+| Проблема / контекст | Впереди S17–S39; отдельное поручение на каждый Sxx создаёт накладные расходы. Первоначальная идея нескольких терминалов уточнена владельцем: запускать реализацию групп, сохраняя градацию этапов |
+| Основание / источники | Прямое поручение «задокументируй данный подход, будем работать с ним и далее» и уточнение о сохранении этапов; CHARTER §1/§5; ADR-010/022/032/115/123; AGENTS §10/§11 |
+| Альтернативы | Оставить только поручения на один Sxx; заменить этапы крупными неделимыми работами; добавить группы над существующими этапами. Принят третий вариант: уменьшает ручные запуски и сохраняет traceability/gates |
+| Решение | G01–G08 по DEVELOPMENT_GROUPS.md покрывают S17–S39 без повторов; S00–S16 и мини-этапы сохраняются. Явная команда на Gxx разрешает полный цикл перечисленных этапов и переходы внутри группы после завершения текущего, доставки и DONE точных зависимостей. При блокере или DONE группы — сохранить контекст и остановиться. Команда «следующий пункт» остаётся одним инкрементом |
+| Отношение к ADR-010 | Уточняет только организационный режим «по одному» в ROADMAP §5 при явном групповом поручении. Не заменяет DAG/содержание/нумерацию S00–S39; зависимости, промпты и DoD ADR-010/032 сохраняются. Перегенерация этапов не требуется, индекс дополнен ссылкой на группы |
+| Параллельное выполнение | Только по поручению на несколько названных групп; отдельные worktrees, координатор общих файлов/ADR/миграций/merge. Текущие Compose project/subnet/port/image tags общие: runtime последовательно и с проверкой совместимости данных. Независимые полные стеки требуют отдельной подготовки tooling |
+| Совместимость / ограничения | Реализация конкретных групп сейчас не запускается. SLICE-01 перед S17, допуск профиля, owner/security approvals, budgets/egress и обязательные проверки сохраняются. Canonical/Registry/contracts/API/DB не меняются |
+| Риски | Ожидание внешних этапов внутри группы; конфликт общих файлов/ресурсов; перенос старого evidence на новый SHA; ошибочная интерпретация группы как разрешения на все группы. Меры — паспорт, точные зависимости/gates, координатор, остановка на границе scope |
+| Проверки / evidence | Карта и правила: DEVELOPMENT_GROUPS.md; шаблон: tooling/GROUP_WORK_TEMPLATE.md. Детерминированная сверка покрытия/ссылок/prompts/secrets/diff и отдельное read-only review; результаты фиксируются в карте после выполнения. Runtime не меняется, новые runtime/API/migration/security suites неприменимы |
+
 
 ## ADR-125 — S19: immutable manifest и внутренний Context Builder
 
 **ACCEPTED, 2026-11-17, Implementation Lead.** Полные контекст, требования/источники, альтернативы, решение, обоснование, совместимость, риски и тесты — [ADR-125](decisions/ADR-125-context-manifest.md). Manifest schema1.0 / explicit-refs-v1 из точных Requirement/Source/Artifact refs, server metadata, canonical SHA256; read Policy checks не выдают новое право на domain action. Module-owned metadata readers через typed ports; separate UoW, audit/idempotency и current ACL на retrieve/replay. Nullable builder_manifest и creation_transaction_id xid8 — expand0018 без backfill/rewrite legacy; server stamp поддерживает savepoint. Не вводит endpoint/event, model call или active rule. Future calling command обязана отдельно авторизовать свой action; S19 не соединён с production transport/Runtime. Исторические revisions и canonical не меняются. S19 VERIFIED/DONE: source PR31/merge99e5ec1, полный local pre-pr и exact-head/post-merge Linux CI PASS; подробные counts/links — S19 report.
+
+
+## ADR-126: Rules language, lifecycle и deterministic evidence
+
+| Поле | Значение |
+|---|---|
+| Дата / статус / ответственный | 2026-11-17 / ACCEPTED / Implementation Lead |
+| Контекст / требования | S18, RULE-MVP01..14, ADR018, canonical Concept§15, MVP Addenda0.7/0.8 |
+| Решение / альтернативы / обоснование / риски / тесты | [Полный ADR126](decisions/ADR-126-rules-language-and-lifecycle.md): bounded typed AST вместо eval; no SYSTEM override; separate human approval/publication; finite exact waiver; trusted context-metadata facts, immutable full snapshots/replay; Policy independent defaultdeny, owner separation unconfigured→deny; PostgreSQL RLS/CAS/audit; production binding G158 |
+
+
+## ADR-127 — Общая реализация, отладка и доставка группы
+
+| Поле | Значение |
+|---|---|
+| Статус / дата / ответственный | ACCEPTED / 2026-11-17 / прямое решение владельца, документирует Implementation Lead |
+| Контекст / основание | В ходе G01 владелец поручил записать: не повторять проверки каждого этапа многоэтапной группы, сначала реализовать задачу, затем отлаживать все этапы совместно |
+| Решение / альтернативы / покрытие / риски | [Полный ADR127](decisions/ADR-127-group-implementation-and-verification.md). Вместо обязательного полного цикла/PR каждого Sxx — общая реализация состава, отладка/review/gates и один PR, с per-stage traceability и точным final SHA. Внешние DONE и product gates сохраняются |
+| Совместимость | Уточняет организационные барьеры ADR010/124 и применение ADR032; не меняет DAG/scope/DoD/canonical/permissions. S19 не переоткрывается. Одиночный режим §10 прежний |

@@ -2,6 +2,8 @@
 
 Один этап — один самостоятельный промпт. Источник последовательности: `docs/implementation/IMPLEMENTATION_ROADMAP.md` (ADR-010). Общий шаблон отчёта: `docs/implementation/INCREMENT_REPORT_TEMPLATE.md`; отчёт этапа — `docs/implementation/increments/<ID>_<slug>_REPORT.md`.
 
+**Групповой режим (ADR-124/127):** [карта G01–G08](../../DEVELOPMENT_GROUPS.md) объединяет этапы для поручения и непрерывного выполнения. Градация S00–S39 и все промпты ниже сохраняются. Явное поручение на группу заменяет повторные поручения на входящие Sxx; внешние зависимости требуют DONE перед соответствующим Sxx, внутренние реализуются в общей ветке в порядке DAG, затем выполняются общая отладка/проверки/review и один PR. Отдельный полный pre-pr/CI/merge каждого Sxx перед следующим не требуется; финальные gates и статусы всех Sxx сохраняются. Блокирующие owner-решения не обходятся. Группа не меняет готовность этапов, SLICE-01/owner gates и не запускается документированием карты.
+
 Статусы готовности: **READY** — необходимые предпосылки выполнены, но для реализации всё равно нужно поручение владельца; **PENDING_DEPS** — промпт готов, ждёт DONE зависимостей; **BLOCKED** — требует решения владельца (DECISIONS_PENDING.md); **BLOCKED (транзитивно)** — зависит от BLOCKED этапа; **DONE** — этап завершён (статус реализации и evidence см. в `IMPLEMENTATION_STATUS.md`).
 
 | ID | Название | Промпт | Зависимости | Статус готовности | Разрешено начинать |
@@ -24,7 +26,7 @@
 | S15 | LLMGatewayPort и Model Registry (провайдер-нейтрально) | [`S15_llm_gateway_port_model_registry.md`](S15_llm_gateway_port_model_registry.md) | S11 | DONE | — |
 | S16 | LLM Gateway: технический механизм подключения провайдеров | [`S16_bifrost_poc_provider_profile.md`](S16_bifrost_poc_provider_profile.md) | S15, S13 | DONE по решению владельца2026-11-17, ADR-123; технический срез TESTED local+Linux, PR #28 MERGED | Real-provider admission NOT VERIFIED/BLOCKED; исходные live/approval gates отложены, report§17. Не повторять закрытый milestone |
 | S17 | Tool Registry и Tool Gateway | [`S17_tool_registry_tool_gateway.md`](S17_tool_registry_tool_gateway.md) | S07, S12 | PENDING_DEPS (ARCH-01; очередь SLICE-01 — ADR-115) | Нет; условия в §4 промпта |
-| S18 | Rules Registry и Rules Engine | [`S18_rules_registry_rules_engine.md`](S18_rules_registry_rules_engine.md) | S07, S06 | READY | После поручения владельца |
+| S18 | Rules Registry и Rules Engine | [`S18_rules_registry_rules_engine.md`](S18_rules_registry_rules_engine.md) | S07, S06 | DONE | — (PR33, отчёт S18) |
 | S19 | ContextPackageVersion (минимальный Context Builder) | [`S19_context_package_versioning.md`](S19_context_package_versioning.md) | S06, S07 | DONE | VERIFIED; PR31 MERGED99e5ec1, local/Linux/post-merge PASS; G01 далее S18 |
 | S20 | Project/Epic intake и Manager interaction | [`S20_project_epic_intake_manager.md`](S20_project_epic_intake_manager.md) | S12, S15, S19 | PENDING_DEPS | Нет (после DONE зависимостей) |
 | S21 | Plan & Task orchestration | [`S21_plan_task_orchestration.md`](S21_plan_task_orchestration.md) | S20 | PENDING_DEPS | Нет (после DONE зависимостей) |

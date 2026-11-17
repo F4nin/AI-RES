@@ -28,7 +28,7 @@ class PolicyEnforcer:
     def config(self) -> PolicyConfig | None:
         return self._config
 
-    async def lock_subject_grants(self, session: AsyncSession, actor_id: UUID, organization_id: UUID, project_id: UUID) -> None:
+    async def lock_subject_grants(self, session: AsyncSession, actor_id: UUID, organization_id: UUID, project_id: UUID | None) -> None:
         """Lock policy-owned subject/grant facts before the final local decision.
 
         FOR SHARE conflicts with revocation/role UPDATE until the protected UoW
