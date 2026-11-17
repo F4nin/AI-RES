@@ -25,7 +25,7 @@ Registry v4.1 и его canonical файлы проверены при стар�
 | `backend/pyproject.toml` | domain classification и pure engine import boundary |
 | implementation docs/report/reviews/passport | evidence, traceability, gaps, handoff |
 
-Исходные12 governance изменений владельца сохраняются вне stage commit; scope не включает изменение AGENTS/архитектуры/контрактного зеркала/глобальной конфигурации.
+Source commit7dd8475 сохранял исходные12 governance изменений вне product scope. Последующее явное поручение изменить групповые правила расширило только process scope (AGENTS/implementation entrypoints, §20); архитектура/контрактное зеркало/глобальная конфигурация не меняются.
 
 ## 4. Изменения API / контрактов / событий
 
@@ -113,3 +113,9 @@ Source-head push/PR workflow conclusions SUCCESS, counts подтвержден�
 ## 19. Проверка closing documentation
 
 Независимый read-only reviewer сверил9docs,112локальныхlinks/0missing,gitdiffcheck0,sourcevsfinal producttree diff0 и exactsourceCI metadata. Исправлено завышение в requirement traceability: RULE-MVP05 **PARTIAL**, поскольку MANAGER DRAFT+rationale persistence VERIFIED, authenticated runtime Manager intake отсутствует (G158). S18 internal mechanism VERIFIED не означает полное end-to-end выполнение этого требования. Старые passport checkpoints помечены историческими; текущие delivery/stop условия — «Закрытие G01». Файлы кода/тесты/миграции не менялись.
+
+## 20. Дополнительное прямое поручение: порядок групповой работы
+
+Во время финального CI владелец поручил записать общий цикл «реализовать все этапы → отладить и проверить вместе → одна доставка». ADR127 и групповые entrypoints обновлены в том же PR33; business/canonical/product security и DoD не меняются. Код/тесты/миграции S18 прежние. Group governance файлы исходного dirty набора, ранее исключённые из source7dd8475, теперь включаются по новому явному поручению в точном scope групповых правил. Старые per-stage delivery записи — история ADR124, текущий порядок ADR127. Новая редакция проверяется детерминированно и отдельным read-only reviewer; CI существующих workflows не отключается.
+
+ADR127 final independent process review: APPROVE/openfindings0,15files/176links0missing; уточнена точка проверки внешних зависимостей перед соответствующим Sxx. [Evidence](../reviews/GROUP_PROCESS_ADR127_REVIEW.md). Root check_prompts40/0,8groups23stages compositionunchanged,secret0,diffcheck0. Product tree unchanged; повторный локальный backend для docs-only scope не запускался.

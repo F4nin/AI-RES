@@ -8,7 +8,7 @@
 
 Исполнитель/координатор общих файлов и runtime — `/root`. Ограниченные авторские подзадачи выполнялись в непересекающихся файлах; это не параллельный запуск других групп. Reviewers read-only, blind-first и не авторы проверяемого кода. Владелец подтвердил единственное активное редактирование. Worktree `/Users/ekaterinamarusova/AI-RES-Workspace/AI-RES`.
 
-Начальная fetch-проверенная база main745e7d989a75b5457497742e371f60aa8e33ffc0. До G01 существовали12 governance изменений: AGENTS, ADL, HANDOFF, DECISIONS_PENDING, ECC_USAGE, ROADMAP, STATUS, prompt index, CONTEXT_RETENTION, tooling README, DEVELOPMENT_GROUPS, GROUP_WORK_TEMPLATE. Они сохранены, shared file hunks разделены через index без reset/stash/перезаписи. Original snapshots `/tmp/g01-original-worktree.json` и `/tmp/g01-s19-post-publish-original.json` — временная страховка, не постоянное evidence; текущий original diff остаётся в рабочем дереве.
+Начальная fetch-проверенная база main745e7d989a75b5457497742e371f60aa8e33ffc0. До G01 существовали12 governance изменений: AGENTS, ADL, HANDOFF, DECISIONS_PENDING, ECC_USAGE, ROADMAP, STATUS, prompt index, CONTEXT_RETENTION, tooling README, DEVELOPMENT_GROUPS, GROUP_WORK_TEMPLATE. Они сохранены, shared file hunks разделены через index без reset/stash/перезаписи. Original snapshots `/tmp/g01-original-worktree.json` и `/tmp/g01-s19-post-publish-original.json` — временная страховка, не постоянное evidence; на исходных checkpoints original diff оставался в рабочем дереве; его последующее включение в process scope по новому поручению ADR127 отмечено ниже.
 
 ## План и зависимости
 
@@ -54,3 +54,9 @@ S19 source PR31 и closeout PR32 завершены. Текущая ветка f
 ## Закрытие G01
 
 S19 и S18 VERIFIED/DONE, включая их отдельные reports/reviews/PR и gates. S18 source7dd8475 all8Linuxpush/PRchecksSUCCESS: backend1751/541warnings,infra-static221,runtime148,PoC19,contracts22,Renovate10;failed/errors/skipped0. Дополнительные audit/digest/hadolint/actionlint/secret scan/SBOM jobs SUCCESS, G24 report-only остаётся. Final docs-only delta входит в тот же PR33, product tree не меняется; новые checks проверяются по точному finalhead до merge. При mergePR33 этот паспорт закрывает G01 DONE; итоговый mergeSHA/post-mergeCI проверяются по PR metadata/Git, а не записываются self-reference в commit. После доставки остановиться, другие группы не начинать. Original12 owner governance changes сохранены вне stage commits. G157/G158 и production/model/security-owner release approvals остаются отдельными условиями будущих этапов.
+
+## Новое поручение владельца во время финального CI — ADR127
+
+Владелец явно поручил изменить правила: реализация всех этапов группы перед общей отладкой/проверками, одна доставка, без обязательного полного цикла каждого Sxx. Обновлены AGENTS/карта/шаблон/retention/roadmap/индекс/решения; source/миграции/тесты S18 идентичны7dd8475. Исходные12 group-governance файлов, прежде оставленные вне source commits, теперь входят в этот явно порученный process scope. Это не переоткрывает доставленный S19 и не разрешает другие группы. Все обязательные финальные gates и критерии Sxx, внешние DONE, product grants/approvals сохраняются. Текущий PR33 включает S18 и уточнение процесса; новый docs-only PR не создаётся.
+
+Новый процесс ADR127 проверен отдельным read-only reviewer: [APPROVE/openfindings0](../reviews/GROUP_PROCESS_ADR127_REVIEW.md);40prompts/0issues,8groups23stages unchanged,176links0missing,secret0,diffcheck0. S18 final-stage5b21014 CI44128736962/contracts44128737129+44128723997SUCCESS. Process-only commit не меняет этот product source; final PR checks сверить по новому HEAD.
