@@ -176,6 +176,12 @@ def test_actual_admin_and_alternative_routes_are_denied_even_with_admin_credenti
 
 
 def test_two_real_synthetic_sse_calls_keep_logical_state_stable_and_auth_active(hardened_candidate):
+    # The pinned workspace expiry scheduler first enqueues at30s; its Sidekiq
+    # dispatcher also scans every30s. Idle beyond both before any inference so
+    # unrelated workspace maintenance cannot silently invalidate the candidate.
+    time.sleep(65)
+    assert native_probe(hardened_candidate, "health") == {"status": 200}
+    assert all(native_probe(hardened_candidate, "auth").values())
     for index in range(2):
         result = probe_actual(hardened_candidate, "SSE")
         assert result["evidence"]["outcome"] == "COMPLETE" and result["evidence"]["capabilityOk"] is True
@@ -195,8 +201,16 @@ def test_native_bootstrap_refuses_reused_sqlite_before_any_merge(hardened_candid
     assert native_probe(fixture, "health") == {"status": 200}
 
 
+def actual_observer():
+    # Test host chooses its installed CLI explicitly; production composition
+    # still requires its trusted executable/socket configuration.
+    executable = shutil.which("docker")
+    assert executable is not None and Path(executable).is_absolute(), "Native fixture requires an installed Docker CLI."
+    return DockerCandidateObserver(executable=Path(executable))
+
+
 async def actual_gate(fixture):
-    observation = await DockerCandidateObserver().observe(fixture.bifrost.get_wrapped_container().id)
+    observation = await actual_observer().observe(fixture.bifrost.get_wrapped_container().id)
     root = fixture.inputs
     snapshot = b"synthetic reviewed tariff"
     sha = build.base.sha
@@ -223,7 +237,7 @@ async def actual_gate(fixture):
         async def snapshot_sha256(self):
             return sha(snapshot)
     return CandidateDevelopmentGate(CandidateHostConfig.load(path), root, source_reader=lambda: ("a" * 40, "b" * 64),
-                                    tariff_observer=SyntheticTariff(), image_observer=DockerCandidateObserver())
+                                    tariff_observer=SyntheticTariff(), image_observer=actual_observer())
 
 
 @pytest.mark.parametrize("kind", ["rendered", "marker", "mounted"])
@@ -324,11 +338,11 @@ def test_hardened_fixture_keeps_networks_secrets_and_logs_isolated(hardened_cand
 
 async def test_proxy_cannot_spoof_fresh_host_health_after_integrity_failure(hardened_candidate):
     fixture = hardened_candidate
-    await DockerCandidateObserver().observe(fixture.bifrost.get_wrapped_container().id)
+    await actual_observer().observe(fixture.bifrost.get_wrapped_container().id)
     code, _ = fixture.bifrost.exec(["/bin/sh", "-c", "printf '\\n' >> /app/data/config.json"])
     assert code == 0 and native_probe(fixture, "health") == {"status": 503}
     # Positive attack control: inherited proxy lies200 even for failing health.
     code, _ = fixture.bifrost.exec(["wget", "-q", "-O", "/dev/null", "-T", "2", "http://127.0.0.1:8080/health"])
     assert code == 0, "Lying proxy control did not intercept inherited-env health."
     with pytest.raises(CandidateRunDenied):
-        await DockerCandidateObserver().observe(fixture.bifrost.get_wrapped_container().id)
+        await actual_observer().observe(fixture.bifrost.get_wrapped_container().id)

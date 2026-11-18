@@ -4,7 +4,7 @@
   "buildToolSha256": "6c863141e7c158bcdde7f66aaff8d1fca8fd61d815a97938a25297b1de0cb064",
   "dockerfileSha256": "e813c0828885bf1f37cd7440c5cf443c7beee02bb5194a35fbb9bfa4f10580b8",
   "launcherSha256": "7765d0178af310d8467f2be356f9973e3e3fc7fe7712bdc858657d828b592447",
-  "patchSha256": "7a69b6e13e721ba722aadb2ffa1f75986e6780b9f9ed74da655cd31ef836331b",
+  "patchSha256": "367d5eca967732974e78bc2d4a9ed4e0d64527df84517c64898d6508377a1765",
   "status": "LOCAL_CANDIDATE_NOT_ADMITTED",
   "templateSha256": "0f32a762803448713ffd37f8133fc908525b16924f8e127040a0ade089c08dcd",
   "version": "bifrost-candidate-integrity-build/0.1"

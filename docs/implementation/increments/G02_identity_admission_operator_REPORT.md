@@ -107,3 +107,52 @@ reviewed tariff/original account/safe key setup и реальный synthetic TE
 Product operator provisioning/APPROVED profile/observed gateway не нужны до первого
 profileless probe. Canonical/Registry/contracts не менялись; implementation
 ADR/status/handoff/plan/passport/ECC/traceability сохраняют фактическую фазу.
+
+## 16. Общая приёмка подготовки и конкретные исправления
+
+Накопленный approved scope173files опубликован commit896898983e0c4867533c5113dba77cd3bf1d8291,
+[DraftPR34](https://github.com/F4nin/AI-RES/pull/34). Ключ добавлен владельцем через
+SOPS/age в ignored localfolder, shape/mode проверены без вывода; provider plaintext
+ещё не материализован/не монтирован, calls/spend0. Main secret values не ротировались.
+
+Full localpre-pr corrected exit0: contracts22/7.82s,Renovate10,backend2740/541warnings/
+629.04s,Ruff0/mypy200/15imports,infra369/143.48s,runtime148/151.87s,poc19/noexternalcalls.
+Initial fullattempt1233PASS/1FAIL stale closed-table catalogue, interrupted after
+563.64s; expectedset дополнен двумя новыми таблицами, все audit calls сохранены.
+ДополнительныеEOF-only fixes двух прежних tests имеют identical AST. Snapshot
+catalog trailing whitespace нормализован generator, actual drift повторён в fullsuite.
+Raw git diffcheck patch-файлов помечает обязательные context prefixes (space+Go tab/
+blankline); applied Go source проверяется gitapply --whitespace=error-all, full
+nonpatchdiffcheck0. Frozen SDK fingerprint patch не менялся.
+
+Linux896: contracts и infra-static/infra-runtimePASS, backend8FAIL/2732PASS/778.56s
+на native observer Dockerinspect. Fixture default /usr/local/bin/docker отсутствует
+на Ubuntu; новый test-only helper требует installed absolute CLI и передаёт его
+явно всем4observers. Product observer trust/default/socket не меняется, skips нет.
+
+Actual owned candidate выявил отдельный functional blocker: freshhealth200→503
+после30s без inference при unchanged8inputs/renderedmarker. Metadata-only protected
+SQLite copy показала sidekiq vk_expiry_cleanup/completed1; raw copies удалены.
+Pinned source scheduler enqueue30s пишет journal, а fullSQLiteguard закономерно
+блокирует изменение. Candidate patch теперь опускает только startupcall unused
+workspace expirycleanup; sole stricttemplateVK non-expiring, per-request expiry/
+auth продолжают independently enforced. Ни таблицы, ни columns не исключены из
+snapshot; sticky block/admin deny сохранены. Это concrete MVPfix, не новый stage.
+
+Два independent security/Go/general reviews APPROVE/open0; reverse delta воспроизводит
+прежние patch/manifest/test hashes. Test теперь idles65s до firstSSE+health/auth,
+затем прежние2SSE/10.2s и mutation negatives. Buildprovenance verified, новый image
+b0e0b5f06c7e472129c9b1a2f8aee4e83d169ac5dda6b263536e8005b6b0d18c/staticbinary24e887a4…;
+native12PASS/192.11s; [build proof](../reviews/G02_CONFIGURATION_INTEGRITY_IDLE_BUILD_PROVENANCE.json),
+[3hashes](../reviews/G02_CONFIGURATION_INTEGRITY_IDLE_CODE_HASHES.json).
+Go normal/race/vet и повтор exactSHA LinuxCI pending; failing896CI не засчитывается.
+
+Candidate-only TLS/service/virtual credentials отдельно SOPS-encrypted; trusted
+helper reuses pinned Renovate git/docker + copied existing CPython3.13.18/venv;
+offline ABIimports smokePASS, без новой library/global install. Только selective
+source mounts, provider key вне helper/BF. Actual account не seed-ился, runtime
+relay disabled, original10USD/8attempts сохраняется. Current official pricing
+подтверждена freshTLS2identical snapshots: peak/cachemiss0.30/1.20USDper1M;
+[официальный источник](https://api-docs.deepseek.com/quick_start/pricing/).
+Дальше finishaffectedchecks/CI и конкретный guarded setup→oneTEXT→accounting,
+затем existingcases/humanacceptance/productintegration; G02 NOT_STARTED.

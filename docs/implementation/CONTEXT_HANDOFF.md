@@ -1,18 +1,56 @@
 # CONTEXT_HANDOFF — состояние для продолжения работы (обновлять в конце каждого этапа и сессии)
 
-**Активное поручение2026-11-18: закончить весь допуск Flash в объёме MVP,
-провести необходимые тесты и вернуться к группам; не останавливаться на очередном
-локальном подготовительном срезе.** Подготовка чрезмерно раздроблена; конечный
-путь зафиксирован в [актуальном плане](groups/G02_FLASH_ADMISSION.md).
-Сейчас root завершает ADR140 operator (0026 applied только disposablePG, SHA
-d71b85583b1954e148aa62095aef3f05987019341488f6d9130b623e38bae626 frozen;
-newPG60PASS,fast1434PASS,final joint regression в работе). Отдельный executor_plan
-пишет только candidate_launch.py + unit tests: reuse guarded control/runner+CLI,
-без provider calls/seeds/mainstack changes. Runtime/общие docs — только root.
-После этого общий финальный прогон, реальный guarded setup/key и один TEXT probe.
-Product gateway/APPROVED profile не нужны ДО первого profileless candidate probe;
-human identity/Bifrost/profile approval остаются после real evidence. G02 не
-запускается этой подготовкой; прежние historical checkpoints ниже не новая очередь.
+**Активное поручение2026-11-18:** закончить весь допуск Flash как конечный MVP-
+результат, необходимые tests, затем вернуться к группам. Не завершать поручение
+очередным локальным срезом. G02/S17/S20/S21 NOT_STARTED до нового согласия после
+подготовки. First profileless candidate probe не требует product APPROVED/gateway;
+реальная identity предшествует humanприёмке. Текущий [план](groups/G02_FLASH_ADMISSION.md).
+
+**Git/проверки:** ветка feat/g02-manager-tools-planning; накопленная разрешённая
+подготовка173files доставлена в draft [PR34](https://github.com/F4nin/AI-RES/pull/34),
+HEAD896898983e0c4867533c5113dba77cd3bf1d8291. Root сохранил157initialfiles,
+интегрировал прежние approved NCP16/OD19/preparatory artifacts, авторство не присваивает.
+Full localpre-pr exit0: contracts22,backend2740/541warnings,infra369,runtime148,
+Poc19,Renovate10; sourcechecks/mypy200/15imports/secrets0. First localattempt
+1233PASS/1stale-tablecatalogueFAIL interrupted; fixed expectedset then cleanfullPASS.
+LinuxCI896: contracts/infra-static/infra-runtimePASS, backend8FAIL/2732PASS:
+native fixture uses Mac Docker path. Этот CI не засчитан, merge/live запрещены.
+
+**Конкретный текущий fix:** actual owned candidate boothealth200→503 after30s
+БЕЗ inference; eightinputhashes/modes+renderedmarker unchanged. Private metadata-only
+SQLite diagnostic confirmed sidekiq vk_expiry_cleanup/completed1; copies deleted.
+Candidate-only startup scheduler writes job at30s. Executor_plan изменил только
+integrity.patch/manifest/native test: omit startupcall, preserve per-request expiry/
+auth/fullSQLitehash/stickyguard; nativeidle65s+auth+2SSE/old10.2s. Root separately
+fixed native CLI portability with explicit installed absolute Docker path in fixture.
+Два independent source reviewers APPROVE/open0. Patch367d5eca…/manifest89e0c00d…/
+test2f05b550… . New imageb0e0b5f06c7e472129c9b1a2f8aee4e83d169ac5dda6b263536e8005b6b0d18c,
+binary24e887a4…/staticELF; proof /tmp/g156-idle-build-proof.json. Native12suite
+PASS192.11s/0failed/skipped, Go normal/race/vet running session99925. После PASS сохранить proof/
+hashes/review, commitfix→pushsamePR→exactnewSHA LinuxCI; не повторять весь local
+PG/pre-pr без новой причины, повторять затронутые Go/native checks.
+
+**Key/setup:** владелец создал infra/secrets/candidate/deepseek.enc.json (ignored,
+SOPS/age/mode0600/shape проверены; value никогда не выводился). Providerplaintext
+не материализован/не монтирован; calls/spend0. Candidate-only fresh TLS/service/
+virtual credentials зашифрованы отдельно, main secrets не ротировались. Private
+setup-location.json в том же ignoredfolder хранит ownedruntime IDs/networks/tooling.
+Уже подняты owned BF+DISABLEDrelay без providerkey/DB/socket/hostports; BF old183
+теперь blocked ожидаемо, заменить только собственный ephemeral BF новым image после
+nativePASS. Ledgeraccount ещё не создан, никакой budget reset не выполнялся.
+Main devstack обычнымpre-pr обновлён/мигрирован20–26, volumes retained; pendingsecret
+hash comparison /tmp/g156-prepr-secret-hashes.json. Original10USD/8attempts общий.
+
+**Следующие действия в этом же поручении:** finishfixgates/CI; concrete helper
+control+runner namespace (existing launcher), originalaccount/currenttariff once,
+relay-only decryptedkey после closedgates/setupreview; oneTEXT→evidence+ledger,
+затем оставшиеся existingcases безreset/retry. Только потом exact human identity/
+Bifrost/profile acceptance и минимальное product observed wiring. SLICE имеет
+отдельные data/license/budget gates; ADR129/G107 доS20. Не запускать новую группу.
+Тариф descriptor localuntracked infra/llm_poc/candidate_tariff.json создан по2fresh
+stable officialTLSreads,0.30/1.20USDper1M peak/cachemiss; accountне seed-ился.
+
+Исторические checkpoints ниже сохраняются как evidence, не очередь новых стадий.
 
 **Checkpoint 2026-11-18 / ADR139: authenticated owner-review binding локально TESTED.**
 Backend-only prepare/revalidate связывает exact configured owner+profile, живые

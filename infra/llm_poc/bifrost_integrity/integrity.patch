@@ -12,6 +12,20 @@ diff --git a/transports/bifrost-http/server/server.go b/transports/bifrost-http/
  	// Ensure app directory exists
  	if err := os.MkdirAll(configDir, 0o755); err != nil {
  		return fmt.Errorf("failed to create app directory %s: %v", configDir, err)
+@@ -3888,10 +3892,10 @@
+ 	if s.SidekiqRunner != nil {
+ 		s.SidekiqDispatcherStop = s.SidekiqRunner.StartDispatcher(sidekiq.DispatchInterval, sidekiq.StaleAfter)
+ 	}
+-	if s.GovernanceHandler != nil {
+-		s.GovernanceHandler.StartExpiryCleanupScheduler(s.Ctx)
+-	}
++	// The fixed candidate has one non-expiring key and no management routes.
++	// Workspace expiry cleanup would mutate its frozen SQLite snapshot.
++	// Per-request authentication and key expiry checks remain unchanged.
+ 
+ 	// Checking if config has server config and use it to set read buffer size
+ 	logger.Debug("server read buffer size: %d", s.Config.ServerConfig.ReadBufferSize)
+ 	maxRequestBodySizeMB := s.Config.ClientConfig.MaxRequestBodySizeMB
 @@ -3898,7 +3902,7 @@
  	lib.ApplyBodyBufferPoolLimit(s.Config.ServerConfig, maxRequestBodySizeMB*1024*1024)
  	// Create fasthttp server instance
