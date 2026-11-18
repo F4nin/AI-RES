@@ -1,5 +1,15 @@
 # REQUIREMENTS_TRACEABILITY
 
+**G156 / ADR141, 2026-11-18:** DOC076 v1.1 §3.1/7 → explicit governed Flash
+observed composition + durable begin/finalize + bounded SSE + final authorization;
+reverse identity/ref/terminal inconsistency blocks result/next call. PG10PASS и
+unit50PASS. IAM v1.5 §7–8 / Auth v1.1 §5–6 / OD01/21 → owner-only offline full
+profile/Bifrost human command, exact hashes/session/MFA/Policy, single-APPROVED,
+atomic lifecycle/audit/replay. PG21PASS (включая real CLI authentication,
+policy-wait revoke и audit-wait expiry rollback), pure32PASS. Два independent
+APPROVE/open0. [Отчёт](increments/G02_identity_admission_operator_REPORT.md).
+Actual human acceptance/OD21/SLICE readiness этими synthetic tests не повышены.
+
 **G156 / ADR140,2026-11-18:** DOC076§3.1/7 + IAM§8/Auth§5–6/DOC068§1.13 →
 explicit authenticated identity acceptance/block, immutable generation+globalaudit,
 EXECUTE-only operator/empty exact login binding, finalsnapshot/Policy →61newPGcases,

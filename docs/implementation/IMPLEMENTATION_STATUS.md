@@ -1,5 +1,63 @@
 # IMPLEMENTATION_STATUS
 
+**Final local gates:** contracts22/Renovate10/backend2853/fast1538/PG31/infra369/
+runtime148/PoC19PASS; scanner0findings; rebuiltAPI14reviewedfiles/0hashmismatch и
+trustedTLS admin login/logout PASS. Pre-pr scanner false positives исправлены,
+завершён scoped resume exit0 без повтора полного backend; исходныйpre-pr exit2
+не объявляется exit0. Следующий шаг только delivery PR34/exactLinuxCI, затем STOP
+для обновления контекста. SLICE-01/G02 не начинать. После CI обновить evidence
+ЛОКАЛЬНО без ещё одного docs-only push.
+
+**Актуально, 2026-11-18 / ADR141.** По поручению владельца завершить все реализации
+перед SLICE-01; SLICE-01/G02 не начинать, после завершения сохранить контекст.
+Observed gateway draft373 интегрирован в root, HIGH reverse-SSE и final caller
+reauthorization исправлены. Реализованы полный offline owner profile/Bifrost
+approval CLI, exact auth/MFA/Policy/evidence, atomic audit/replay и one-APPROVED.
+Новых migrations/grants/ALLOW/canonical/public API changes нет. Два независимых
+source reviews APPROVE/open0; [20hashes](reviews/G02_OBSERVED_APPROVAL_CODE_HASHES.json),
+[отчёт](increments/G02_identity_admission_operator_REPORT.md),
+[review](reviews/G02_OBSERVED_APPROVAL_REVIEWS.md), [ADR141](decisions/ADR-141-observed-gateway-profile-approval.md).
+
+Backend2853PASS/541existingwarnings; fast1538PASS/mypy204/15imports; final affected
+PG31PASS/17.04s. Full pre-pr дошёл до scanner false positives; expressions исправлены
+без ослабления checks, оставшиеся infra/runtime/PoC gates завершаются отдельно,
+полный backend повторно не запускается. Точные команды/exit codes — в отчёте.
+Git: feat/g02-manager-tools-planning, проверенная база1e971f5 + scoped20code/test
+files и docs. PR34 остаётся текущей доставкой; один итоговый code+docs push после
+локальных gates. Не делать второй checkpoint push ради слов/CI evidence.
+
+Владелец подтвердил50USD/месяц и INTERNAL для обычных данных без ПДн/коммерческой
+тайны, затем явно поручил самому создать default admin; дальнейшая персональная
+настройка — позже с его помощью. Штатный bootstrap создал AI RES / Administrator /
+admin@ai-res.local с уникальным случайным паролем в ignored
+infra/secrets/local-admin/initial_password (0600,parent0700). Trusted HTTPS login200 /
+opaque cookie / Origin+CSRF logout204 PASS, secret values не выводились.
+Новых вопросов о создании default admin не задавать; пароль/metadata не коммитить.
+
+Реальный model profile не утверждён/не включён, MFA не подделывалась. Настройка и
+личная приёмка отложены владельцем; code readiness не заменяет эти действия.
+Provider calls этого продолжения0, original10USD/8attempt account не менялся:
+последнее подтверждённое6attempts/0.6005034usedOrReserved/9.3994966remaining.
+Actual timeout не наблюдался в прежнем live case, не заявлять PASS. Перед любым
+дальнейшим candidate call требуются свежие source/config/tariff/original balance.
+G156 code locally TESTED, полный real-provider admission NOT VERIFIED; G02/S17/
+S20/S21 и SLICE-01 NOT_STARTED. Остановка после текущей доставки для обновления
+контекста. История ниже не очередь новой работы и не отмена актуального scope.
+
+---
+
+Исторические checkpoints:
+
+**Последнее уточнение владельца:** лишний documentation push вызвал CI44312593429;
+этот повтор отменён, COMPLETED/CANCELLED подтверждено. Runtimecode38 уже имеет
+обаCI SUCCESS;1e меняеттолькодокументы. Не запускатьновуюработу/тесты/push/CI
+до продолжения после обновленияконтекста. Это уточнение сохранено только локально.
+
+**Последний docsHEAD1e971f5:** automaticrepeat PRCI44312593429 IN_PROGRESS,
+contractsPASS; runtimecodeidenticalverified38. Finalcontext уточнёнлокальным
+docs-onlydiffбезновогоpush. Поручениеприостановленодляобновленияконтекста владельцем;
+G156 остаётся IN_PROGRESS, draft373/HIGH не интегрирован.
+
 **Checkpoint перед обновлениемконтекста:** CODE38f5955 technicalCIpush+PR alljobsPASS,
 Go/race/vet/native12PASS, guardedidle922.37s/182checksPASS. FullG156/modelactivation
 ещёНЕзакрыты. Productobservedwiring сохранён отдельно вLOCALbranch

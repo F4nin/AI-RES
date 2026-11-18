@@ -1,5 +1,27 @@
 # ECC_USAGE — использование Everything Claude Code
 
+## G156 / ADR141 — observed product wiring и полный human approval path
+
+Root восстановил действующее поручение/known draft, применил прочитанные локальные
+python-testing и verification-loop как checklists (behavioral RED→GREEN, scope,
+evidence), реализовал fixes/CLI/PG tests и интегрировал. `activation_scope` сначала
+отдельно read-only planner/architect анализировал минимальное закрытие missing
+profile activation, затем написал только profile_approval.py и его unit tests;
+свои файлы не ревьюировал. Новых stages/framework/roles/grants не предложено.
+
+`observed_general_review` — отдельный blind-first code/Python/architecture и
+silent-failure source review; `observed_security_review` — независимый security/
+database/authorization/locks/replay/path/redaction review. Два final APPROVE/open0,
+findings и source hashes — [протокол](reviews/G02_OBSERVED_APPROVAL_REVIEWS.md).
+Проверяющие не выполняли runtime; root исполнил actual PG10 observed +21 approval,
+pure50 observed +32 approval/CLI; fast1538PASS/4warnings. Full final gates/evidence
+уточняются в [текущем отчёте](increments/G02_identity_admission_operator_REPORT.md).
+Native Claude slash commands/hooks, product QA и человеческое approval не заявлены.
+
+Закрыты reverse SSE durable block, final reauthorization, Settings composition,
+second APPROVED, invalid candidate, unsafe getpass fallback и ошибочные reason-code
+assertions. Source review не заменяет Linux CI/live timeout/human acceptance.
+
 ## G156 / ADR140 и конечная candidate composition,2026-11-18
 
 Root — author identityoperator/DDL/tests/integrator/runtime operator;

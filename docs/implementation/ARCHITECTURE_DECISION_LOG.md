@@ -2375,3 +2375,14 @@ routing persistent registry не запускаются в strictcandidate; ос
 APPROVE/open0 — [review](reviews/G02_CONFIGURATION_INTEGRITY_ROUTING_REVIEWS.md).
 Realprovider observations/limitations — [evidence](reviews/G02_FLASH_LIVE_EVIDENCE.json).
 Это продолжение текущей подготовки, не новыйинкремент или profileapproval.
+
+## ADR-141 — Observed gateway и offline human profile approval
+
+**ACCEPTED technical scope, 2026-11-18.** [Решение](decisions/ADR-141-observed-gateway-profile-approval.md):
+explicit governed observed gateway, durable finalize до выдачи результата, bounded
+SSE с malformed inconsistency, final caller reauthorization; отдельный owner-only
+CLI на существующих правах с real session authentication/Policy, exact evidence,
+single-APPROVED fence и atomic profile lifecycle+audit/replay. Новых migrations,
+grants, ALLOW, canonical/public contract changes или real approvals нет. Два
+independent source APPROVE/open0. Это завершение имеющегося G156 scope, не новый
+подготовительный этап. Точные проверки — в существующем G156 отчёте.

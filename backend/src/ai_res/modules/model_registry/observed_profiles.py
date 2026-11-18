@@ -2,25 +2,20 @@
 
 Loading lifecycle metadata does not authenticate an owner, approve evidence,
 route a model, issue a grant or authorize a candidate probe. Unlike the legacy
-LLM ModelProfile this reference has no pin, capabilities or usable_at method.
+executable ModelProfile this reference has no capabilities or usable_at method.
 """
 import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from enum import StrEnum
 from uuid import UUID
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ai_res.llm.registry import ProfileIdentityMode as ProfileIdentityMode
 from ai_res.llm.registry import ProfileStatus
 
 _KEY = re.compile(r"[a-z][a-z0-9_.-]{0,63}\Z")
-
-
-class ProfileIdentityMode(StrEnum):
-    IMMUTABLE = "IMMUTABLE"
-    FLASH_OBSERVED = "FLASH_OBSERVED"
 
 
 class ObservedProfileLoadError(ValueError):

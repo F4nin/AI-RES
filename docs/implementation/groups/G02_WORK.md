@@ -1,5 +1,37 @@
 # G02 — Инструменты и планирование Manager
 
+**Final local gates:** contracts22/Renovate10/backend2853/fast1538/PG31/infra369/
+runtime148/PoC19PASS; scanner0findings; rebuiltAPI14reviewedfiles/0hashmismatch и
+trustedTLS admin login/logout PASS. Pre-pr scanner false positives исправлены,
+завершён scoped resume exit0 без повтора полного backend; исходныйpre-pr exit2
+не объявляется exit0. Следующий шаг только delivery PR34/exactLinuxCI, затем STOP
+для обновления контекста. SLICE-01/G02 не начинать. После CI обновить evidence
+ЛОКАЛЬНО без ещё одного docs-only push.
+
+**Актуальное поручение:** закончить все реализации перед SLICE-01, затем остановиться
+для обновления контекста; SLICE-01 и G02 не запускать. ADR141 observed product
+wiring и полный audited human profile approval CLI реализованы/reviewed; code
+locally TESTED. Два independent APPROVE/open0; backend2853PASS/fast1538PASS/PG31PASS,
+финальные infra/runtime gates и одна доставка PR34 завершаются. Владелец принял
+50USD/month + INTERNAL ordinary/noPII/noTradeSecrets и поручил default admin;
+AI RES / Administrator / admin@ai-res.local создан, unique secret только ignored0600,
+реальные trustedTLS login/logout PASS. Дальнейшая персональная настройка позднее
+по указанию владельца; actual model approval не совершался. G02/S17/S20/S21
+NOT_STARTED; fullG156 real admission NOT VERIFIED. Актуальные details —
+[handoff](../CONTEXT_HANDOFF.md) и [отчёт](../increments/G02_identity_admission_operator_REPORT.md).
+
+История ниже:
+
+**Последнее уточнение владельца:** лишний documentation push вызвал CI44312593429;
+этот повтор отменён, COMPLETED/CANCELLED подтверждено. Runtimecode38 уже имеет
+обаCI SUCCESS;1e меняеттолькодокументы. Не запускатьновуюработу/тесты/push/CI
+до продолжения после обновленияконтекста. Это уточнение сохранено только локально.
+
+**Перед обновлениемконтекста:** docsHEAD1e971f5, PRCI44312593429 ещёвработе,
+contractsPASS, codebyte-identical38. Локальныйdocs-onlydiffуточняетhandoff;
+дальше не делатьpushрадиоднихcheckpointслов. Подготовка неDONE; продолжение
+послеобновленияконтекста начинаетсясHIGHdraft373, не новойгруппы.
+
 **Checkpoint перед обновлениемконтекста:** CODE38f5955 technicalCIpush+PR alljobsPASS,
 Go/race/vet/native12PASS, guardedidle922.37s/182checksPASS. FullG156/modelactivation
 ещёНЕзакрыты. Productobservedwiring сохранён отдельно вLOCALbranch

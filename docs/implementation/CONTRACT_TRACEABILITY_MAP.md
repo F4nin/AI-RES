@@ -1,5 +1,13 @@
 # CONTRACT_TRACEABILITY_MAP
 
+**G156 / ADR141,2026-11-18:** unchanged internal identity0.2 → product
+TransportCall/ModelIdentity observation (immutable mode сохранён), backend admission
+port+existing0020–26 → governed result после durable finalize. Human offline CLI
+связывает exact profile/evidence/Bifrost artifact и использует existing owner DML
++ existing audit_events; public API/events/schema/mirror/compatibility baseline
+не меняются, migrations/grants отсутствуют. PG31PASS/pure82PASS; два independent
+source APPROVE. [Отчёт](increments/G02_identity_admission_operator_REPORT.md).
+
 **G156 / ADR140,2026-11-18:** unchanged identity0.2 → independently authorized
 human command/recomputed review →0026operatorbinding+append-only globaldecisions,
 2exact restricted SQLroutines. No public endpoint/wire/event/compatibility baseline

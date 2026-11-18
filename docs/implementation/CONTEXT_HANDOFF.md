@@ -1,10 +1,68 @@
 # CONTEXT_HANDOFF — checkpoint перед обновлением контекста
 
+**Final local gates:** contracts22/Renovate10/backend2853/fast1538/PG31/infra369/
+runtime148/PoC19PASS; scanner0findings; rebuiltAPI14reviewedfiles/0hashmismatch и
+trustedTLS admin login/logout PASS. Pre-pr scanner false positives исправлены,
+завершён scoped resume exit0 без повтора полного backend; исходныйpre-pr exit2
+не объявляется exit0. Следующий шаг только delivery PR34/exactLinuxCI, затем STOP
+для обновления контекста. SLICE-01/G02 не начинать. После CI обновить evidence
+ЛОКАЛЬНО без ещё одного docs-only push.
+
+**Актуально, 2026-11-18 / ADR141.** По поручению владельца завершить все реализации
+перед SLICE-01; SLICE-01/G02 не начинать, после завершения сохранить контекст.
+Observed gateway draft373 интегрирован в root, HIGH reverse-SSE и final caller
+reauthorization исправлены. Реализованы полный offline owner profile/Bifrost
+approval CLI, exact auth/MFA/Policy/evidence, atomic audit/replay и one-APPROVED.
+Новых migrations/grants/ALLOW/canonical/public API changes нет. Два независимых
+source reviews APPROVE/open0; [20hashes](reviews/G02_OBSERVED_APPROVAL_CODE_HASHES.json),
+[отчёт](increments/G02_identity_admission_operator_REPORT.md),
+[review](reviews/G02_OBSERVED_APPROVAL_REVIEWS.md), [ADR141](decisions/ADR-141-observed-gateway-profile-approval.md).
+
+Backend2853PASS/541existingwarnings; fast1538PASS/mypy204/15imports; final affected
+PG31PASS/17.04s. Full pre-pr дошёл до scanner false positives; expressions исправлены
+без ослабления checks, оставшиеся infra/runtime/PoC gates завершаются отдельно,
+полный backend повторно не запускается. Точные команды/exit codes — в отчёте.
+Git: feat/g02-manager-tools-planning, проверенная база1e971f5 + scoped20code/test
+files и docs. PR34 остаётся текущей доставкой; один итоговый code+docs push после
+локальных gates. Не делать второй checkpoint push ради слов/CI evidence.
+
+Владелец подтвердил50USD/месяц и INTERNAL для обычных данных без ПДн/коммерческой
+тайны, затем явно поручил самому создать default admin; дальнейшая персональная
+настройка — позже с его помощью. Штатный bootstrap создал AI RES / Administrator /
+admin@ai-res.local с уникальным случайным паролем в ignored
+infra/secrets/local-admin/initial_password (0600,parent0700). Trusted HTTPS login200 /
+opaque cookie / Origin+CSRF logout204 PASS, secret values не выводились.
+Новых вопросов о создании default admin не задавать; пароль/metadata не коммитить.
+
+Реальный model profile не утверждён/не включён, MFA не подделывалась. Настройка и
+личная приёмка отложены владельцем; code readiness не заменяет эти действия.
+Provider calls этого продолжения0, original10USD/8attempt account не менялся:
+последнее подтверждённое6attempts/0.6005034usedOrReserved/9.3994966remaining.
+Actual timeout не наблюдался в прежнем live case, не заявлять PASS. Перед любым
+дальнейшим candidate call требуются свежие source/config/tariff/original balance.
+G156 code locally TESTED, полный real-provider admission NOT VERIFIED; G02/S17/
+S20/S21 и SLICE-01 NOT_STARTED. Остановка после текущей доставки для обновления
+контекста. История ниже не очередь новой работы и не отмена актуального scope.
+
+---
+
+Исторические checkpoints:
+
 **Остановка2026-11-18 по просьбе владельца:** текущие тесты закончены, сохранить
 продолжение и сообщить, чтобы владелец обновилконтекст. Новую работу/интеграцию
 до продолжения не начинать. Общее поручение остаётся: закончить допуск Flash как
 конечный MVP-результат, затем вернуться к группам; не создавать новые prepстадии.
 G156 IN_PROGRESS, G02/S17/S20/S21 NOT_STARTED; profile/human/SLICE ещёнепройдены.
+
+**Исправление после замечания владельца:** push документационного checkpoint был
+лишним: он автоматически запустил повторный PR CI44312593429 на docsHEAD1e971f5.
+Повтор отменён, GitHub подтвердил COMPLETED/CANCELLED. Это не PASS нового SHA.
+Проверенный runtime-код остаётся38f5955 (оба CI SUCCESS), sourcebyte-identical1e.
+До новой команды владельца не запускать работу, тесты, commit/push или CI;
+не перезапускать CI только ради сохранения контекста. Последние правки handoff,
+status/report сохранены ЛОКАЛЬНО без commit/push. Владелец обновляет контекст.
+Contracts1e44312593676/44312587592PASS. Untracked runtimeinput
+infra/llm_poc/candidate_tariff.json намеренно не committed. WIP373 не интегрирован.
 
 **Проверенный CODEHEAD38f5955b4c363b5a0a38c6e1db69de5daeb97aff**, ветка
 feat/g02-manager-tools-planning, draft[PR34](https://github.com/F4nin/AI-RES/pull/34),
@@ -37,7 +95,8 @@ infra/secrets/candidate/setup-location.json; providerplaintext0600 ONLYrelay,
 SOPSarchivekept, no keyprinted. Main24secretsunchanged. PrivateTLS401/signed400PASS.
 Helper-local Dockerobserver required(MacDockerAPI Config.OnBuild differs).
 Relayextra_hosts llm-poc-control=172.29.156.10, TLS/SAN/CA unchanged;18+10isolation
-checksAPPROVE. Actualfinalcandidatepreparedc527+descriptor38; no morepaid since6.
+checksAPPROVE. Actualfinalcandidatepreparedc527+descriptor38; afterdocsHEAD1e sourceRevisioncheck
+будетfailclosed: пересоздатьactualsourcebindingтолькопередразрешённымследующимcall; no morepaid since6.
 Initial/tmp preflight script asserts0attempts: DO NOTreuse/reset; futurebalance must
 honourcurrent6/remaining2. Before any furthercall checkcurrentactualsource/descriptor,
 image/boot/tariff/account; currentstoredphase mayneedexplicitoperatorresume.

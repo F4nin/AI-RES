@@ -258,3 +258,177 @@ FinalPRCI44308595231 alljobsSUCCESS too: backend2740PASS/541warnings/1186.47s,
 lockeddependencyauditclean; bothcontracts38SUCCESS. Codeverification attaches to
 38f5955, laterdocs-onlycheckpoint notnewruntimecode. Ownerrequestedcontextupdate;
 workstopsatthischeckpoint, fullG156/modelapproval notclosed.
+
+Ownerfinalsteering: «Давай документируй, я обновлю контекст и продолжим работу по
+подготовительному этапу». Checkpointdocs pushed1e971f5 (runtimecodeidentical38),
+автоматический PRCI44312593429 на1e ещё IN_PROGRESS; contracts1ePASS. Послеэтой
+проверки дальнейшее уточнениеhandoff/status/report сохраняется локальнымdocs-only
+diff, безновогоpush/CIцикла. Общийдопуск/G02 не закрываются; firstcontinuation —
+readfullAGENTS/CONTEXT_RETENTION/currentGit +newCIstatus, затемknownHIGHdraftfix
+иreview/integration втомжепоручении. Никаких новых paidcalls/approval/bootstrap
+после шестой попытки не было. Source38 exact4hashes unchanged.
+
+Исправление после замечания владельца: documentationpush был лишним и запустил
+повтор44312593429. Root отменил его, GitHub подтвердил completed/cancelled.
+Источник38 сохраняетобауспешныхCI, runtimecode1e byte-identical38. Отмена не
+объявляетсяPASS новогоSHA. Дальнейшая работа/проверки/commit/push/CI до продолжения
+не выполняются; последнее уточнение сохранено локально без публикации.
+
+## Продолжение G156 после возобновления владельцем — ADR141, 2026-11-18
+
+Это завершение того же порученного допуска, не новый подготовительный этап.
+Старт: `feat/g02-manager-tools-planning`, HEAD1e971f57c2ed19f2897db00ef5184e2dc58efd7f;
+пять существующих docs-only правок сохранены. Draft3733825 из отдельного local
+worktree перенесён в root без изменения его исторического checkpoint. Runtime
+tariff `infra/llm_poc/candidate_tariff.json` остаётся untracked, не входит в commit.
+
+### Реализация и совместимость
+
+- Product factory теперь допускает explicit `bifrost-observed` только с injected
+  registry/budget/transport/admission. Unconfigured остаётся default. Backend
+  ModelRegistryAdmission связывает exact request/profile и существующий durable
+  guard; caller authorization/managed versions проверяются до и после finalize.
+- Flash observed имеет NULL pin и обязательную observation; immutable consumers
+  сохраняют прежнюю модель. Retry/fallback/embedding observed профиля запрещены.
+  SSE bounded и не выдаётся до terminal validation/durable finalize. Reverse
+  identity/ref/terminal inconsistency всегда malformed; последняя approved identity
+  не скрывает ранний drift. Unknown outcome сохраняет pending и worst-case charge.
+- Новый offline `ai_res.cli.model_profile` реализует личное owner approval полного
+  профиля+Bifrost artifact, default preview. Нужны существующий MFA session token,
+  exact command UUID confirmation, owner DB binding и отдельная API factory для
+  authentication. Новых ALLOW/roles/grants/DDL/public endpoint нет. Complete profile/
+  expectation/observation/acceptance hashes, global single-APPROVED fence, executable
+  candidate validation и atomic lifecycle+audit/replay. getpass fallback запрещён.
+
+Новые source files: `llm/admission.py`, `modules/model_registry/gateway_admission.py`,
+`modules/model_registry/profile_approval.py`, `cli/model_profile.py`; изменены
+существующие adapter/factory/gateway/registry/routing/transport/types/config и
+model-registry readers. Шесть новых test files проверяют эти boundaries;
+[20 exact code/test hashes](../reviews/G02_OBSERVED_APPROVAL_CODE_HASHES.json).
+Миграций/изменений данных продуктовых проектов нет; frozen0017/0020–26, canonical,
+contracts/mirror/compatibility baseline и main Compose configuration не менялись.
+Public API/events и Temporal/LangGraph process surfaces не расширены.
+
+### ECC и независимое review
+
+Root: scope/architecture, behavioral RED→GREEN, fixes/CLI/actual PG/integration/docs;
+локальные python-testing/verification-loop checklists. `activation_scope`: отдельный
+read-only planner/architect, затем bounded author service+unit. Два независимых
+blind-first general/Python/architecture/silent-failure и security/database reviewers
+проверяли чужой source; author не reviewer себя. Все findings закрыты,
+final APPROVE/open0, test-only delta отдельно APPROVE. [Протокол](../reviews/G02_OBSERVED_APPROVAL_REVIEWS.md).
+Нативные Claude agents/hooks/slash commands, product QA и human approval не заявлены.
+
+### Проверки текущей версии
+
+Среда Darwin arm64, Python3.13.5, uv0.11.31, PostgreSQL16.15/Testcontainers,
+Docker29.2.0; full stack — только existing local dev/test. Для cryptographic infra
+checks выбран установленный OpenSSL3.6.3 вместо несовместимого LibreSSL3.3.6,
+только через PATH процесса, без глобальных изменений.
+
+| Gate/команда | Фактический результат |
+|---|---|
+| Registry canonical existence/unique IDs/paths | 74present/0missing/0duplicates |
+| Initial RED observed regressions | 6failed/39deselected, ожидаемый воспроизведённый defect |
+| Observed unit files | 50passed/0failed/skipped после fixes |
+| Observed actual PG path | 10passed/0failed/skipped/7.56s |
+| Approval/CLI actual PG+pure joint | 53passed/0failed/skipped/12.61s (21PG+32pure) |
+| `make pre-push-fast` | exit0, Ruff0/mypy204files/15importsKEPT; 1538passed/4existingwarnings/10.13s; после scanner fix1538passed/11.58s |
+| Full backend внутри pre-pr | 2853passed/0failed/skipped,541existingwarnings,734.95s |
+| Final affected PG | 31passed/0failed/skipped,17.04s; expiry trigger-entry proof включён |
+| Full pre-pr | contracts22PASS/7.77s,Renovate10PASS,backend2853PASS,infra-static0violations; exit2 на scanner false positives, оставшиеся gates возобновлены отдельно |
+
+Первый общий pre-pr был прерван exit130 после выявления неподходящего системного
+openssl, не объявлен PASS. Полный прогон запущен заново с process-only PATH
+`/opt/homebrew/opt/openssl@3/bin:$PATH`, лог `/tmp/g156-final-pre-pr-openssl.log`.
+После старта изменён только PG expiry-test: nontransactional sequence подтверждает
+вход в audit trigger до rollback, исключая ложный PASS от раннего expiry. Для этой
+дельты выполнен отдельный affected31PG PASS, runtime source не менялся.
+Scanner отверг3 path/reference expressions как literal assignments; после явного
+выделения validated auth config и fixture credential variables false positives
+устранены без allowlist/отключения scanner. Последняя test-only dictionary layout
+правка проверена Ruff; actual credential values/behavior не менялись. Два независимых
+reviewers отдельно подтвердили эквивалентность final CLI refactor.
+Ранний PG fixture попытался изменить immutable profile fields и был отвергнут;
+исправлен fixture initial INSERT, protection не отключалась. CLI unit tests также
+выявили ошибочные exception-message assertions; исправлены на reason codes.
+
+### Действительные решения и готовая dev-установка
+
+Владелец отдельно подтвердил точный **50USD/месяц** и **INTERNAL только для обычных
+данных без ПДн/коммерческой тайны**. Это не общий словарь классификации и не новый
+SLICE budget. Затем прямо поручил самому создать необходимые объекты с defaults,
+персональную настройку выполнить позже. Новых вопросов о default admin не требуется.
+
+Штатным `ai_res.cli.bootstrap` создан первый ORGANIZATION_OWNER:
+организация AI RES, имя Administrator, e-mail admin@ai-res.local. Уникальный
+случайный пароль сохранён в `infra/secrets/local-admin/initial_password` (0600,
+parent0700, ignored); metadata в том же private каталоге. В БД только Argon2id hash.
+Bootstrap audited/one-shot, контейнер удалён `--rm`. Две попытки до dispatch были
+отвергнуты Docker Compose из-за неподдерживаемого `run --no-build`; флаг убран,
+пароль не ротировался/не генерировался повторно, единственный actual bootstrap PASS.
+Read-only до bootstrap: users/activeowners/MFA/profiles/bindings все0.
+
+Фактический HTTPS login через Caddy с trusted local root CA: HTTP200, exact user/org,
+opaque ai_res_session cookie; Origin+CSRF logoutHTTP204. Пароль, bootstrap secret,
+session/csrf tokens не выведены и не попали в отчёт/argv/env. Этот первый smoke
+проверил существующий running API image; final stack smoke повторить после pre-pr
+rebuild перед приписыванием результата новой реализации. MFA не подделывалась;
+личная настройка оставлена владельцу согласно его указанию.
+
+### Оставшиеся границы и следующий шаг
+
+Код owner approval и observed product path реализован, actual profile/identity/
+Bifrost approval не совершались. Factory по умолчанию выключена; missing settings/
+permissions не превращаются в ALLOW. Monthly budget decision не доказывает real
+ledger enforcement. Предыдущие live TEXT/JSON/TOOL/SSE evidence остаются историей;
+CANCEL закрыл HTTP и сохранил UNKNOWN reserve, actual billing/provider compute-stop
+не доказаны. TIMEOUT завершился COMPLETE и не объявляется timeoutPASS.
+В этом продолжении provider calls/spend0; исходный10USD/8attempt ledger не менялся.
+Последний подтверждённый баланс:6attempts,0.6005034USD used/reserved,9.3994966remaining.
+Новых платных attempts ради повторения CANCEL не нужно.
+
+G156 пока IN_PROGRESS; G02/S17/S20/S21 и SLICE не запускались. После завершения
+кодовых gates сохранить delivery evidence; персональная конфигурация/приёмка
+реального профиля — с владельцем позже по его прямому указанию. Самостоятельное
+расширение продукта/permissions или превращение chat approval в MFA session запрещено.
+
+### Финальный локальный checkpoint перед единственной доставкой
+
+**Поручение владельца уточнено:** SLICE-01 не начинать; закончить все реализации
+перед ним, сохранить checkpoint и остановиться для обновления контекста. После
+создания default admin никаких новых вопросов о персональной настройке не ставить.
+
+`make -j1 pre-pr` с process-only OpenSSL3.6.3 выполнил contracts22/7.77s,
+Renovate10, backend static/mypy204/import15 и full backend2853/734.95s; exit2 на
+scanner path-expression false positives. После fixes выполнены fast1538/11.58s,
+affected31PG/17.04s; затем
+`PATH="/opt/homebrew/opt/openssl@3/bin:$PATH" make -j1 infra-scan-secrets up infra-test infra-test-runtime llm-poc-up llm-poc-check`
+**exit0**: scanner0findings, infra369/149.58s, runtime148/141.41s, PoC19/0failed;
+rendered configurations22/22/22/24services,0violations. Runtime executions в
+infra-test и отдельном target не считать уникальными тестами. Полный backend
+после эквивалентного config refactor не повторяли: затронутые проверки выполнены,
+никакие checks/allowlists не отключались. Единый исходный `make pre-pr` exit0 не
+заявляется; сохранены честные exit codes полного прогона и его возобновления.
+
+Rebuilt API содержит все14 reviewed production source files с **0hashmismatch**.
+Actual trusted-CA HTTPS login200/exactbootstrapuser/opaque cookie и Origin+CSRF
+logout204 повторно PASS на новом образе. Guarded existing candidate BF/control/relay
+container IDs не изменились; volumes/24main dev secrets не сбрасывались/не ротировались.
+Новых provider calls, fallback, реальных model grants/approval или расходов нет.
+
+Source review: два independent APPROVE/open0; конечный test-only fixture layout
+дополнительно general APPROVE. G1–G9 covered в указанном technical scope; G6 DDL
+N/A (нет migration), существующая PostgreSQL suite выполнена полностью. Public API,
+upload/connector/Temporal changes N/A — соответствующие поверхности не менялись;
+existing regression suite всё равно выполнялась. Security tests содержат actual
+API/owner separation, revoke/outage/auditfail/sessionexpiry, exact evidence/replay,
+durable next-call block, conservative cancellation; real quality/timeout/human
+model acceptance отдельно не заявлены.
+
+**Доставка:** один code+docs commit/push в существующий draft PR34; Linux CI на
+новом exact SHA проверяется отдельно. Повторный docs-only push для сохранения CI
+слов запрещён текущим пожеланием владельца: финальное CI evidence/handoff сохранить
+локально и в итоговом ответе/PR description, не запуская второй CI cycle.
+Code local TESTED; полный real-provider G156 NOT VERIFIED, actual setup deferred
+by owner. Следующего инкремента/SLICE/G02 не запускать.

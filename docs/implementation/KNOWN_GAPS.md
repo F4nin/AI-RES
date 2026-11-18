@@ -1,5 +1,63 @@
 # KNOWN_GAPS
 
+**Final local gates:** contracts22/Renovate10/backend2853/fast1538/PG31/infra369/
+runtime148/PoC19PASS; scanner0findings; rebuiltAPI14reviewedfiles/0hashmismatch и
+trustedTLS admin login/logout PASS. Pre-pr scanner false positives исправлены,
+завершён scoped resume exit0 без повтора полного backend; исходныйpre-pr exit2
+не объявляется exit0. Следующий шаг только delivery PR34/exactLinuxCI, затем STOP
+для обновления контекста. SLICE-01/G02 не начинать. После CI обновить evidence
+ЛОКАЛЬНО без ещё одного docs-only push.
+
+**Актуально, 2026-11-18 / ADR141.** По поручению владельца завершить все реализации
+перед SLICE-01; SLICE-01/G02 не начинать, после завершения сохранить контекст.
+Observed gateway draft373 интегрирован в root, HIGH reverse-SSE и final caller
+reauthorization исправлены. Реализованы полный offline owner profile/Bifrost
+approval CLI, exact auth/MFA/Policy/evidence, atomic audit/replay и one-APPROVED.
+Новых migrations/grants/ALLOW/canonical/public API changes нет. Два независимых
+source reviews APPROVE/open0; [20hashes](reviews/G02_OBSERVED_APPROVAL_CODE_HASHES.json),
+[отчёт](increments/G02_identity_admission_operator_REPORT.md),
+[review](reviews/G02_OBSERVED_APPROVAL_REVIEWS.md), [ADR141](decisions/ADR-141-observed-gateway-profile-approval.md).
+
+Backend2853PASS/541existingwarnings; fast1538PASS/mypy204/15imports; final affected
+PG31PASS/17.04s. Full pre-pr дошёл до scanner false positives; expressions исправлены
+без ослабления checks, оставшиеся infra/runtime/PoC gates завершаются отдельно,
+полный backend повторно не запускается. Точные команды/exit codes — в отчёте.
+Git: feat/g02-manager-tools-planning, проверенная база1e971f5 + scoped20code/test
+files и docs. PR34 остаётся текущей доставкой; один итоговый code+docs push после
+локальных gates. Не делать второй checkpoint push ради слов/CI evidence.
+
+Владелец подтвердил50USD/месяц и INTERNAL для обычных данных без ПДн/коммерческой
+тайны, затем явно поручил самому создать default admin; дальнейшая персональная
+настройка — позже с его помощью. Штатный bootstrap создал AI RES / Administrator /
+admin@ai-res.local с уникальным случайным паролем в ignored
+infra/secrets/local-admin/initial_password (0600,parent0700). Trusted HTTPS login200 /
+opaque cookie / Origin+CSRF logout204 PASS, secret values не выводились.
+Новых вопросов о создании default admin не задавать; пароль/metadata не коммитить.
+
+Реальный model profile не утверждён/не включён, MFA не подделывалась. Настройка и
+личная приёмка отложены владельцем; code readiness не заменяет эти действия.
+Provider calls этого продолжения0, original10USD/8attempt account не менялся:
+последнее подтверждённое6attempts/0.6005034usedOrReserved/9.3994966remaining.
+Actual timeout не наблюдался в прежнем live case, не заявлять PASS. Перед любым
+дальнейшим candidate call требуются свежие source/config/tariff/original balance.
+G156 code locally TESTED, полный real-provider admission NOT VERIFIED; G02/S17/
+S20/S21 и SLICE-01 NOT_STARTED. Остановка после текущей доставки для обновления
+контекста. История ниже не очередь новой работы и не отмена актуального scope.
+
+---
+
+Исторические checkpoints:
+
+**Последнее уточнение владельца:** лишний documentation push вызвал CI44312593429;
+этот повтор отменён, COMPLETED/CANCELLED подтверждено. Runtimecode38 уже имеет
+обаCI SUCCESS;1e меняеттолькодокументы. Не запускатьновуюработу/тесты/push/CI
+до продолжения после обновленияконтекста. Это уточнение сохранено только локально.
+
+**Последний docsHEAD1e971f5:** automaticrepeat PRCI44312593429 IN_PROGRESS,
+contractsPASS; runtimecodeidenticalverified38. Finalcontext уточнёнлокальным
+docs-onlydiffбезновогоpush. Поручениеприостановленодляобновленияконтекста владельцем;
+G156 остаётся IN_PROGRESS, draft373/HIGH не интегрирован.
+
 **Checkpoint перед обновлениемконтекста:** CODE38f5955 technicalCIpush+PR alljobsPASS,
 Go/race/vet/native12PASS, guardedidle922.37s/182checksPASS. FullG156/modelactivation
 ещёНЕзакрыты. Productobservedwiring сохранён отдельно вLOCALbranch
@@ -232,12 +290,12 @@ G72 context sealing исправлен forward0018 в S19, но остально
 | G-143 | `workerRole` в WorkerResult — свободная строка в схеме DOC-007 (в Envelope — enum); на DOWNSTREAM привязка к роли/запуску есть только в `store_worker_result` | Потребитель, вызвавший только `check`, не проверяет роль | OPEN — NCP-04 (ужесточить схему) или привязка `expect=` в S23 |
 | G-144 | Лимиты `rate_limit_rpm/tpm` профиля хранятся, но не применяются: нет клиентского ограничителя скорости в шлюзе | Исчерпание лимитов провайдера → 429 и срабатывание breaker вместо упреждающего ограничения | OPEN — S16 (Bifrost rate limits входят в PoC §7) |
 | G-145 | `InMemoryBudgetLedger` процесс-локальный: бюджет не переживает рестарт и не общий между процессами; scope не привязан к WorkerRun; breaker и retry тоже процесс-локальны. Где физически работает шлюз (Runtime не имеет DB credentials) — не решено | Бюджет можно обойти рестартом/несколькими репликами; нет durable-учёта расхода | OPEN — S22/S23 (grant с бюджетом, durable ledger через Application Service), S16 (размещение шлюза) |
-| G-146 | Нет пути создания и approval профиля модели: таблица пишется только владельцем БД/ревизией; нет CLI/API/контракта и матрицы полномочий (кто утверждает профиль) | Первый профиль потребует ручной процедуры; approval не аудируется в `audit` | OPEN — OD-21; решить вместе с первым профилем (S16) |
+| G-146 | ADR141 реализовал offline owner CLI и atomic audited profile approval на существующих owner правах; API/runtime по-прежнему SELECT-only. Владелец утверждает лично по OD01/21. Основная dev БД ещё не содержит owner/session/MFA/profile/binding | Actual authenticated human setup/approval ещё не выполнены; source/tests не заменяют приёмку | PARTIALLY CLOSED — technical path implemented/reviewed; actual setup/approval OPEN. [ADR141](decisions/ADR-141-observed-gateway-profile-approval.md) |
 | G-147 | Охрана промптов — регулярные выражения: не обнаруживает кодированные формы (base64), `pwd=`/`db_pass:`, тело приватного ключа без заголовка, секрет без маркера | Утечка в промпт возможна для форм вне паттернов | OPEN/ACCEPTED остаточный риск; evaluation adversarial-набор (S33/S37) |
 | G-148 | Отсутствие test double в образе проверяется статически (wheel `packages`, `COPY` в Dockerfile); образ в тесте не собирается и не инспектируется | Изменение Dockerfile может добавить пакет, не нарушив тест | OPEN — добавить проверку содержимого образа в `make pre-pr`/CI при ближайшем изменении Dockerfile |
 | G-149 | Атрибуты и метрики шлюза (`ai_res.llm.*`) не включены в allowlist Collector (трассы: `allowed_keys`; метрики: фильтр семейств и `keep_keys`) | Данные эмитируются, но Collector их отбрасывает (fail-safe); нет дашборда/алертов LLM | OPEN — S13-стек расширить вместе с первым провайдером (S16/S33); OBS-MON-006 |
 | G-150 | `data_classification` и `budget_scope` в `LLMRequest` задаёт вызывающая сторона; шлюз проверяет только допустимость метки профилем | Вызывающий код, занизивший классификацию, отправит данные на более открытый профиль | OPEN — S22/S23: классификация берётся из ContextPackage на сервере, scope из grant WorkerRun |
-| G-151 | Словарь меток классификации данных, значения egress (LOCAL/EXTERNAL) и статусы профиля — WORKING; документы их не задают | Смена словаря потребует expand/contract по `platform.model_profiles` | OPEN — OD-21 |
+| G-151 | Владелец2026-11-18 утвердил для первого профиля INTERNAL только для обычных данных без ПДн/коммерческой тайны и точный50USD/месяц. LOCAL/EXTERNAL/lifecycle vocabulary остаётся текущим WORKING implementation contract, не универсальным словарём | Полный словарь и monthly enforcement не подтверждаются этим решением; новые классы данных требуют решения | PARTIALLY CLOSED — значения первого профиля приняты в OD21; actual config/enforcement и общий словарь OPEN |
 | G-152 | Новый Bifrost adapter opt-in сохраняет полный резерв при post-dispatch timeout/cancel/parse/identity/network failure или отсутствии stream usage; typed preflight без dispatch освобождает резерв. Точный расход оборванного provider-вызова неизвестен; input estimate WORKING, durable stage cap не реализован | Консервативный overcount вместо доказанного billing; deterministic double сохраняет прежнюю семантику | PARTIAL — S16 behavior tests и Linux backend1461passed, реальная usage/billing/cancel compatibility не проверена. G-145 durable ledger сохраняется |
 | G-153 | Тесты `test_model_registry.py:119` и `test_s06_repositories.py:46` вызывают `engine.dispose()` без `try/finally`: упавший тест оставляет пул, который переподключается к следующему клону БД; `DROP … WITH (FORCE)` скрывает такие утечки (поведение прежнее, но окно клонирования короче, чем длинный `alembic upgrade` до CI-01) | Редкая недетерминированная interference между тестами | OPEN — исправить фикстуры-движки через `yield` + `finally` (CI-01 шаг 5 или отдельно); источник: `reviews/CI-01_step4_REVIEWS.md` |
 | G-154 | `tests/unit/test_orchestration_units.py:46` параметризуется `str(uuid4())`: id этих кейсов меняются при каждом сборе | `pytest-xdist` падает («different tests were collected»); сравнение списков id между прогонами невозможно | OPEN — заменить фиксированными значениями в CI-01 шаг 5 |

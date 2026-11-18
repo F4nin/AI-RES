@@ -34,15 +34,12 @@ async def load_model_registry(session: AsyncSession) -> ModelRegistry:
     profiles: list[ModelProfile] = []
     for r in rows:
         try:
-            if r.identity_mode != ProfileIdentityMode.IMMUTABLE.value:
-                # This loader supplies the legacy pinned-only ModelRegistry. An
-                # observed row is never coerced into a pin or silently routed.
-                raise ValueError("unsupported identity mode for pinned registry")
             rates = None if r.cost_currency is None else CostRates(currency=r.cost_currency, input_per_million=Decimal(r.cost_input_per_million),
                                                                    output_per_million=Decimal(r.cost_output_per_million))
             profiles.append(ModelProfile(
                 id=r.id, profile_key=r.profile_key, profile_version=r.profile_version, provider=r.provider, provider_model_id=r.provider_model_id,
-                pinned_model_version=r.pinned_model_version, capabilities=frozenset(Capability(c) for c in r.capabilities),
+                pinned_model_version=r.pinned_model_version, identity_mode=ProfileIdentityMode(r.identity_mode),
+                capabilities=frozenset(Capability(c) for c in r.capabilities),
                 context_window_tokens=r.context_window_tokens, max_output_tokens=r.max_output_tokens, data_classifications=frozenset(r.data_classifications),
                 allowed_regions=frozenset(r.allowed_regions), egress=Egress(r.egress), timeout_seconds=float(r.timeout_seconds),
                 retry_class=RetryClass(r.retry_class), status=ProfileStatus(r.status), cost_rates=rates, rate_limit_rpm=r.rate_limit_rpm,

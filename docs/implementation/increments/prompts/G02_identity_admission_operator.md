@@ -18,3 +18,17 @@ Root author/runtime/integrator; ECC planner/architect отдельные read-on
 python-testing/verification-loop прочитанные checklists; native commands не заявлять.
 Сохранить report/evidence/traceability/context; bounded seam только TESTED.
 G156 full pre-pr/LinuxCI/live/human/SLICE pending; G02/S17/S20/S21 NOT_STARTED.
+
+## Продолжение существующего поручения, 2026-11-18 / ADR141
+
+После возобновления владельцем закрыть known HIGH draft373 и оставшийся concrete
+product wiring/profile activation blocker в том же G156. Scope —
+[ADR141](../../decisions/ADR-141-observed-gateway-profile-approval.md): governed
+observed path/defaultdeny/durable blocking/final reauthorization, затем offline
+existing owner/migrator CLI с exact human decision/session/MFA/Policy/evidence,
+singleAPPROVED/atomic audit. Исходный узкий operator ADR140 остаётся EXECUTE-only;
+activation не добавляет ему grants/DDL и не запускает bootstrap. Прежние строки
+«нет product routing/activation» описывают завершённый ADR140 slice, а не запрещают
+это прямо порученное завершение G156. Fullpre-pr и один итоговый exact Linux CI;
+не делать промежуточных docs-only push/repeated CI. Human acceptance/OD21/SLICE и
+новое согласие на G02 сохраняются. Нового подготовительного этапа не создавать.
