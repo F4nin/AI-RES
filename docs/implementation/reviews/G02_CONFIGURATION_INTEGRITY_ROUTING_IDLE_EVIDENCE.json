@@ -1,0 +1,10 @@
+{
+  "controlsWeakened": false,
+  "guardedHealthChecks": 182,
+  "healthyDurationSeconds": 922.37,
+  "imageId": "sha256:c52717deb74c85d4980e0710464a76942ec091daacdb1e11d266ab1e068864a9",
+  "inferenceAttempts": 0,
+  "passed": true,
+  "providerCredentialMounted": false,
+  "reason": "STABLE_AFTER_15_MINUTE_WRITER_WINDOW"
+}

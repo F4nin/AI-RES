@@ -1,5 +1,14 @@
 # G02 — Инструменты и планирование Manager
 
+**Checkpoint перед обновлениемконтекста:** CODE38f5955 technicalCIpush+PR alljobsPASS,
+Go/race/vet/native12PASS, guardedidle922.37s/182checksPASS. FullG156/modelactivation
+ещёНЕзакрыты. Productobservedwiring сохранён отдельно вLOCALbranch
+wip/g156-observed-wiring-checkpoint@3733825, неintegrated/published:1495purePASS,
+knownHIGHreverseSSEdrift NOT_FIXED, noindependentreview/PG/pre-pr/CI.
+[Draftcheckpoint](../reviews/G02_OBSERVED_WIRING_DRAFT_CHECKPOINT.json).
+По просьбе владельца после текущихтестов работа остановлена дляобновленияконтекста.
+
+
 **Актуальный прогон2026-11-18:** localpre-pr PASS(backend2740/infra369/runtime148/poc19/contracts22);
 HEAD504ceb0 LinuxPR44300787624/push44300778838 alljobsPASS, backend2740/541warnings/14:31,
 locked dependency auditclean. На реальном DeepSeek TEXT/JSON/TOOL/SSE COMPLETE/capabilitytrue,

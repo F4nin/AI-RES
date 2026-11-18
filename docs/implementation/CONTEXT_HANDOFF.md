@@ -1,64 +1,69 @@
-# CONTEXT_HANDOFF — состояние для продолжения работы
+# CONTEXT_HANDOFF — checkpoint перед обновлением контекста
 
-**Активное поручение2026-11-18:** закончить весь пункт допуска Flash как конечный
-MVP-результат, необходимые tests, затем вернуться к группам. Владелец повторил:
-«пора завершать данный шаг». Не добавлять новые подготовительные стадии и не
-объявлять весь допуск готовым по одному technicalprobe. G02/S17/S20/S21 NOT_STARTED
-до отдельного согласия после подготовки; SLICE/data/license/separatebudget сохранены.
+**Остановка2026-11-18 по просьбе владельца:** текущие тесты закончены, сохранить
+продолжение и сообщить, чтобы владелец обновилконтекст. Новую работу/интеграцию
+до продолжения не начинать. Общее поручение остаётся: закончить допуск Flash как
+конечный MVP-результат, затем вернуться к группам; не создавать новые prepстадии.
+G156 IN_PROGRESS, G02/S17/S20/S21 NOT_STARTED; profile/human/SLICE ещёнепройдены.
 
-**Git:** feat/g02-manager-tools-planning, последний проверенный HEAD504ceb0 + текущий
-scoped3filefix/docs. Draft [PR34](https://github.com/F4nin/AI-RES/pull/34).
-Full localpre-pr PASS: backend2740/infra369/runtime148/poc19/contracts22/renovate10.
-Linux504 PRci44300787624/push44300778838 alljobs+contractsPASS; backend2740/
-541warnings/871.69s,dependencyauditclean,infra-static221/runtime148/poc19/supplychainPASS.
-First896CI8nativeDockerpathFAIL исправлен; abeCI cancelled20m notPASS. Workflow45m+
-verbose/faulthandler retainedalltests; stackdumpwasactualcoldbuild196.61s,notfailure.
+**Проверенный CODEHEAD38f5955b4c363b5a0a38c6e1db69de5daeb97aff**, ветка
+feat/g02-manager-tools-planning, draft[PR34](https://github.com/F4nin/AI-RES/pull/34),
+не merged. [PRCI44308595231](https://github.com/F4nin/AI-RES/actions/runs/44308595231)
+ALLJOBS SUCCESS: backend2740/541warnings/1186.47s(19:46), dependencyauditclean.
+[PushCI44308586420](https://github.com/F4nin/AI-RES/actions/runs/44308586420)alljobsPASS,
+backend2740/870.89s(14:30); оба contracts38PASS(44308595171/44308586258).
+Static/runtime/supplychainPASS; старые896FAIL/abeCANCELLED не засчитываются.
+Full localpre-pr ранееPASS:backend2740/infra369/runtime148/poc19/contracts22.
+Current3fileGo fix: normal/race8parent+42sub twicePASS,vet0,native12PASS/152.32s,
+secret0. Exact source hashes [artifact](reviews/G02_CONFIGURATION_INTEGRITY_ROUTING_CODE_HASHES.json).
+Документационныйcheckpointпосле38 не меняетэтотcode; не приписыватьему CIновогоSHA.
 
-**Реальное наблюдение:** [6paidcases+ledger](reviews/G02_FLASH_LIVE_EVIDENCE.json).
-TEXT/JSON/TOOL/SSE COMPLETE/capabilitytrue, exactstablefingerprint
-bc19ba97cbe016479903222bb1578db6; allmodelIDsdeepseek-flash/providerdeepseek.
-CANCEL localclosed,immediateCLIexit2/accountingunconfirmed,lateSETTLEDUNKNOWN/
-full0.6003072reserve (originalappend-onlyresultnotrewritten). TIMEOUTdefault10s
-returnedCOMPLETE; timeoutNOTOBSERVED,notPASS.6of8attempts,used+reserved0.6005034USD,
-remaining9.3994966,pendingfalse/blockedfalse. Provideractualbillingnotverified;
-no automaticretry/fallback/newbudget. Original account remains SAME forever.
+**Concretebug закрыт technicalevidence:** optionalroutingstore=nil сохраняет основной
+ConfigStore/governance/auth и fullSQL/stickyguard, убирает unused15minregistryGC.
+Imagec52717deb74c85d4980e0710464a76942ec091daacdb1e11d266ab1e068864a9,
+binary2915a33294b510562bfd16a4083b70c77afac34f4ca99ebebe220285d1b49212.
+[922.37s/182healthchecksPASS](reviews/G02_CONFIGURATION_INTEGRITY_ROUTING_IDLE_EVIDENCE.json),
+0providercalls/controlsunchanged.2independentsourceAPPROVE/open0. Diagnostic clone
+удалён; finalownedBF/control/relay +mainstack сохраненыдляпродолжения, volumesretained.
 
-**Concrete15minbug fixed in source, finalgates ongoing:** diagnostic(no provider)
-failed902.3sSQL_DRIFT; privatecopies showonlyadded governance_config static key
-complexity_semantic_generations beyondboot timestamps, rawcopiesdeleted. Routing
-registry15minGC writesemptyclaims+distributedlocks. Exact3filecandidate fix uses
-optionalrouting.Init ConfigStore=nil; mainConfigStore/governance/auth intact,
-fullSQLite/stickyguard unchanged. build.py adds onlyplugins.go checkedpath;
-4modulepins unchanged.2independentreviewers APPROVE/open0. Newactualimage
-c52717deb74c85d4980e0710464a76942ec091daacdb1e11d266ab1e068864a9,
-staticbinary2915a33294b510562bfd16a4083b70c77afac34f4ca99ebebe220285d1b49212.
-Go normal/race8parent+42sub twicePASS,vet0,secret0; native12PASS/152.32s.
-[Build/reviews](reviews/G02_CONFIGURATION_INTEGRITY_ROUTING_REVIEWS.md).
-Separate920s guarded-idle started12:49UTC, session15591, /tmp/g156-final-idle.log,
-proof /tmp/g156-final-idle-proof.json,exit.txt. Native session82424 completed0.
-Commit/pushsamePR now; finish exactnewHEAD LinuxCI INPARALLELwithidle (not yetPASS).
+**Provider/budget:** [6realcases](reviews/G02_FLASH_LIVE_EVIDENCE.json).
+TEXT/JSON/TOOL/SSE COMPLETE/capabilitytrue/stablefingerprint
+bc19ba97cbe016479903222bb1578db6, allmodelIDsdeepseek-flash/providerdeepseek.
+CANCELclosed: initialCLIunconfirmed, laterSETTLEDUNKNOWN/full0.6003072reserve.
+TIMEOUTdefault10s completedfast: timeoutNOTOBSERVED,notPASS.6of8attemptsused,
+used+reserved0.6005034USD,remaining9.3994966,pendingfalse/blockedfalse; actualbilling
+notverified. NOreset/newwallet/autoretry. Originalaccount/setup/evidence in ignored
+infra/secrets/candidate/setup-location.json; providerplaintext0600 ONLYrelay,
+SOPSarchivekept, no keyprinted. Main24secretsunchanged. PrivateTLS401/signed400PASS.
+Helper-local Dockerobserver required(MacDockerAPI Config.OnBuild differs).
+Relayextra_hosts llm-poc-control=172.29.156.10, TLS/SAN/CA unchanged;18+10isolation
+checksAPPROVE. Actualfinalcandidatepreparedc527+descriptor38; no morepaid since6.
+Initial/tmp preflight script asserts0attempts: DO NOTreuse/reset; futurebalance must
+honourcurrent6/remaining2. Before any furthercall checkcurrentactualsource/descriptor,
+image/boot/tariff/account; currentstoredphase mayneedexplicitoperatorresume.
 
-**Actual guarded setup:** ignored infra/secrets/candidate/setup-location.json holds
-ownedIDs/privatehost+evidencepaths/accountmanifest. Providerplaintext0600 only
-relay(auth/provider/signer/CA mounts), SOPSarchiveexists; keyneverprinted. Main
-24secrets unchanged/volumesretained, noadminbootstrap/profile/grantseeds. Private
-TLS401 andsignedrelaymalformedclaim400PASS. HelperDocker28.5.2 observer mustbuild
-actualruntimehash (MacDocker29 Config.OnBuild differs); helper-local independent
-10checksPASS. Relayextra_hosts llm-poc-control=172.29.156.10 fixes sharedoutboundDNS,
-TLS/SAN/CA unchanged; actualenabled18checks+DNS10checksAPPROVE. CurrentpaidBFb0e0
-willblockafter15min/sourcechange; replaceONLYownedfreshinstance withnewfinalimage
-andrecaptureactualhelper-localdescriptor before optionaloneTEXT(max2attemptsleft).
-No morepaiduntilnewsourcegatesclose; neverresetdurableledger. Olddiagnosticimage
-neveradmitted; cleanuponlyownedtemporarycontainers preservingmainstack/data.
+**Separateproductwiring DRAFT saved in LOCALGIT, not integrated/published:** branch
+wip/g156-observed-wiring-checkpoint, commit37338251fc2525a5b9bfb378b9bd1d19ceba9fb4,
+worktree /tmp/g156-observed-wiring-38f5955. [Checkpoint+14hashes/commands/logs](reviews/G02_OBSERVED_WIRING_DRAFT_CHECKPOINT.json).
+Pure1495PASS/4warnings/10.50s,Ruff0,mypy198,imports15; NO PG/pre-pr/LinuxCI/provider/
+independentreview forDRAFT. Root38 doesNOTcontainthiscode. KnownHIGH: SSEidentity
+X→approvedY canfinalizeVALIDATED(Y) despiteoutputrefusal, notdurablyblockingnextcall.
+FIRST nextfix: onanyintra-streamidentity/ref inconsistency finalizemalformed/no
+observation +reverse-drift regression. Then independentgeneral/securityreview,
+integration+affectedproducttests/fullpre-pr/newexactCI inSAMEMVPpoint. Draftobserved
+SSE buffers withinexistingmax_stream_bytes untildurablefinalize; immutable incremental.
 
-**Remaining aftertechnicalgates:** exacthuman Bifrost/identity/profile acceptance,
-actualproductobservedgatewaywiring (metadataref alone notexecutable), ownerbinding/
-profileactivation andSLICEgates. Do notfakeapproval or inventWORKINGlabels/monthly
-budget. ReadDECISIONS_PENDING/OD21 before asking onlyactualnecessarydecisions.
-executor_plan currentlydoesread-only minimalproductgapassessment,nocodepermission.
-Scope report[ADR140](increments/G02_identity_admission_operator_REPORT.md)sections16;
-artifactmetadata excludesprompt/response/key. Final idle/CI evidence inPR34 should
-be read before status changes. Prior checkpoints below are historical,notnewqueue.
+**Do notfakecomplete:** normalproductfactory/port implementation is stillDRAFT.
+Real fullprofileactivation/globalhumanapproval CLI currentlymissing, existingidentity
+executor onlyACCEPT_IDENTITY/BLOCK and doesnotsetprofileAPPROVED. Owner/migrator may
+provisionCANDIDATE perADR106, butcredential/chat is nothumanAuthSession. Before actual
+activation requireexacthuman/Bifrost/profileacceptance, realowneraccount/session/MFA/
+binding+explicitpolicypermissions (packagedpolicycurrentlydeniesmodelactions); admin
+bootstrap hasNOTbeen authorized. Classification/egresslabels+exactoperatingbudget
+remainOD21;10USDtechnicalbudget doesnotauthorizeSLICE/production. Do notinventALLOW,
+businessvalues, monthly50WORKING, ornewgrants. Finishnecessarycode withdefaultdeny;
+askonlyconcretenondelegableownerdecisions afterreviewableresult. Mainrelease/deployment
+notauthorized. SLICEdata/license/separatebudget beforeS17, ADR129/G107 beforeS20.
 
 Исторические checkpoints ниже сохраняются как evidence, не очередь новых стадий.
 

@@ -25,3 +25,8 @@ and race8parent+42sub twicePASS, vet0, secret scan0. Native12 suite and independ
 920second guarded-idle acceptance run alongside finalLinuxCI. Exact results are
 recorded in [PR34](https://github.com/F4nin/AI-RES/pull/34); absent/pending evidence
 does not count as PASS. No new paidcalls until affectedgates close.
+
+Root actualfinalidleproof PASS:922.37s,182guardedhealthchecks,0providerattempts,
+no providercredential mount; [metadata](G02_CONFIGURATION_INTEGRITY_ROUTING_IDLE_EVIDENCE.json).
+Finalnative12PASS/152.32s. Linuxcode38 pushCI44308586420 alljobsPASS/2740backend;
+PRCI44308595231 result checked separately. No profile/humanapproval implied.

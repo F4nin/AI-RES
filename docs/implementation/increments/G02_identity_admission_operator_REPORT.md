@@ -223,3 +223,38 @@ Normal/race8parent+42subtwicePASS,vet0; currentnative12PASS/152.32s/0skips,secre
 external results [PR34](https://github.com/F4nin/AI-RES/pull/34). These gates must
 close before any furtherpaidcall. Runtimeprobe key/ownerapproval remain separate;
 no architecture/publicAPI/migration changes in this concrete3filefix.
+
+### 16.3 Checkpoint по команде владельца перед обновлением контекста
+
+Владелец попросил сообщить после текущих тестов и сохранить продолжение. Новые
+изменения после этой команды не начинаются. CodeHEAD38f5955b4c363b5a0a38c6e1db69de5daeb97aff,
+[pushCI44308586420](https://github.com/F4nin/AI-RES/actions/runs/44308586420)PASS
+alljobs, backend2740/541warnings/870.89s, lockeddependencyauditclean.
+PRCI44308595231 проверяется отдельно перед передачей. LocalGo/race8parent+42sub
+twicePASS,vet0,native12PASS/152.32s,secret0. Exactimagec52717de… longidle
+922.37seconds/182guardedhealthchecksPASS/0providercalls/controlsunchanged:
+[proof](../reviews/G02_CONFIGURATION_INTEGRITY_ROUTING_IDLE_EVIDENCE.json).
+
+Параллельный productport DRAFT не интегрирован в root/PR: локальная ветка
+wip/g156-observed-wiring-checkpoint, commit37338251fc2525a5b9bfb378b9bd1d19ceba9fb4,
+worktree /tmp/g156-observed-wiring-38f5955. Source14files/740insertions/47deletions,
+pure1495PASS/4warnings/10.50s,Ruff0/mypy198/imports15kept. НЕТ PG/pre-pr/LinuxCI/
+provider/independentreview. Сохранён [checkpoint](../reviews/G02_OBSERVED_WIRING_DRAFT_CHECKPOINT.json)
+с exacthashes/commands/logs. LocalGitcommit сохраняетчерновик, не доставка.
+
+KnownHIGH в DRAFT: SSEidentity X→approvedY можетфинализироватьVALIDATED(Y), хотя
+outputотклонён, поэтому durable block не выставлен. Первый следующий fix: при
+любом intra-streamidentity/ref inconsistency finalize malformed/noobservation и
+reverse-drift regression, затем независимые general/securityreviews. Новаяработа
+остановлена по checkpointsteering, дефект не скрыт и не принят какPASS. Root38
+этого кода не содержит. Legacy/technical candidate rootgates не доказывают готовность
+этого productport. Fullprofileactivation/humanownerCLI/actualpolicy/budget/managed
+version composition остаются отдельно в том же MVPпункте; реальных approvals/
+permissions/seeds/adminbootstrap не создано. ADR106 допускает owner provisioning
+CANDIDATE без новых grants, но migratorcredential неhumanapproval; не имитировать
+ownerActor/session/MFA из чата и не ослаблять defaultdeny.
+
+FinalPRCI44308595231 alljobsSUCCESS too: backend2740PASS/541warnings/1186.47s,
+lockeddependencyauditclean; bothcontracts38SUCCESS. Codeverification attaches to
+38f5955, laterdocs-onlycheckpoint notnewruntimecode. Ownerrequestedcontextupdate;
+workstopsatthischeckpoint, fullG156/modelapproval notclosed.
