@@ -1,0 +1,67 @@
+{
+  "status": "VERIFIED_SOURCE_MERGED",
+  "verifiedSourceCommit": "54730eb1d19b2f2443fe4ba53888bbb32938ab4f",
+  "mergedCommit": "f5b3211b4496cfa9fb10934af3023129923cbd0f",
+  "pullRequest": "https://github.com/F4nin/AI-RES/pull/34",
+  "mergedAt": "2026-11-18T18:13:05Z",
+  "primaryCI": {
+    "id": 44363805060,
+    "event": "pull_request",
+    "headSha": "54730eb1d19b2f2443fe4ba53888bbb32938ab4f",
+    "conclusion": "success",
+    "url": "https://github.com/F4nin/AI-RES/actions/runs/44363805060",
+    "jobs": {
+      "backend": "success",
+      "infra-static": "success",
+      "infra-runtime": "success"
+    },
+    "backendPassed": 3228,
+    "backendWarnings": 541,
+    "backendSeconds": 908.55,
+    "infraStaticPassed": 221,
+    "runtimePassed": 148,
+    "runtimeSeconds": 152.84,
+    "llmPocPassed": 19,
+    "runtimeAudit": "No known vulnerabilities found",
+    "secretScanFindings": 0,
+    "imagePins": 21,
+    "imageMismatches": 0,
+    "ownImageSupplyChain": "PASS",
+    "hadolint": "PASS",
+    "actionlint": "PASS"
+  },
+  "contractsCI": {
+    "id": 44363804982,
+    "headSha": "54730eb1d19b2f2443fe4ba53888bbb32938ab4f",
+    "conclusion": "success",
+    "url": "https://github.com/F4nin/AI-RES/actions/runs/44363804982"
+  },
+  "duplicatePushCI": {
+    "id": 44363791071,
+    "conclusion": "cancelled",
+    "reason": "Equivalent PR-event CI for the exact same source SHA retained; cancellation is not counted as success."
+  },
+  "postMergeCIObserved": {
+    "id": 44367265491,
+    "headSha": "f5b3211b4496cfa9fb10934af3023129923cbd0f",
+    "status": "in_progress",
+    "conclusion": null,
+    "note": "Automatic repeat observed after merge; no success attributed to this SHA."
+  },
+  "postMergeContracts": {
+    "id": 44367265219,
+    "headSha": "f5b3211b4496cfa9fb10934af3023129923cbd0f",
+    "conclusion": "success"
+  },
+  "logSha256": "bf218599e3e7657ac753ae5a40e38f68e90ba3712112c93ab59a1ffcf87cd14c",
+  "sourceEquivalent": true,
+  "providerCallsSLICE": 6,
+  "knownUsageAccountedUSD": "0.0032058",
+  "remainingUSD": "9.9967942",
+  "nextStageAuthorization": false,
+  "limitations": [
+    "Source/semantic scope is the development experiment; no requirement/Baseline or production deployment approval.",
+    "Third-party report-only image findings and pre-existing npm alerts were not changed by SLICE."
+  ],
+  "identicalGitTree": "dba5f6a4808f80abdf3b6254f59a1e740231143b"
+}

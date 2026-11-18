@@ -17,7 +17,7 @@ MFA helper больше не читает localizeddetail и не повторя
 
 Root final local evidence: V2scope371PASS/35.52s, V3affected87PASS/22.35s,
 fast1896PASS/4warnings/15.12s, explicitmypy10PASS, scanner0, helper28PASS/0.12s.
-Полный pre-pr выполняется, новый CI ещё pending. Реальные SLICEcalls6, известный
+Полный pre-pr и exact Linux CI PASS; PR34 merged. Реальные SLICEcalls6, известный
 консервативный расход0.0032058USD; роли/review не подменяют эти факты.
 [Отчёт](increments/SLICE-01_requirements_experiment_REPORT.md), tooling/live evidenceV1–V3.
 

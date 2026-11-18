@@ -4,7 +4,7 @@
 общий лимит10USD, actual governed result и grounding доказаны. V1 diagnostic loss
 устранён; V2 JSON/line-offset нарушения стали regression tests, V3 прошёл. Это не
 оценка полноты требований или production readiness; один публичный MIT документ
-мог входить в обучение. Полный pre-pr/newLinuxCI/доставка пока pending.
+мог входить в обучение. Полный pre-pr/exact Linux CI PASS; PR34 merged, SLICE закрыт.
 [Отчёт](increments/SLICE-01_requirements_experiment_REPORT.md). Исторические ниже
 «SLICE не начинать/MFA не завершена» относятся к прежнему STOP, не к текущему поручению.
 

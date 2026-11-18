@@ -1,7 +1,7 @@
 # SLICE-01 — эксперимент извлечения требований: Increment Report
 
 **Дата:** 2026-11-18. **Промпт:** [SLICE-01](prompts/SLICE-01_requirements_experiment.md).
-**Статус:** TESTED; итоговые проверки и Git-доставка IN_PROGRESS. VERIFIED пока не заявляется.
+**Статус:** VERIFIED; код доставлен в main через PR #34. Проверенный source commit54730eb, mergef5b3211; деревья файлов идентичны.
 
 ## 1. Что реализовано
 
@@ -140,7 +140,7 @@ Native slash commands/hooks и продуктовый QA не имитирова
 | MFA compatibility | pytest -c backend/pyproject.toml docs/implementation/reviews/SLICE-01_OWNER_MFA_TEST.py | 28 passed, 0 failed/skipped, 0.12s |
 | Полный локальный gate | env PATH с установленным OpenSSL 3.6.3; make -j1 pre-pr | exit0: contracts22/Renovate10/backend3228 (541warnings)/infra369/runtime148/PoC19; failed/skipped0 |
 | Runtime audit / image pins | make backend-audit; make infra-verify-digests | exit0: известных уязвимостей0; 21pins/0mismatch |
-| Новый Linux CI | Ещё не отправлен | PENDING |
+| Linux CI / доставка | [ci44363805060](https://github.com/F4nin/AI-RES/actions/runs/44363805060), [contracts44363804982](https://github.com/F4nin/AI-RES/actions/runs/44363804982), [PR34](https://github.com/F4nin/AI-RES/pull/34) | SUCCESS на exact54730eb; backend3228/541warnings/908.55s, infra-static221/runtime148/PoC19, все дополнительные gates PASS; MERGEDf5b3211 |
 
 Постоянные evidence: [V1](../reviews/SLICE-01_TOOLING_EVIDENCE.json),
 [V2](../reviews/SLICE-01_TOOLING_EVIDENCE_V2.json),
@@ -184,7 +184,7 @@ Source review не подменяет реальные model calls, CI или п
 Это не оценка полноты/качества модели, производительности или production readiness.
 Буквальная цитата не доказывает семантическое следование statement. Повторяемость
 rolling alias ограничена NCP-16; fingerprint не является immutable model pin.
-Счёт провайдера не проверялся. Полный локальный pre-pr закрыт; новый exact Linux CI и доставка ещё pending.
+Счёт провайдера не проверялся. Локальный pre-pr и exact source Linux CI закрыты; merge tree равен проверенному. Автоматический post-merge CI44367265491 наблюдался ещё выполняющимся и не выдаётся за PASS; его contracts44367265219 уже SUCCESS.
 
 ## 13. Документы и traceability
 
@@ -197,10 +197,12 @@ baseline manifest и contracts не изменены. Старый локаль�
 - Выполнен реальный governed call с лично принятым profile/identity и enforced budget.
 - WorkerResult/schema/provenance/type/secret checks прошли, результат предъявлен владельцу.
 - Лицензия, source version/checksum, prompt/code/config/body refs и costs сохранены.
-- Независимое review завершено; обязательный новый Linux CI и Git delivery ещё pending; локальные gates прошли.
+- Независимое review завершено; обязательный exact Linux CI и Git delivery завершены; дополнительный автоматический post-merge прогон не приписывается к проверенному SHA.
 
 ## 15. Следующий этап
 
-S17/G02 не начаты. Сначала завершить проверки и доставку SLICE-01; после этого
-остановиться до новой команды владельца. Requirement/Baseline approval и deployment
+S17/G02 не начаты. SLICE-01 закрыт; по прямому указанию владельца остановиться.
+Владелец обновит контекст и даст отдельный approval на начало следующей разработки. Requirement/Baseline approval и deployment
 этим экспериментом не предоставлены.
+
+Финальное [CI evidence](../reviews/SLICE-01_CI_EVIDENCE.json) различает source54730eb, mergef5b3211 и post-merge workflow. Код после проверки не менялся.

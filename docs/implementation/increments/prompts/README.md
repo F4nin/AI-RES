@@ -57,7 +57,7 @@
 |---|---|---|---|
 | ARCH-01 | [Контракты доменных импортов](ARCH-01_domain_import_contracts.md) | CI-01 DONE; до S17, ADR-114/120 | DONE (VERIFIED, PR #23); см. STATUS/report |
 | DEP-01 | [Renovate dependency updates](DEP-01_renovate_dependency_updates.md) | CI-01 DONE, выбран владельцем 2026-11-17; ADR-113/121 | DONE по решению владельца; config VERIFIED (PR #25); App evidence NOT VERIFIED вынесено в follow-up G-31; см. STATUS |
-| SLICE-01 | [Requirements experiment](SLICE-01_requirements_experiment.md) | S16 technical DONE; ADR-115; до S17 | READY — в работе, реализация TESTED: реальный V3 прошёл; финальные gates/доставка pending |
+| SLICE-01 | [Requirements experiment](SLICE-01_requirements_experiment.md) | S16 technical DONE; ADR-115; до S17 | DONE — VERIFIED: реальный V3, local pre-pr и exact Linux CI PASS; PR34 merged; STOP до нового approval |
 
 Перечень остальных принятых мини-этапов и их текущие статусы — в STATUS и ADR-112…116. Эта запись не устанавливает новый порядок между ними.
 
