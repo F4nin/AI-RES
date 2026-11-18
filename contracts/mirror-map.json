@@ -1,5 +1,5 @@
 {
-  "manifest": "docs/architecture/AI_RES_Architecture_Baseline_Manifest_v1.2.json",
+  "manifest": "docs/architecture/AI_RES_Architecture_Baseline_Manifest_v1.3.json",
   "sourceDir": "docs/architecture",
   "files": [
     {"published": "openapi/AI_RES_Public_API_v1.3.yaml", "source": "AI_RES_Public_API_v1.3.yaml"},

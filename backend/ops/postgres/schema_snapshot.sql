@@ -2,23 +2,25 @@
 
 -- CATALOG
 -- ROLE ai_res_api LOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS SET idle_in_transaction_session_timeout=30s, lock_timeout=2s, search_path=pg_catalog, statement_timeout=15s
--- ROLE ai_res_api_group NOLOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS 
+-- ROLE ai_res_api_group NOLOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS
 -- ROLE ai_res_auditor LOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS SET idle_in_transaction_session_timeout=30s, lock_timeout=2s, search_path=pg_catalog, statement_timeout=15s
--- ROLE ai_res_auditor_group NOLOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS 
--- ROLE ai_res_backup LOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS 
--- ROLE ai_res_checkpointer_group NOLOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS 
--- ROLE ai_res_consumer_group NOLOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS 
+-- ROLE ai_res_auditor_group NOLOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS
+-- ROLE ai_res_backup LOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS
+-- ROLE ai_res_checkpointer_group NOLOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS
+-- ROLE ai_res_consumer_group NOLOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS
 -- ROLE ai_res_event_consumer LOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS SET idle_in_transaction_session_timeout=30s, lock_timeout=2s, search_path=pg_catalog, statement_timeout=15s
--- ROLE ai_res_migrator LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS 
+-- ROLE ai_res_migrator LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS
+-- ROLE ai_res_model_admission_operator NOLOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS
 -- ROLE ai_res_outbox_dispatcher LOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS SET idle_in_transaction_session_timeout=30s, lock_timeout=2s, search_path=pg_catalog, statement_timeout=15s
--- ROLE ai_res_outbox_group NOLOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS 
--- ROLE ai_res_owner NOLOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS 
+-- ROLE ai_res_outbox_group NOLOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS
+-- ROLE ai_res_owner NOLOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS
 -- GRANT ai_res_api_group TO ai_res_api INHERIT=t SET=f
 -- GRANT ai_res_auditor_group TO ai_res_auditor INHERIT=t SET=f
 -- GRANT ai_res_consumer_group TO ai_res_event_consumer INHERIT=t SET=f
 -- GRANT ai_res_outbox_group TO ai_res_outbox_dispatcher INHERIT=t SET=f
 -- GRANT ai_res_owner TO ai_res_migrator INHERIT=f SET=t
 -- DATABASE ACL ai_res_api=c/ai_res_owner,ai_res_auditor=c/ai_res_owner,ai_res_event_consumer=c/ai_res_owner,ai_res_migrator=c/ai_res_owner,ai_res_outbox_dispatcher=c/ai_res_owner,ai_res_owner=CTc/ai_res_owner
+-- PARAMETER ACL app.migration_mode ai_res_owner=s/postgres,postgres=sA/postgres
 
 -- SCHEMA
 SET statement_timeout = 0;
@@ -538,6 +540,58 @@ END $$;
 
 ALTER FUNCTION platform.advance_by_one() OWNER TO ai_res_owner;
 
+CREATE FUNCTION platform.apply_owner_identity_decision(o uuid, u uuid, sid uuid, p uuid, d uuid, reviewed jsonb, cmd_text text, expected_text text, observed_text text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    SET "app.migration_mode" TO 'on'
+    AS $_$
+DECLARE state jsonb; cmd jsonb; exp jsonb; obs jsonb; r jsonb; cmd_hash text; eh text; oh text; gen integer; act text;
+BEGIN
+  IF octet_length(cmd_text)>16384 OR octet_length(expected_text)>65536 OR octet_length(observed_text)>65536 THEN
+    RAISE EXCEPTION 'decision too large' USING ERRCODE='check_violation';
+  END IF;
+  state:=platform.owner_identity_snapshot(o,u,sid,p,d);
+  IF reviewed IS DISTINCT FROM state THEN RAISE EXCEPTION 'stale decision state' USING ERRCODE='check_violation'; END IF;
+  cmd:=cmd_text::jsonb; exp:=expected_text::jsonb; obs:=observed_text::jsonb; r:=cmd->'review'; act:=cmd->>'action';
+  cmd_hash:=encode(sha256(convert_to(cmd_text,'UTF8')),'hex');
+  eh:=encode(sha256(convert_to(expected_text,'UTF8')),'hex'); oh:=encode(sha256(convert_to(observed_text,'UTF8')),'hex');
+  IF (cmd->>'decisionId'=d::text AND (cmd->>'correlationId')::uuid IS NOT NULL AND act IN ('ACCEPT_IDENTITY','BLOCK')
+    AND cmd->>'expectationSha256'=eh AND cmd->>'observationSha256'=oh
+    AND r->>'expectation_sha256'=eh AND r->>'observation_sha256'=oh
+    AND r->>'binding_sha256' ~ '^[0-9a-f]{64}$' AND r->>'profile_sha256' ~ '^[0-9a-f]{64}$'
+    AND r->>'policy_version' ~ '^[A-Za-z0-9_.:-]{1,128}$'
+    AND exp->>'schemaVersion'='0.2' AND obs->>'schemaVersion'='0.2' AND exp->>'kind'='EXPECTATION' AND obs->>'kind'='OBSERVATION'
+    AND exp->>'evidenceSha256'=oh AND exp->'identity'=obs->'identity' AND exp->'managedVersions'=obs->'managedVersions'
+    AND exp->'managedVersions'->>'profileId'=p::text
+    AND (exp->'managedVersions'->>'profileVersion')::integer=((state->>'profile')::jsonb->>'profile_version')::integer) IS NOT TRUE THEN
+    RAISE EXCEPTION 'invalid decision' USING ERRCODE='check_violation';
+  END IF;
+  IF state->'receipt'<>'null'::jsonb THEN
+    IF state->'receipt'->>'command_sha256'<>cmd_hash THEN RAISE EXCEPTION 'decision reused' USING ERRCODE='check_violation'; END IF;
+    RETURN state->'receipt';
+  END IF;
+  gen:=(state->>'generation')::integer;
+  IF (exp->>'admissionGeneration')::integer IS DISTINCT FROM gen+1 THEN RAISE EXCEPTION 'stale generation' USING ERRCODE='check_violation'; END IF;
+  IF act='ACCEPT_IDENTITY' THEN
+    IF state->'pending'<>'[]'::jsonb THEN RAISE EXCEPTION 'unresolved calls' USING ERRCODE='check_violation'; END IF;
+    gen:=gen+1;
+    INSERT INTO platform.model_admission_versions(profile_id,generation,profile_version,expectation,expectation_sha256)
+      VALUES(p,gen,(exp->'managedVersions'->>'profileVersion')::integer,exp,decode(eh,'hex'));
+    INSERT INTO platform.model_admission_controls(profile_id,current_generation) VALUES(p,gen)
+      ON CONFLICT(profile_id) DO UPDATE SET current_generation=EXCLUDED.current_generation,blocked=false;
+  ELSE
+    IF gen=0 THEN RAISE EXCEPTION 'no admission to block' USING ERRCODE='check_violation'; END IF;
+    UPDATE platform.model_admission_controls SET blocked=true WHERE profile_id=p;
+  END IF;
+  INSERT INTO platform.model_admission_decisions(decision_id,profile_id,organization_id,user_id,session_id,action,generation,
+    command_sha256,review_sha256,profile_sha256,expectation_sha256,observation_sha256,policy_version,reason_code,correlation_id)
+    VALUES(d,p,o,u,sid,act,gen,cmd_hash,r->>'binding_sha256',r->>'profile_sha256',eh,oh,r->>'policy_version',
+      CASE WHEN act='ACCEPT_IDENTITY' THEN 'HUMAN_IDENTITY_ACCEPTED' ELSE 'HUMAN_BLOCKED' END,(cmd->>'correlationId')::uuid);
+  RETURN jsonb_build_object('generation',gen,'action',act,'command_sha256',cmd_hash);
+END $_$;
+
+ALTER FUNCTION platform.apply_owner_identity_decision(o uuid, u uuid, sid uuid, p uuid, d uuid, reviewed jsonb, cmd_text text, expected_text text, observed_text text) OWNER TO ai_res_owner;
+
 CREATE FUNCTION platform.assert_event_sequence_contiguous() RETURNS trigger
     LANGUAGE plpgsql
     AS $_$
@@ -586,6 +640,32 @@ END $_$;
 
 ALTER FUNCTION platform.assert_version_number_contiguous() OWNER TO ai_res_owner;
 
+CREATE FUNCTION platform.fence_model_profile_lifecycle() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+BEGIN
+  IF OLD.identity_mode='FLASH_OBSERVED' AND
+     ROW(NEW.status,NEW.approved_at,NEW.approved_by,NEW.deprecated_at) IS DISTINCT FROM
+     ROW(OLD.status,OLD.approved_at,OLD.approved_by,OLD.deprecated_at) THEN
+    PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(
+      'ai_res.model_profile_lifecycle:' || OLD.id::text, 0));
+  END IF;
+  RETURN NEW;
+END $$;
+
+ALTER FUNCTION platform.fence_model_profile_lifecycle() OWNER TO ai_res_owner;
+
+CREATE FUNCTION platform.finish_llm_poc_settlement() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  UPDATE platform.llm_poc_attempts SET state='SETTLED' WHERE account_id=NEW.account_id AND id=NEW.attempt_id;
+  RETURN NEW;
+END $$;
+
+ALTER FUNCTION platform.finish_llm_poc_settlement() OWNER TO ai_res_owner;
+
 CREATE FUNCTION platform.forbid_unset() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -615,6 +695,141 @@ BEGIN  -- TG_ARGV[0] = status column, TG_ARGV[1..] = terminal values: a terminal
 END $$;
 
 ALTER FUNCTION platform.freeze_when_status_in() OWNER TO ai_res_owner;
+
+CREATE FUNCTION platform.guard_admission_reapproval_generation() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  IF OLD.blocked AND NOT NEW.blocked AND NEW.current_generation<=OLD.current_generation THEN
+    RAISE EXCEPTION 'clearing an admission block requires a new generation'
+      USING ERRCODE='integrity_constraint_violation';
+  END IF;
+  RETURN NEW;
+END $$;
+
+ALTER FUNCTION platform.guard_admission_reapproval_generation() OWNER TO ai_res_owner;
+
+CREATE FUNCTION platform.guard_llm_poc_account() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  IF (to_jsonb(NEW)-'attempt_sequence'-'blocked') IS DISTINCT FROM (to_jsonb(OLD)-'attempt_sequence'-'blocked')
+     OR NEW.attempt_sequence NOT IN (OLD.attempt_sequence,OLD.attempt_sequence+1) OR (OLD.blocked AND NOT NEW.blocked) THEN
+    RAISE EXCEPTION 'technical budget cannot be reset, enlarged or unblocked' USING ERRCODE='integrity_constraint_violation';
+  END IF;
+  RETURN NEW;
+END $$;
+
+ALTER FUNCTION platform.guard_llm_poc_account() OWNER TO ai_res_owner;
+
+CREATE FUNCTION platform.guard_llm_poc_attempt() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE account platform.llm_poc_budget_accounts%ROWTYPE; used_cost numeric;
+BEGIN
+  SELECT * INTO account FROM platform.llm_poc_budget_accounts WHERE id=NEW.account_id FOR UPDATE;
+  IF account.id IS NULL THEN
+    RAISE EXCEPTION 'technical budget unavailable' USING ERRCODE='integrity_constraint_violation';
+  END IF;
+  IF TG_OP='INSERT' THEN
+    IF account.blocked OR NEW.sequence<>account.attempt_sequence OR NEW.state<>'RESERVED' OR NEW.claimed_at IS NOT NULL THEN
+      RAISE EXCEPTION 'invalid technical reservation' USING ERRCODE='integrity_constraint_violation';
+    END IF;
+    SELECT account.original_spend+coalesce(sum(coalesce(s.charged_cost,a.reserved_cost)),0) INTO used_cost
+      FROM platform.llm_poc_attempts a LEFT JOIN platform.llm_poc_settlements s ON s.account_id=a.account_id AND s.attempt_id=a.id
+      WHERE a.account_id=NEW.account_id;
+    NEW.reserved_cost := (account.input_bound*account.input_per_million+account.output_bound*account.output_per_million)/1000000;
+    NEW.plan_sha256 := account.plan_sha256;
+    NEW.tariff_sha256 := account.tariff_sha256;
+    IF used_cost+NEW.reserved_cost>account.max_cost OR NEW.sequence>account.max_attempts THEN
+      RAISE EXCEPTION 'technical budget exhausted' USING ERRCODE='integrity_constraint_violation';
+    END IF;
+  ELSE
+    IF (to_jsonb(NEW)-'state'-'claimed_at') IS DISTINCT FROM (to_jsonb(OLD)-'state'-'claimed_at') THEN
+      RAISE EXCEPTION 'technical request binding is immutable' USING ERRCODE='integrity_constraint_violation';
+    END IF;
+    IF OLD.state='RESERVED' AND NEW.state='CLAIMED' AND NOT account.blocked THEN
+      NEW.claimed_at := clock_timestamp();
+    ELSIF OLD.state='CLAIMED' AND NEW.state='SETTLED' AND NEW.claimed_at IS NOT DISTINCT FROM OLD.claimed_at
+      AND EXISTS (SELECT 1 FROM platform.llm_poc_settlements WHERE account_id=NEW.account_id AND attempt_id=NEW.id) THEN
+      NULL;
+    ELSE
+      RAISE EXCEPTION 'technical dispatch claim cannot be replayed' USING ERRCODE='integrity_constraint_violation';
+    END IF;
+  END IF;
+  RETURN NEW;
+END $$;
+
+ALTER FUNCTION platform.guard_llm_poc_attempt() OWNER TO ai_res_owner;
+
+CREATE FUNCTION platform.guard_llm_poc_settlement() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE account platform.llm_poc_budget_accounts%ROWTYPE; attempt platform.llm_poc_attempts%ROWTYPE;
+BEGIN
+  SELECT * INTO account FROM platform.llm_poc_budget_accounts WHERE id=NEW.account_id FOR UPDATE;
+  SELECT * INTO attempt FROM platform.llm_poc_attempts WHERE account_id=NEW.account_id AND id=NEW.attempt_id;
+  IF account.id IS NULL OR attempt.id IS NULL OR attempt.state<>'CLAIMED' THEN
+    RAISE EXCEPTION 'technical settlement requires an unresolved dispatch claim' USING ERRCODE='integrity_constraint_violation';
+  END IF;
+  IF NEW.outcome IN ('KNOWN','OVERRUN') THEN
+    IF NEW.input_tokens IS NULL OR NEW.output_tokens IS NULL OR NEW.input_tokens<0 OR NEW.output_tokens<0 THEN
+      RAISE EXCEPTION 'invalid technical usage' USING ERRCODE='integrity_constraint_violation';
+    END IF;
+    NEW.charged_cost := (NEW.input_tokens*account.input_per_million+NEW.output_tokens*account.output_per_million)/1000000;
+    NEW.outcome := CASE WHEN NEW.input_tokens>account.input_bound OR NEW.output_tokens>attempt.max_output_tokens THEN 'OVERRUN' ELSE 'KNOWN' END;
+  ELSE
+    NEW.charged_cost := attempt.reserved_cost;
+  END IF;
+  IF NEW.outcome IN ('OVERRUN','INVALID_USAGE') THEN
+    UPDATE platform.llm_poc_budget_accounts SET blocked=true WHERE id=NEW.account_id;
+  END IF;
+  RETURN NEW;
+END $$;
+
+ALTER FUNCTION platform.guard_llm_poc_settlement() OWNER TO ai_res_owner;
+
+CREATE FUNCTION platform.guard_model_admission_call() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  IF TG_OP='INSERT' THEN
+    IF NEW.status<>'IN_FLIGHT' OR NEW.finalized_at IS NOT NULL OR NEW.observed_sha256 IS NOT NULL THEN
+      RAISE EXCEPTION 'admission call starts unresolved' USING ERRCODE='integrity_constraint_violation';
+    END IF;
+  ELSIF OLD.status<>'IN_FLIGHT' OR NEW.status NOT IN ('VALIDATED','BLOCKED')
+     OR (to_jsonb(NEW)-'status'-'observed_sha256'-'finalized_at') IS DISTINCT FROM
+        (to_jsonb(OLD)-'status'-'observed_sha256'-'finalized_at') THEN
+    RAISE EXCEPTION 'admission call binding and terminal evidence are immutable' USING ERRCODE='integrity_constraint_violation';
+  END IF;
+  RETURN NEW;
+END $$;
+
+ALTER FUNCTION platform.guard_model_admission_call() OWNER TO ai_res_owner;
+
+CREATE FUNCTION platform.guard_model_admission_control() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  IF NEW.profile_id IS DISTINCT FROM OLD.profile_id THEN
+    RAISE EXCEPTION 'admission profile binding is immutable' USING ERRCODE='integrity_constraint_violation';
+  END IF;
+  IF current_user='ai_res_owner' THEN
+    IF NEW.current_generation IS DISTINCT FROM OLD.current_generation AND NEW.current_generation<=OLD.current_generation THEN
+      RAISE EXCEPTION 'admission generation must advance' USING ERRCODE='integrity_constraint_violation';
+    END IF;
+  ELSE
+    IF NEW.current_generation IS DISTINCT FROM OLD.current_generation OR (OLD.blocked AND NOT NEW.blocked) THEN
+      RAISE EXCEPTION 'runtime cannot approve or clear an admission block' USING ERRCODE='integrity_constraint_violation';
+    END IF;
+  END IF;
+  IF NEW.call_sequence NOT IN (OLD.call_sequence,OLD.call_sequence+1) THEN
+    RAISE EXCEPTION 'admission sequence must advance once' USING ERRCODE='integrity_constraint_violation';
+  END IF;
+  RETURN NEW;
+END $$;
+
+ALTER FUNCTION platform.guard_model_admission_control() OWNER TO ai_res_owner;
 
 CREATE FUNCTION platform.guard_model_profile() RETURNS trigger
     LANGUAGE plpgsql
@@ -704,6 +919,63 @@ BEGIN  -- TG_ARGV[0] = terminal status of a `status` column (REVOKED): it can be
 END $$;
 
 ALTER FUNCTION platform.keep_terminal_status() OWNER TO ai_res_owner;
+
+CREATE FUNCTION platform.owner_identity_snapshot(o uuid, u uuid, sid uuid, p uuid, d uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    SET "app.migration_mode" TO 'on'
+    AS $$
+DECLARE member jsonb; usr jsonb; factors jsonb; mfa text; profile text;
+  control text; current_record text; pending jsonb; gen integer; receipt jsonb;
+BEGIN
+  IF current_setting('transaction_isolation')<>'read committed' OR current_setting('session_replication_role')<>'origin' THEN
+    RAISE EXCEPTION 'operator isolation unavailable' USING ERRCODE='check_violation';
+  END IF;
+  PERFORM 1 FROM platform.model_admission_operators b WHERE b.database_login=session_user AND b.profile_id=p
+    AND b.organization_id=o AND b.user_id=u FOR SHARE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'operator unavailable' USING ERRCODE='insufficient_privilege'; END IF;
+  SELECT jsonb_build_object('role_code',m.role_code,'status',m.status,'row_version',m.row_version) INTO member
+    FROM organization.memberships m WHERE m.organization_id=o AND m.user_id=u AND m.status='ACTIVE' FOR SHARE;
+  SELECT jsonb_build_object('status',v.status,'row_version',v.row_version) INTO usr
+    FROM iam.users v WHERE v.organization_id=o AND v.id=u AND v.status='ACTIVE' FOR SHARE;
+  IF member IS NULL OR usr IS NULL THEN RAISE EXCEPTION 'owner unavailable' USING ERRCODE='insufficient_privilege'; END IF;
+  SELECT coalesce(jsonb_agg(f.id::text ORDER BY f.id),'[]'::jsonb) INTO factors FROM
+    (SELECT v.id FROM iam.mfa_factors v WHERE v.organization_id=o AND v.user_id=u AND v.status='ACTIVE' ORDER BY v.id FOR SHARE) f;
+  IF factors='[]'::jsonb THEN RAISE EXCEPTION 'MFA unavailable' USING ERRCODE='insufficient_privilege'; END IF;
+  SELECT v.mfa_verified_at::text INTO mfa FROM iam.sessions v WHERE v.id=sid AND v.organization_id=o AND v.user_id=u
+    AND v.revoked_at IS NULL AND v.idle_expires_at>clock_timestamp() AND v.absolute_expires_at>clock_timestamp() FOR SHARE;
+  IF mfa IS NULL THEN RAISE EXCEPTION 'session unavailable' USING ERRCODE='insufficient_privilege'; END IF;
+  IF NOT EXISTS(SELECT 1 FROM pg_catalog.pg_trigger t WHERE t.tgrelid='platform.model_profiles'::regclass
+    AND t.tgname='trg_model_profiles_lifecycle_fence' AND NOT t.tgisinternal AND t.tgenabled IN ('O','A')
+    AND t.tgtype=19 AND t.tgnargs=0 AND t.tgattr=''::pg_catalog.int2vector AND t.tgqual IS NULL
+    AND t.tgfoid=pg_catalog.to_regprocedure('platform.fence_model_profile_lifecycle()')) THEN
+    RAISE EXCEPTION 'lifecycle fence unavailable' USING ERRCODE='check_violation';
+  END IF;
+  PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('ai_res.model_profile_lifecycle:' || p::text,0));
+  SELECT to_jsonb(v)::text INTO profile FROM platform.model_profiles v WHERE v.id=p AND v.identity_mode='FLASH_OBSERVED'
+    AND v.provider='deepseek' AND v.provider_model_id='deepseek-flash' AND v.pinned_model_version IS NULL
+    AND v.status IN ('CANDIDATE','APPROVED') AND (v.deprecated_at IS NULL OR v.deprecated_at>clock_timestamp());
+  IF profile IS NULL THEN RAISE EXCEPTION 'profile unavailable' USING ERRCODE='check_violation'; END IF;
+  SELECT to_jsonb(c)::text,c.current_generation INTO control,gen FROM platform.model_admission_controls c WHERE c.profile_id=p FOR UPDATE;
+  gen:=coalesce(gen,0);
+  SELECT to_jsonb(v)::text INTO current_record FROM platform.model_admission_versions v WHERE v.profile_id=p AND v.generation=gen;
+  IF control IS NOT NULL AND current_record IS NULL THEN RAISE EXCEPTION 'admission unavailable' USING ERRCODE='check_violation'; END IF;
+  SELECT coalesce(jsonb_agg(x.snapshot ORDER BY x.call_sequence),'[]'::jsonb) INTO pending FROM
+    (SELECT to_jsonb(v)::text AS snapshot,v.call_sequence FROM platform.model_admission_calls v WHERE v.profile_id=p AND v.status='IN_FLIGHT') x;
+  SELECT jsonb_build_object('command_sha256',v.command_sha256,'generation',v.generation,'action',v.action) INTO receipt
+    FROM platform.model_admission_decisions v WHERE v.decision_id=d AND v.profile_id=p AND v.organization_id=o AND v.user_id=u
+    AND v.database_login=session_user AND v.session_id=sid;
+  -- Row locks cannot stop time. Recheck AFTER the fence/control waits.
+  IF NOT EXISTS(SELECT 1 FROM iam.sessions v WHERE v.id=sid AND v.user_id=u AND v.organization_id=o
+    AND v.revoked_at IS NULL AND v.mfa_verified_at IS NOT NULL AND v.idle_expires_at>clock_timestamp() AND v.absolute_expires_at>clock_timestamp())
+    OR NOT EXISTS(SELECT 1 FROM platform.model_profiles v WHERE v.id=p AND (v.deprecated_at IS NULL OR v.deprecated_at>clock_timestamp())) THEN
+    RAISE EXCEPTION 'owner or profile expired' USING ERRCODE='insufficient_privilege';
+  END IF;
+  RETURN jsonb_build_object('subject',jsonb_build_object('member',member,'user',usr,'factors',factors,'mfaAt',mfa),
+    'profile',profile,'control',control,'current',current_record,'pending',pending,'generation',gen,'receipt',receipt);
+END $$;
+
+ALTER FUNCTION platform.owner_identity_snapshot(o uuid, u uuid, sid uuid, p uuid, d uuid) OWNER TO ai_res_owner;
 
 CREATE FUNCTION platform.reject_modification() RETURNS trigger
     LANGUAGE plpgsql
@@ -2221,13 +2493,250 @@ ALTER TABLE ONLY platform.idempotency_records FORCE ROW LEVEL SECURITY;
 
 ALTER TABLE platform.idempotency_records OWNER TO ai_res_owner;
 
+CREATE TABLE platform.llm_poc_attempts (
+    id uuid NOT NULL,
+    account_id uuid NOT NULL,
+    sequence integer NOT NULL,
+    request_ref text NOT NULL,
+    case_ref text NOT NULL,
+    body_sha256 bytea NOT NULL,
+    payload_bytes integer NOT NULL,
+    stream boolean NOT NULL,
+    max_output_tokens integer NOT NULL,
+    plan_sha256 bytea NOT NULL,
+    tariff_sha256 bytea NOT NULL,
+    reserved_cost numeric NOT NULL,
+    state text DEFAULT 'RESERVED'::text NOT NULL,
+    claimed_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    CONSTRAINT ck_lpa_body_hash CHECK ((octet_length(body_sha256) = 32)),
+    CONSTRAINT ck_lpa_bytes CHECK (((payload_bytes >= 1) AND (payload_bytes <= 4096))),
+    CONSTRAINT ck_lpa_case CHECK ((case_ref = ANY (ARRAY['TEXT'::text, 'JSON'::text, 'TOOL'::text, 'SSE'::text, 'CANCEL'::text, 'TIMEOUT'::text, 'RECHECK'::text]))),
+    CONSTRAINT ck_lpa_claim_time CHECK ((((state = 'RESERVED'::text) AND (claimed_at IS NULL)) OR ((state = ANY (ARRAY['CLAIMED'::text, 'SETTLED'::text])) AND (claimed_at IS NOT NULL)))),
+    CONSTRAINT ck_lpa_cost CHECK (((reserved_cost > (0)::numeric) AND (reserved_cost < 'Infinity'::numeric))),
+    CONSTRAINT ck_lpa_output CHECK (((max_output_tokens >= 1) AND (max_output_tokens <= 256))),
+    CONSTRAINT ck_lpa_plan CHECK ((octet_length(plan_sha256) = 32)),
+    CONSTRAINT ck_lpa_request CHECK (((request_ref ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'::text) AND (request_ref !~ '[[:space:]]'::text))),
+    CONSTRAINT ck_lpa_sequence CHECK (((sequence >= 1) AND (sequence <= 8))),
+    CONSTRAINT ck_lpa_state CHECK ((state = ANY (ARRAY['RESERVED'::text, 'CLAIMED'::text, 'SETTLED'::text]))),
+    CONSTRAINT ck_lpa_tariff CHECK ((octet_length(tariff_sha256) = 32))
+);
+
+ALTER TABLE ONLY platform.llm_poc_attempts FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE platform.llm_poc_attempts OWNER TO ai_res_owner;
+
+CREATE TABLE platform.llm_poc_budget_accounts (
+    id uuid NOT NULL,
+    authorization_key text NOT NULL,
+    currency text NOT NULL,
+    max_cost numeric NOT NULL,
+    original_spend numeric NOT NULL,
+    max_attempts integer NOT NULL,
+    input_bound bigint NOT NULL,
+    output_bound integer NOT NULL,
+    body_bound integer NOT NULL,
+    provider text NOT NULL,
+    model_id text NOT NULL,
+    http_method text NOT NULL,
+    upstream_host text NOT NULL,
+    upstream_path text NOT NULL,
+    plan_sha256 bytea NOT NULL,
+    tariff_sha256 bytea NOT NULL,
+    input_per_million numeric NOT NULL,
+    output_per_million numeric NOT NULL,
+    attempt_sequence integer DEFAULT 0 NOT NULL,
+    blocked boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    CONSTRAINT ck_lpba_attempts CHECK (((max_attempts >= 1) AND (max_attempts <= 8))),
+    CONSTRAINT ck_lpba_authorization CHECK ((authorization_key = 'FLASH_TECHNICAL_ADMISSION_2026_11_17'::text)),
+    CONSTRAINT ck_lpba_body CHECK ((body_bound = 4096)),
+    CONSTRAINT ck_lpba_cap CHECK (((max_cost > (0)::numeric) AND (max_cost <= (10)::numeric))),
+    CONSTRAINT ck_lpba_currency CHECK ((currency = 'USD'::text)),
+    CONSTRAINT ck_lpba_host CHECK ((upstream_host = 'api.deepseek.com'::text)),
+    CONSTRAINT ck_lpba_input CHECK ((input_bound = 2000000)),
+    CONSTRAINT ck_lpba_input_rate CHECK (((input_per_million >= (0)::numeric) AND (input_per_million < 'Infinity'::numeric))),
+    CONSTRAINT ck_lpba_method CHECK ((http_method = 'POST'::text)),
+    CONSTRAINT ck_lpba_model CHECK ((model_id = 'deepseek-flash'::text)),
+    CONSTRAINT ck_lpba_original CHECK (((original_spend >= (0)::numeric) AND (original_spend <= max_cost))),
+    CONSTRAINT ck_lpba_output CHECK ((output_bound = 256)),
+    CONSTRAINT ck_lpba_output_rate CHECK (((output_per_million >= (0)::numeric) AND (output_per_million < 'Infinity'::numeric))),
+    CONSTRAINT ck_lpba_path CHECK ((upstream_path = '/chat/completions'::text)),
+    CONSTRAINT ck_lpba_plan CHECK ((octet_length(plan_sha256) = 32)),
+    CONSTRAINT ck_lpba_provider CHECK ((provider = 'deepseek'::text)),
+    CONSTRAINT ck_lpba_reservable CHECK (((((((input_bound)::numeric * input_per_million) + ((output_bound)::numeric * output_per_million)) / (1000000)::numeric) > (0)::numeric) AND (((((input_bound)::numeric * input_per_million) + ((output_bound)::numeric * output_per_million)) / (1000000)::numeric) <= max_cost))),
+    CONSTRAINT ck_lpba_sequence CHECK (((attempt_sequence >= 0) AND (attempt_sequence <= max_attempts))),
+    CONSTRAINT ck_lpba_tariff CHECK ((octet_length(tariff_sha256) = 32))
+);
+
+ALTER TABLE ONLY platform.llm_poc_budget_accounts FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE platform.llm_poc_budget_accounts OWNER TO ai_res_owner;
+
+CREATE TABLE platform.llm_poc_budget_audit (
+    id uuid NOT NULL,
+    account_id uuid NOT NULL,
+    attempt_id uuid,
+    action text NOT NULL,
+    reason_code text NOT NULL,
+    writer_role text DEFAULT CURRENT_USER NOT NULL,
+    occurred_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    CONSTRAINT ck_lpau_action CHECK ((action = ANY (ARRAY['RESERVE'::text, 'CLAIM'::text, 'SETTLE'::text, 'DENY'::text, 'BLOCK'::text]))),
+    CONSTRAINT ck_lpau_reason CHECK ((reason_code = ANY (ARRAY['RESERVED'::text, 'CLAIMED'::text, 'KNOWN'::text, 'UNKNOWN'::text, 'OVERRUN'::text, 'INVALID_USAGE'::text, 'ACCOUNT_BLOCKED'::text, 'BUDGET_EXHAUSTED'::text, 'ATTEMPTS_EXHAUSTED'::text, 'PENDING'::text, 'BINDING_MISMATCH'::text, 'REQUEST_REUSED'::text, 'BODY_REUSED'::text, 'CLAIM_REPLAY'::text, 'SETTLEMENT_CONFLICT'::text, 'INVALID_STATE'::text])))
+);
+
+ALTER TABLE ONLY platform.llm_poc_budget_audit FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE platform.llm_poc_budget_audit OWNER TO ai_res_owner;
+
+CREATE TABLE platform.llm_poc_settlements (
+    id uuid NOT NULL,
+    account_id uuid NOT NULL,
+    attempt_id uuid NOT NULL,
+    outcome text NOT NULL,
+    reason_code text NOT NULL,
+    input_tokens bigint,
+    output_tokens bigint,
+    provider_request_ref text,
+    proof_sha256 bytea NOT NULL,
+    charged_cost numeric NOT NULL,
+    created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    CONSTRAINT ck_lps_charge CHECK (((charged_cost >= (0)::numeric) AND (charged_cost < 'Infinity'::numeric))),
+    CONSTRAINT ck_lps_input CHECK ((input_tokens >= 0)),
+    CONSTRAINT ck_lps_outcome CHECK ((outcome = ANY (ARRAY['KNOWN'::text, 'UNKNOWN'::text, 'OVERRUN'::text, 'INVALID_USAGE'::text]))),
+    CONSTRAINT ck_lps_output CHECK ((output_tokens >= 0)),
+    CONSTRAINT ck_lps_proof CHECK ((octet_length(proof_sha256) = 32)),
+    CONSTRAINT ck_lps_provider_ref CHECK (((provider_request_ref ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'::text) AND (provider_request_ref !~ '[[:space:]]'::text))),
+    CONSTRAINT ck_lps_reason CHECK ((reason_code = ANY (ARRAY['USAGE'::text, 'TIMEOUT'::text, 'CANCEL'::text, 'NETWORK'::text, 'PROVIDER_ERROR'::text, 'UNTRUSTED_RESPONSE'::text, 'INVALID_USAGE'::text]))),
+    CONSTRAINT ck_lps_shape CHECK (((((outcome = ANY (ARRAY['KNOWN'::text, 'OVERRUN'::text])) AND (input_tokens IS NOT NULL) AND (output_tokens IS NOT NULL) AND (provider_request_ref IS NOT NULL) AND (reason_code = 'USAGE'::text)) OR ((outcome = 'UNKNOWN'::text) AND (input_tokens IS NULL) AND (output_tokens IS NULL) AND (provider_request_ref IS NULL) AND (reason_code = ANY (ARRAY['TIMEOUT'::text, 'CANCEL'::text, 'NETWORK'::text, 'PROVIDER_ERROR'::text, 'UNTRUSTED_RESPONSE'::text]))) OR ((outcome = 'INVALID_USAGE'::text) AND (input_tokens IS NULL) AND (output_tokens IS NULL) AND (provider_request_ref IS NULL) AND (reason_code = 'INVALID_USAGE'::text))) IS TRUE))
+);
+
+ALTER TABLE ONLY platform.llm_poc_settlements FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE platform.llm_poc_settlements OWNER TO ai_res_owner;
+
+CREATE TABLE platform.model_admission_audit (
+    id uuid NOT NULL,
+    profile_id uuid NOT NULL,
+    call_id uuid NOT NULL,
+    event_type text NOT NULL,
+    reason_code text NOT NULL,
+    writer_role text DEFAULT CURRENT_USER NOT NULL,
+    occurred_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    CONSTRAINT ck_maa_event_reason CHECK ((((event_type = 'BEGIN'::text) AND (reason_code = 'RESERVED'::text)) OR ((event_type = 'VALIDATED'::text) AND (reason_code = 'MATCH'::text)) OR ((event_type = 'BLOCKED'::text) AND (reason_code = ANY (ARRAY['IDENTITY_MISMATCH'::text, 'MALFORMED_OBSERVATION'::text]))))),
+    CONSTRAINT ck_maa_reason CHECK ((reason_code = ANY (ARRAY['RESERVED'::text, 'MATCH'::text, 'IDENTITY_MISMATCH'::text, 'MALFORMED_OBSERVATION'::text]))),
+    CONSTRAINT ck_maa_type CHECK ((event_type = ANY (ARRAY['BEGIN'::text, 'VALIDATED'::text, 'BLOCKED'::text])))
+);
+
+ALTER TABLE ONLY platform.model_admission_audit FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE platform.model_admission_audit OWNER TO ai_res_owner;
+
+CREATE TABLE platform.model_admission_calls (
+    id uuid NOT NULL,
+    profile_id uuid NOT NULL,
+    generation integer NOT NULL,
+    call_sequence bigint NOT NULL,
+    request_ref text NOT NULL,
+    expected_sha256 bytea NOT NULL,
+    status text DEFAULT 'IN_FLIGHT'::text NOT NULL,
+    observed_sha256 bytea,
+    finalized_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    CONSTRAINT ck_mcall_expected CHECK ((octet_length(expected_sha256) = 32)),
+    CONSTRAINT ck_mcall_final CHECK ((((status = 'IN_FLIGHT'::text) AND (finalized_at IS NULL) AND (observed_sha256 IS NULL)) OR ((status = 'VALIDATED'::text) AND (finalized_at IS NOT NULL) AND (observed_sha256 IS NOT NULL)) OR ((status = 'BLOCKED'::text) AND (finalized_at IS NOT NULL)))),
+    CONSTRAINT ck_mcall_observed CHECK (((observed_sha256 IS NULL) OR (octet_length(observed_sha256) = 32))),
+    CONSTRAINT ck_mcall_ref CHECK (((request_ref ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'::text) AND (request_ref !~ '[[:space:]]'::text))),
+    CONSTRAINT ck_mcall_sequence CHECK ((call_sequence > 0)),
+    CONSTRAINT ck_mcall_status CHECK ((status = ANY (ARRAY['IN_FLIGHT'::text, 'VALIDATED'::text, 'BLOCKED'::text])))
+);
+
+ALTER TABLE ONLY platform.model_admission_calls FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE platform.model_admission_calls OWNER TO ai_res_owner;
+
+CREATE TABLE platform.model_admission_controls (
+    profile_id uuid NOT NULL,
+    current_generation integer NOT NULL,
+    blocked boolean DEFAULT false NOT NULL,
+    call_sequence bigint DEFAULT 0 NOT NULL,
+    CONSTRAINT ck_mac_sequence CHECK ((call_sequence >= 0))
+);
+
+ALTER TABLE ONLY platform.model_admission_controls FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE platform.model_admission_controls OWNER TO ai_res_owner;
+
+CREATE TABLE platform.model_admission_decisions (
+    decision_id uuid NOT NULL,
+    profile_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    session_id uuid NOT NULL,
+    database_login name DEFAULT SESSION_USER NOT NULL,
+    action text NOT NULL,
+    generation integer NOT NULL,
+    command_sha256 text NOT NULL,
+    review_sha256 text NOT NULL,
+    profile_sha256 text NOT NULL,
+    expectation_sha256 text NOT NULL,
+    observation_sha256 text NOT NULL,
+    policy_version text NOT NULL,
+    reason_code text NOT NULL,
+    correlation_id uuid NOT NULL,
+    occurred_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    CONSTRAINT ck_mad_action CHECK ((action = ANY (ARRAY['ACCEPT_IDENTITY'::text, 'BLOCK'::text]))),
+    CONSTRAINT ck_mad_action_reason CHECK ((((action = 'ACCEPT_IDENTITY'::text) AND (reason_code = 'HUMAN_IDENTITY_ACCEPTED'::text)) OR ((action = 'BLOCK'::text) AND (reason_code = 'HUMAN_BLOCKED'::text)))),
+    CONSTRAINT ck_mad_command CHECK ((command_sha256 ~ '^[0-9a-f]{64}$'::text)),
+    CONSTRAINT ck_mad_expectation CHECK ((expectation_sha256 ~ '^[0-9a-f]{64}$'::text)),
+    CONSTRAINT ck_mad_generation CHECK ((generation > 0)),
+    CONSTRAINT ck_mad_observation CHECK ((observation_sha256 ~ '^[0-9a-f]{64}$'::text)),
+    CONSTRAINT ck_mad_policy CHECK ((policy_version ~ '^[A-Za-z0-9_.:-]{1,128}$'::text)),
+    CONSTRAINT ck_mad_profile CHECK ((profile_sha256 ~ '^[0-9a-f]{64}$'::text)),
+    CONSTRAINT ck_mad_reason CHECK ((reason_code = ANY (ARRAY['HUMAN_IDENTITY_ACCEPTED'::text, 'HUMAN_BLOCKED'::text]))),
+    CONSTRAINT ck_mad_review CHECK ((review_sha256 ~ '^[0-9a-f]{64}$'::text))
+);
+
+ALTER TABLE ONLY platform.model_admission_decisions FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE platform.model_admission_decisions OWNER TO ai_res_owner;
+
+CREATE TABLE platform.model_admission_operators (
+    database_login name NOT NULL,
+    profile_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL
+);
+
+ALTER TABLE ONLY platform.model_admission_operators FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE platform.model_admission_operators OWNER TO ai_res_owner;
+
+CREATE TABLE platform.model_admission_versions (
+    profile_id uuid NOT NULL,
+    generation integer NOT NULL,
+    profile_version integer NOT NULL,
+    expectation jsonb NOT NULL,
+    expectation_sha256 bytea NOT NULL,
+    created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    CONSTRAINT ck_mav_expectation CHECK ((jsonb_typeof(expectation) = 'object'::text)),
+    CONSTRAINT ck_mav_generation CHECK ((generation > 0)),
+    CONSTRAINT ck_mav_hash CHECK ((octet_length(expectation_sha256) = 32)),
+    CONSTRAINT ck_mav_profile_version CHECK ((profile_version > 0))
+);
+
+ALTER TABLE ONLY platform.model_admission_versions FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE platform.model_admission_versions OWNER TO ai_res_owner;
+
 CREATE TABLE platform.model_profiles (
     id uuid NOT NULL,
     profile_key text NOT NULL,
     profile_version integer NOT NULL,
     provider text NOT NULL,
     provider_model_id text NOT NULL,
-    pinned_model_version text NOT NULL,
+    pinned_model_version text,
     capabilities text[] NOT NULL,
     context_window_tokens integer NOT NULL,
     max_output_tokens integer NOT NULL,
@@ -2248,6 +2757,7 @@ CREATE TABLE platform.model_profiles (
     approved_by uuid,
     deprecated_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
+    identity_mode text DEFAULT 'IMMUTABLE'::text NOT NULL,
     CONSTRAINT ck_model_profiles_allowed_regions CHECK (((cardinality(allowed_regions) >= 1) AND (array_to_string(allowed_regions, ','::text) ~ '^[a-z0-9][a-z0-9-]{0,31}(,[a-z0-9][a-z0-9-]{0,31})*$'::text))),
     CONSTRAINT ck_model_profiles_approval_recorded CHECK (((status = 'CANDIDATE'::text) OR ((approved_at IS NOT NULL) AND (approved_by IS NOT NULL)))),
     CONSTRAINT ck_model_profiles_capabilities CHECK (((cardinality(capabilities) >= 1) AND (capabilities <@ ARRAY['CHAT'::text, 'STRUCTURED_OUTPUT'::text, 'TOOL_CALLING'::text, 'STREAMING'::text, 'VISION'::text, 'EMBEDDING'::text]))),
@@ -2260,6 +2770,8 @@ CREATE TABLE platform.model_profiles (
     CONSTRAINT ck_model_profiles_egress CHECK ((egress = ANY (ARRAY['LOCAL'::text, 'EXTERNAL'::text]))),
     CONSTRAINT ck_model_profiles_evaluation_manifest_ref CHECK (((length(evaluation_manifest_ref) >= 1) AND (length(evaluation_manifest_ref) <= 500))),
     CONSTRAINT ck_model_profiles_fallback_group CHECK ((fallback_group ~ '^[a-z][a-z0-9_.-]{0,63}$'::text)),
+    CONSTRAINT ck_model_profiles_identity_binding CHECK (((((identity_mode = 'IMMUTABLE'::text) AND (pinned_model_version IS NOT NULL)) OR ((identity_mode = 'FLASH_OBSERVED'::text) AND (pinned_model_version IS NULL) AND (provider = 'deepseek'::text) AND (provider_model_id = 'deepseek-flash'::text))) IS TRUE)),
+    CONSTRAINT ck_model_profiles_identity_mode CHECK ((identity_mode = ANY (ARRAY['IMMUTABLE'::text, 'FLASH_OBSERVED'::text]))),
     CONSTRAINT ck_model_profiles_max_output_tokens CHECK (((max_output_tokens >= 1) AND (max_output_tokens <= context_window_tokens))),
     CONSTRAINT ck_model_profiles_pinned_model_version CHECK ((((length(btrim(pinned_model_version)) >= 1) AND (length(btrim(pinned_model_version)) <= 100)) AND (lower(btrim(pinned_model_version)) <> ALL (ARRAY['latest'::text, 'stable'::text, 'default'::text, 'current'::text, 'newest'::text])))),
     CONSTRAINT ck_model_profiles_profile_key CHECK ((profile_key ~ '^[a-z][a-z0-9_.-]{0,63}$'::text)),
@@ -3106,11 +3618,74 @@ ALTER TABLE ONLY platform.display_number_counters
 ALTER TABLE ONLY platform.idempotency_records
     ADD CONSTRAINT pk_idempotency_records PRIMARY KEY (id);
 
+ALTER TABLE ONLY platform.llm_poc_attempts
+    ADD CONSTRAINT pk_llm_poc_attempts PRIMARY KEY (id);
+
+ALTER TABLE ONLY platform.llm_poc_budget_accounts
+    ADD CONSTRAINT pk_llm_poc_budget_accounts PRIMARY KEY (id);
+
+ALTER TABLE ONLY platform.llm_poc_budget_audit
+    ADD CONSTRAINT pk_llm_poc_budget_audit PRIMARY KEY (id);
+
+ALTER TABLE ONLY platform.llm_poc_settlements
+    ADD CONSTRAINT pk_llm_poc_settlements PRIMARY KEY (id);
+
+ALTER TABLE ONLY platform.model_admission_audit
+    ADD CONSTRAINT pk_model_admission_audit PRIMARY KEY (id);
+
+ALTER TABLE ONLY platform.model_admission_calls
+    ADD CONSTRAINT pk_model_admission_calls PRIMARY KEY (id);
+
+ALTER TABLE ONLY platform.model_admission_controls
+    ADD CONSTRAINT pk_model_admission_controls PRIMARY KEY (profile_id);
+
+ALTER TABLE ONLY platform.model_admission_decisions
+    ADD CONSTRAINT pk_model_admission_decisions PRIMARY KEY (decision_id);
+
+ALTER TABLE ONLY platform.model_admission_operators
+    ADD CONSTRAINT pk_model_admission_operators PRIMARY KEY (database_login, profile_id);
+
+ALTER TABLE ONLY platform.model_admission_versions
+    ADD CONSTRAINT pk_model_admission_versions PRIMARY KEY (profile_id, generation);
+
 ALTER TABLE ONLY platform.model_profiles
     ADD CONSTRAINT pk_model_profiles PRIMARY KEY (id);
 
 ALTER TABLE ONLY platform.idempotency_records
     ADD CONSTRAINT uq_idempotency_records_organization_id_scope_type_scope_id_key_ UNIQUE (organization_id, scope_type, scope_id, key_digest);
+
+ALTER TABLE ONLY platform.llm_poc_attempts
+    ADD CONSTRAINT uq_lpa_body UNIQUE (account_id, body_sha256);
+
+ALTER TABLE ONLY platform.llm_poc_attempts
+    ADD CONSTRAINT uq_lpa_request UNIQUE (account_id, request_ref);
+
+ALTER TABLE ONLY platform.llm_poc_attempts
+    ADD CONSTRAINT uq_lpa_scope_id UNIQUE (account_id, id);
+
+ALTER TABLE ONLY platform.llm_poc_attempts
+    ADD CONSTRAINT uq_lpa_sequence UNIQUE (account_id, sequence);
+
+ALTER TABLE ONLY platform.llm_poc_budget_accounts
+    ADD CONSTRAINT uq_lpba_authorization UNIQUE (authorization_key);
+
+ALTER TABLE ONLY platform.llm_poc_settlements
+    ADD CONSTRAINT uq_lps_attempt UNIQUE (attempt_id);
+
+ALTER TABLE ONLY platform.model_admission_audit
+    ADD CONSTRAINT uq_maa_call_event UNIQUE (call_id, event_type);
+
+ALTER TABLE ONLY platform.model_admission_versions
+    ADD CONSTRAINT uq_mav_binding UNIQUE (profile_id, generation, expectation_sha256);
+
+ALTER TABLE ONLY platform.model_admission_calls
+    ADD CONSTRAINT uq_mcall_request UNIQUE (profile_id, request_ref);
+
+ALTER TABLE ONLY platform.model_admission_calls
+    ADD CONSTRAINT uq_mcall_scope_id UNIQUE (profile_id, id);
+
+ALTER TABLE ONLY platform.model_admission_calls
+    ADD CONSTRAINT uq_mcall_sequence UNIQUE (profile_id, call_sequence);
 
 ALTER TABLE ONLY platform.model_profiles
     ADD CONSTRAINT uq_model_profiles_profile_key_profile_version UNIQUE (profile_key, profile_version);
@@ -3449,6 +4024,24 @@ CREATE INDEX ix_operations_project_id_created_at ON operations.operations USING 
 CREATE INDEX ix_bootstrap_state_organization_id ON platform.bootstrap_state USING btree (organization_id);
 
 CREATE INDEX ix_idempotency_records_expires_at ON platform.idempotency_records USING btree (expires_at);
+
+CREATE UNIQUE INDEX ix_lpa_single_flight ON platform.llm_poc_attempts USING btree (account_id) WHERE (state = ANY (ARRAY['RESERVED'::text, 'CLAIMED'::text]));
+
+CREATE INDEX ix_lpau_attempt_scope ON platform.llm_poc_budget_audit USING btree (account_id, attempt_id);
+
+CREATE INDEX ix_lps_attempt_scope ON platform.llm_poc_settlements USING btree (account_id, attempt_id);
+
+CREATE INDEX ix_maa_call_scope ON platform.model_admission_audit USING btree (profile_id, call_id);
+
+CREATE INDEX ix_mad_profile ON platform.model_admission_decisions USING btree (profile_id, generation);
+
+CREATE INDEX ix_mad_subject ON platform.model_admission_decisions USING btree (organization_id, user_id);
+
+CREATE INDEX ix_mao_profile ON platform.model_admission_operators USING btree (profile_id);
+
+CREATE INDEX ix_mao_subject ON platform.model_admission_operators USING btree (organization_id, user_id);
+
+CREATE UNIQUE INDEX ix_mcall_single_flight ON platform.model_admission_calls USING btree (profile_id) WHERE (status = 'IN_FLIGHT'::text);
 
 CREATE INDEX ix_model_profiles_approved_by ON platform.model_profiles USING btree (approved_by);
 
@@ -3804,7 +4397,63 @@ CREATE TRIGGER trg_idempotency_records_freeze_finished BEFORE UPDATE ON platform
 
 CREATE TRIGGER trg_idempotency_records_immutable_columns BEFORE UPDATE ON platform.idempotency_records FOR EACH ROW EXECUTE FUNCTION platform.keep_columns_immutable('id', 'organization_id', 'project_id', 'scope_type', 'scope_id', 'key_digest', 'key_id', 'request_fingerprint', 'created_at', 'expires_at');
 
+CREATE TRIGGER trg_llm_poc_attempts_append_only BEFORE DELETE ON platform.llm_poc_attempts FOR EACH ROW EXECUTE FUNCTION platform.reject_modification();
+
+CREATE TRIGGER trg_llm_poc_attempts_no_truncate BEFORE TRUNCATE ON platform.llm_poc_attempts FOR EACH STATEMENT EXECUTE FUNCTION platform.reject_modification();
+
+CREATE TRIGGER trg_llm_poc_budget_accounts_append_only BEFORE DELETE ON platform.llm_poc_budget_accounts FOR EACH ROW EXECUTE FUNCTION platform.reject_modification();
+
+CREATE TRIGGER trg_llm_poc_budget_accounts_no_truncate BEFORE TRUNCATE ON platform.llm_poc_budget_accounts FOR EACH STATEMENT EXECUTE FUNCTION platform.reject_modification();
+
+CREATE TRIGGER trg_llm_poc_budget_audit_append_only BEFORE DELETE OR UPDATE ON platform.llm_poc_budget_audit FOR EACH ROW EXECUTE FUNCTION platform.reject_modification();
+
+CREATE TRIGGER trg_llm_poc_budget_audit_no_truncate BEFORE TRUNCATE ON platform.llm_poc_budget_audit FOR EACH STATEMENT EXECUTE FUNCTION platform.reject_modification();
+
+CREATE TRIGGER trg_llm_poc_settlements_append_only BEFORE DELETE OR UPDATE ON platform.llm_poc_settlements FOR EACH ROW EXECUTE FUNCTION platform.reject_modification();
+
+CREATE TRIGGER trg_llm_poc_settlements_no_truncate BEFORE TRUNCATE ON platform.llm_poc_settlements FOR EACH STATEMENT EXECUTE FUNCTION platform.reject_modification();
+
+CREATE TRIGGER trg_lpa_guard BEFORE INSERT OR UPDATE ON platform.llm_poc_attempts FOR EACH ROW EXECUTE FUNCTION platform.guard_llm_poc_attempt();
+
+CREATE TRIGGER trg_lpba_guard BEFORE UPDATE ON platform.llm_poc_budget_accounts FOR EACH ROW EXECUTE FUNCTION platform.guard_llm_poc_account();
+
+CREATE TRIGGER trg_lps_finish AFTER INSERT ON platform.llm_poc_settlements FOR EACH ROW EXECUTE FUNCTION platform.finish_llm_poc_settlement();
+
+CREATE TRIGGER trg_lps_guard BEFORE INSERT ON platform.llm_poc_settlements FOR EACH ROW EXECUTE FUNCTION platform.guard_llm_poc_settlement();
+
+CREATE TRIGGER trg_mac_guard BEFORE UPDATE ON platform.model_admission_controls FOR EACH ROW EXECUTE FUNCTION platform.guard_model_admission_control();
+
+CREATE TRIGGER trg_mac_reapproval_generation BEFORE UPDATE ON platform.model_admission_controls FOR EACH ROW EXECUTE FUNCTION platform.guard_admission_reapproval_generation();
+
+CREATE TRIGGER trg_mcall_guard BEFORE INSERT OR UPDATE ON platform.model_admission_calls FOR EACH ROW EXECUTE FUNCTION platform.guard_model_admission_call();
+
+CREATE TRIGGER trg_model_admission_audit_append_only BEFORE DELETE OR UPDATE ON platform.model_admission_audit FOR EACH ROW EXECUTE FUNCTION platform.reject_modification();
+
+CREATE TRIGGER trg_model_admission_audit_no_truncate BEFORE TRUNCATE ON platform.model_admission_audit FOR EACH STATEMENT EXECUTE FUNCTION platform.reject_modification();
+
+CREATE TRIGGER trg_model_admission_calls_no_delete BEFORE DELETE ON platform.model_admission_calls FOR EACH ROW EXECUTE FUNCTION platform.reject_modification();
+
+CREATE TRIGGER trg_model_admission_calls_no_truncate BEFORE TRUNCATE ON platform.model_admission_calls FOR EACH STATEMENT EXECUTE FUNCTION platform.reject_modification();
+
+CREATE TRIGGER trg_model_admission_controls_no_delete BEFORE DELETE ON platform.model_admission_controls FOR EACH ROW EXECUTE FUNCTION platform.reject_modification();
+
+CREATE TRIGGER trg_model_admission_controls_no_truncate BEFORE TRUNCATE ON platform.model_admission_controls FOR EACH STATEMENT EXECUTE FUNCTION platform.reject_modification();
+
+CREATE TRIGGER trg_model_admission_decisions_append_only BEFORE DELETE OR UPDATE ON platform.model_admission_decisions FOR EACH ROW EXECUTE FUNCTION platform.reject_modification();
+
+CREATE TRIGGER trg_model_admission_decisions_no_truncate BEFORE TRUNCATE ON platform.model_admission_decisions FOR EACH STATEMENT EXECUTE FUNCTION platform.reject_modification();
+
+CREATE TRIGGER trg_model_admission_operators_append_only BEFORE DELETE OR UPDATE ON platform.model_admission_operators FOR EACH ROW EXECUTE FUNCTION platform.reject_modification();
+
+CREATE TRIGGER trg_model_admission_operators_no_truncate BEFORE TRUNCATE ON platform.model_admission_operators FOR EACH STATEMENT EXECUTE FUNCTION platform.reject_modification();
+
+CREATE TRIGGER trg_model_admission_versions_append_only BEFORE DELETE OR UPDATE ON platform.model_admission_versions FOR EACH ROW EXECUTE FUNCTION platform.reject_modification();
+
+CREATE TRIGGER trg_model_admission_versions_no_truncate BEFORE TRUNCATE ON platform.model_admission_versions FOR EACH STATEMENT EXECUTE FUNCTION platform.reject_modification();
+
 CREATE TRIGGER trg_model_profiles_guard BEFORE INSERT OR DELETE OR UPDATE ON platform.model_profiles FOR EACH ROW EXECUTE FUNCTION platform.guard_model_profile();
+
+CREATE TRIGGER trg_model_profiles_lifecycle_fence BEFORE UPDATE ON platform.model_profiles FOR EACH ROW EXECUTE FUNCTION platform.fence_model_profile_lifecycle();
 
 CREATE TRIGGER trg_model_profiles_no_truncate BEFORE TRUNCATE ON platform.model_profiles FOR EACH STATEMENT EXECUTE FUNCTION platform.reject_modification();
 
@@ -4292,6 +4941,45 @@ ALTER TABLE ONLY platform.idempotency_records
 ALTER TABLE ONLY platform.idempotency_records
     ADD CONSTRAINT fk_idempotency_records_organization_id_project_id_projects FOREIGN KEY (organization_id, project_id) REFERENCES project.projects(organization_id, id) ON DELETE RESTRICT;
 
+ALTER TABLE ONLY platform.llm_poc_attempts
+    ADD CONSTRAINT fk_lpa_account FOREIGN KEY (account_id) REFERENCES platform.llm_poc_budget_accounts(id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY platform.llm_poc_budget_audit
+    ADD CONSTRAINT fk_lpau_account FOREIGN KEY (account_id) REFERENCES platform.llm_poc_budget_accounts(id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY platform.llm_poc_budget_audit
+    ADD CONSTRAINT fk_lpau_attempt FOREIGN KEY (account_id, attempt_id) REFERENCES platform.llm_poc_attempts(account_id, id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY platform.llm_poc_settlements
+    ADD CONSTRAINT fk_lps_attempt FOREIGN KEY (account_id, attempt_id) REFERENCES platform.llm_poc_attempts(account_id, id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY platform.model_admission_audit
+    ADD CONSTRAINT fk_maa_call FOREIGN KEY (profile_id, call_id) REFERENCES platform.model_admission_calls(profile_id, id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY platform.model_admission_controls
+    ADD CONSTRAINT fk_mac_generation FOREIGN KEY (profile_id, current_generation) REFERENCES platform.model_admission_versions(profile_id, generation) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY platform.model_admission_decisions
+    ADD CONSTRAINT fk_mad_generation FOREIGN KEY (profile_id, generation) REFERENCES platform.model_admission_versions(profile_id, generation) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY platform.model_admission_decisions
+    ADD CONSTRAINT fk_mad_profile FOREIGN KEY (profile_id) REFERENCES platform.model_profiles(id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY platform.model_admission_decisions
+    ADD CONSTRAINT fk_mad_subject FOREIGN KEY (organization_id, user_id) REFERENCES iam.users(organization_id, id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY platform.model_admission_operators
+    ADD CONSTRAINT fk_mao_profile FOREIGN KEY (profile_id) REFERENCES platform.model_profiles(id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY platform.model_admission_operators
+    ADD CONSTRAINT fk_mao_subject FOREIGN KEY (organization_id, user_id) REFERENCES iam.users(organization_id, id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY platform.model_admission_versions
+    ADD CONSTRAINT fk_mav_profile FOREIGN KEY (profile_id) REFERENCES platform.model_profiles(id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY platform.model_admission_calls
+    ADD CONSTRAINT fk_mcall_generation FOREIGN KEY (profile_id, generation, expected_sha256) REFERENCES platform.model_admission_versions(profile_id, generation, expectation_sha256) ON DELETE RESTRICT;
+
 ALTER TABLE ONLY platform.model_profiles
     ADD CONSTRAINT fk_model_profiles_approved_by_users FOREIGN KEY (approved_by) REFERENCES iam.users(id) ON DELETE RESTRICT;
 
@@ -4761,6 +5449,26 @@ ALTER TABLE platform.display_number_counters ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE platform.idempotency_records ENABLE ROW LEVEL SECURITY;
 
+ALTER TABLE platform.llm_poc_attempts ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE platform.llm_poc_budget_accounts ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE platform.llm_poc_budget_audit ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE platform.llm_poc_settlements ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE platform.model_admission_audit ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE platform.model_admission_calls ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE platform.model_admission_controls ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE platform.model_admission_decisions ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE platform.model_admission_operators ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE platform.model_admission_versions ENABLE ROW LEVEL SECURITY;
+
 CREATE POLICY p_bootstrap_state_owner_migration ON platform.bootstrap_state TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
 
 CREATE POLICY p_bootstrap_state_tenant_scope ON platform.bootstrap_state TO ai_res_api_group USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
@@ -4772,6 +5480,60 @@ CREATE POLICY p_display_number_counters_tenant_scope ON platform.display_number_
 CREATE POLICY p_idempotency_records_owner_migration ON platform.idempotency_records TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
 
 CREATE POLICY p_idempotency_records_tenant_scope ON platform.idempotency_records TO ai_res_api_group USING (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (NOT (project_id IS DISTINCT FROM (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid)))) WITH CHECK (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (NOT (project_id IS DISTINCT FROM (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid))));
+
+CREATE POLICY p_llm_poc_attempts_insert ON platform.llm_poc_attempts FOR INSERT TO ai_res_api_group WITH CHECK ((account_id = (NULLIF(current_setting('app.llm_poc_budget_id'::text, true), ''::text))::uuid));
+
+CREATE POLICY p_llm_poc_attempts_owner_migration ON platform.llm_poc_attempts TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
+
+CREATE POLICY p_llm_poc_attempts_read ON platform.llm_poc_attempts FOR SELECT TO ai_res_api_group USING ((account_id = (NULLIF(current_setting('app.llm_poc_budget_id'::text, true), ''::text))::uuid));
+
+CREATE POLICY p_llm_poc_attempts_update ON platform.llm_poc_attempts FOR UPDATE TO ai_res_api_group USING ((account_id = (NULLIF(current_setting('app.llm_poc_budget_id'::text, true), ''::text))::uuid)) WITH CHECK ((account_id = (NULLIF(current_setting('app.llm_poc_budget_id'::text, true), ''::text))::uuid));
+
+CREATE POLICY p_llm_poc_budget_accounts_owner_migration ON platform.llm_poc_budget_accounts TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
+
+CREATE POLICY p_llm_poc_budget_accounts_read ON platform.llm_poc_budget_accounts FOR SELECT TO ai_res_api_group USING ((id = (NULLIF(current_setting('app.llm_poc_budget_id'::text, true), ''::text))::uuid));
+
+CREATE POLICY p_llm_poc_budget_accounts_update ON platform.llm_poc_budget_accounts FOR UPDATE TO ai_res_api_group USING ((id = (NULLIF(current_setting('app.llm_poc_budget_id'::text, true), ''::text))::uuid)) WITH CHECK ((id = (NULLIF(current_setting('app.llm_poc_budget_id'::text, true), ''::text))::uuid));
+
+CREATE POLICY p_llm_poc_budget_audit_insert ON platform.llm_poc_budget_audit FOR INSERT TO ai_res_api_group WITH CHECK ((account_id = (NULLIF(current_setting('app.llm_poc_budget_id'::text, true), ''::text))::uuid));
+
+CREATE POLICY p_llm_poc_budget_audit_owner_migration ON platform.llm_poc_budget_audit TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
+
+CREATE POLICY p_llm_poc_budget_audit_read ON platform.llm_poc_budget_audit FOR SELECT TO ai_res_api_group USING ((account_id = (NULLIF(current_setting('app.llm_poc_budget_id'::text, true), ''::text))::uuid));
+
+CREATE POLICY p_llm_poc_settlements_insert ON platform.llm_poc_settlements FOR INSERT TO ai_res_api_group WITH CHECK ((account_id = (NULLIF(current_setting('app.llm_poc_budget_id'::text, true), ''::text))::uuid));
+
+CREATE POLICY p_llm_poc_settlements_owner_migration ON platform.llm_poc_settlements TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
+
+CREATE POLICY p_llm_poc_settlements_read ON platform.llm_poc_settlements FOR SELECT TO ai_res_api_group USING ((account_id = (NULLIF(current_setting('app.llm_poc_budget_id'::text, true), ''::text))::uuid));
+
+CREATE POLICY p_model_admission_audit_owner_migration ON platform.model_admission_audit TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
+
+CREATE POLICY p_model_admission_audit_read ON platform.model_admission_audit FOR SELECT TO ai_res_api_group USING ((profile_id = (NULLIF(current_setting('app.model_profile_id'::text, true), ''::text))::uuid));
+
+CREATE POLICY p_model_admission_audit_write ON platform.model_admission_audit FOR INSERT TO ai_res_api_group WITH CHECK ((profile_id = (NULLIF(current_setting('app.model_profile_id'::text, true), ''::text))::uuid));
+
+CREATE POLICY p_model_admission_calls_finalize ON platform.model_admission_calls FOR UPDATE TO ai_res_api_group USING ((profile_id = (NULLIF(current_setting('app.model_profile_id'::text, true), ''::text))::uuid)) WITH CHECK ((profile_id = (NULLIF(current_setting('app.model_profile_id'::text, true), ''::text))::uuid));
+
+CREATE POLICY p_model_admission_calls_owner_migration ON platform.model_admission_calls TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
+
+CREATE POLICY p_model_admission_calls_read ON platform.model_admission_calls FOR SELECT TO ai_res_api_group USING ((profile_id = (NULLIF(current_setting('app.model_profile_id'::text, true), ''::text))::uuid));
+
+CREATE POLICY p_model_admission_calls_write ON platform.model_admission_calls FOR INSERT TO ai_res_api_group WITH CHECK ((profile_id = (NULLIF(current_setting('app.model_profile_id'::text, true), ''::text))::uuid));
+
+CREATE POLICY p_model_admission_controls_owner_migration ON platform.model_admission_controls TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
+
+CREATE POLICY p_model_admission_controls_read ON platform.model_admission_controls FOR SELECT TO ai_res_api_group USING ((profile_id = (NULLIF(current_setting('app.model_profile_id'::text, true), ''::text))::uuid));
+
+CREATE POLICY p_model_admission_controls_write ON platform.model_admission_controls FOR UPDATE TO ai_res_api_group USING ((profile_id = (NULLIF(current_setting('app.model_profile_id'::text, true), ''::text))::uuid)) WITH CHECK ((profile_id = (NULLIF(current_setting('app.model_profile_id'::text, true), ''::text))::uuid));
+
+CREATE POLICY p_model_admission_decisions_owner_migration ON platform.model_admission_decisions TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
+
+CREATE POLICY p_model_admission_operators_owner_migration ON platform.model_admission_operators TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
+
+CREATE POLICY p_model_admission_versions_owner_migration ON platform.model_admission_versions TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
+
+CREATE POLICY p_model_admission_versions_read ON platform.model_admission_versions FOR SELECT TO ai_res_api_group USING ((profile_id = (NULLIF(current_setting('app.model_profile_id'::text, true), ''::text))::uuid));
 
 CREATE POLICY p_project_events_owner_migration ON project.project_events TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
 
@@ -4924,6 +5686,7 @@ GRANT USAGE ON SCHEMA operations TO ai_res_consumer_group;
 GRANT USAGE ON SCHEMA organization TO ai_res_api_group;
 
 GRANT USAGE ON SCHEMA platform TO ai_res_api_group;
+GRANT USAGE ON SCHEMA platform TO ai_res_model_admission_operator;
 
 GRANT USAGE ON SCHEMA project TO ai_res_api_group;
 
@@ -4983,13 +5746,32 @@ REVOKE ALL ON FUNCTION governance.guard_version_facts() FROM PUBLIC;
 
 REVOKE ALL ON FUNCTION platform.advance_by_one() FROM PUBLIC;
 
+REVOKE ALL ON FUNCTION platform.apply_owner_identity_decision(o uuid, u uuid, sid uuid, p uuid, d uuid, reviewed jsonb, cmd_text text, expected_text text, observed_text text) FROM PUBLIC;
+GRANT ALL ON FUNCTION platform.apply_owner_identity_decision(o uuid, u uuid, sid uuid, p uuid, d uuid, reviewed jsonb, cmd_text text, expected_text text, observed_text text) TO ai_res_model_admission_operator;
+
 REVOKE ALL ON FUNCTION platform.assert_event_sequence_contiguous() FROM PUBLIC;
 
 REVOKE ALL ON FUNCTION platform.assert_version_number_contiguous() FROM PUBLIC;
 
+REVOKE ALL ON FUNCTION platform.fence_model_profile_lifecycle() FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION platform.finish_llm_poc_settlement() FROM PUBLIC;
+
 REVOKE ALL ON FUNCTION platform.forbid_unset() FROM PUBLIC;
 
 REVOKE ALL ON FUNCTION platform.freeze_when_status_in() FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION platform.guard_admission_reapproval_generation() FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION platform.guard_llm_poc_account() FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION platform.guard_llm_poc_attempt() FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION platform.guard_llm_poc_settlement() FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION platform.guard_model_admission_call() FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION platform.guard_model_admission_control() FROM PUBLIC;
 
 REVOKE ALL ON FUNCTION platform.guard_model_profile() FROM PUBLIC;
 
@@ -5000,6 +5782,9 @@ REVOKE ALL ON FUNCTION platform.keep_columns_immutable() FROM PUBLIC;
 REVOKE ALL ON FUNCTION platform.keep_non_decreasing() FROM PUBLIC;
 
 REVOKE ALL ON FUNCTION platform.keep_terminal_status() FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION platform.owner_identity_snapshot(o uuid, u uuid, sid uuid, p uuid, d uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION platform.owner_identity_snapshot(o uuid, u uuid, sid uuid, p uuid, d uuid) TO ai_res_model_admission_operator;
 
 REVOKE ALL ON FUNCTION platform.reject_modification() FROM PUBLIC;
 
@@ -5156,6 +5941,106 @@ GRANT SELECT,INSERT ON TABLE platform.bootstrap_state TO ai_res_api_group;
 GRANT SELECT,INSERT,UPDATE ON TABLE platform.display_number_counters TO ai_res_api_group;
 
 GRANT SELECT,INSERT,UPDATE ON TABLE platform.idempotency_records TO ai_res_api_group;
+
+GRANT SELECT ON TABLE platform.llm_poc_attempts TO ai_res_api_group;
+
+GRANT INSERT(id) ON TABLE platform.llm_poc_attempts TO ai_res_api_group;
+
+GRANT INSERT(account_id) ON TABLE platform.llm_poc_attempts TO ai_res_api_group;
+
+GRANT INSERT(sequence) ON TABLE platform.llm_poc_attempts TO ai_res_api_group;
+
+GRANT INSERT(request_ref) ON TABLE platform.llm_poc_attempts TO ai_res_api_group;
+
+GRANT INSERT(case_ref) ON TABLE platform.llm_poc_attempts TO ai_res_api_group;
+
+GRANT INSERT(body_sha256) ON TABLE platform.llm_poc_attempts TO ai_res_api_group;
+
+GRANT INSERT(payload_bytes) ON TABLE platform.llm_poc_attempts TO ai_res_api_group;
+
+GRANT INSERT(stream) ON TABLE platform.llm_poc_attempts TO ai_res_api_group;
+
+GRANT INSERT(max_output_tokens) ON TABLE platform.llm_poc_attempts TO ai_res_api_group;
+
+GRANT UPDATE(state) ON TABLE platform.llm_poc_attempts TO ai_res_api_group;
+
+GRANT SELECT ON TABLE platform.llm_poc_budget_accounts TO ai_res_api_group;
+
+GRANT UPDATE(attempt_sequence) ON TABLE platform.llm_poc_budget_accounts TO ai_res_api_group;
+
+GRANT UPDATE(blocked) ON TABLE platform.llm_poc_budget_accounts TO ai_res_api_group;
+
+GRANT SELECT ON TABLE platform.llm_poc_budget_audit TO ai_res_api_group;
+
+GRANT INSERT(id) ON TABLE platform.llm_poc_budget_audit TO ai_res_api_group;
+
+GRANT INSERT(account_id) ON TABLE platform.llm_poc_budget_audit TO ai_res_api_group;
+
+GRANT INSERT(attempt_id) ON TABLE platform.llm_poc_budget_audit TO ai_res_api_group;
+
+GRANT INSERT(action) ON TABLE platform.llm_poc_budget_audit TO ai_res_api_group;
+
+GRANT INSERT(reason_code) ON TABLE platform.llm_poc_budget_audit TO ai_res_api_group;
+
+GRANT SELECT ON TABLE platform.llm_poc_settlements TO ai_res_api_group;
+
+GRANT INSERT(id) ON TABLE platform.llm_poc_settlements TO ai_res_api_group;
+
+GRANT INSERT(account_id) ON TABLE platform.llm_poc_settlements TO ai_res_api_group;
+
+GRANT INSERT(attempt_id) ON TABLE platform.llm_poc_settlements TO ai_res_api_group;
+
+GRANT INSERT(outcome) ON TABLE platform.llm_poc_settlements TO ai_res_api_group;
+
+GRANT INSERT(reason_code) ON TABLE platform.llm_poc_settlements TO ai_res_api_group;
+
+GRANT INSERT(input_tokens) ON TABLE platform.llm_poc_settlements TO ai_res_api_group;
+
+GRANT INSERT(output_tokens) ON TABLE platform.llm_poc_settlements TO ai_res_api_group;
+
+GRANT INSERT(provider_request_ref) ON TABLE platform.llm_poc_settlements TO ai_res_api_group;
+
+GRANT INSERT(proof_sha256) ON TABLE platform.llm_poc_settlements TO ai_res_api_group;
+
+GRANT SELECT ON TABLE platform.model_admission_audit TO ai_res_api_group;
+
+GRANT INSERT(id) ON TABLE platform.model_admission_audit TO ai_res_api_group;
+
+GRANT INSERT(profile_id) ON TABLE platform.model_admission_audit TO ai_res_api_group;
+
+GRANT INSERT(call_id) ON TABLE platform.model_admission_audit TO ai_res_api_group;
+
+GRANT INSERT(event_type) ON TABLE platform.model_admission_audit TO ai_res_api_group;
+
+GRANT INSERT(reason_code) ON TABLE platform.model_admission_audit TO ai_res_api_group;
+
+GRANT SELECT ON TABLE platform.model_admission_calls TO ai_res_api_group;
+
+GRANT INSERT(id) ON TABLE platform.model_admission_calls TO ai_res_api_group;
+
+GRANT INSERT(profile_id) ON TABLE platform.model_admission_calls TO ai_res_api_group;
+
+GRANT INSERT(generation) ON TABLE platform.model_admission_calls TO ai_res_api_group;
+
+GRANT INSERT(call_sequence) ON TABLE platform.model_admission_calls TO ai_res_api_group;
+
+GRANT INSERT(request_ref) ON TABLE platform.model_admission_calls TO ai_res_api_group;
+
+GRANT INSERT(expected_sha256) ON TABLE platform.model_admission_calls TO ai_res_api_group;
+
+GRANT UPDATE(status) ON TABLE platform.model_admission_calls TO ai_res_api_group;
+
+GRANT UPDATE(observed_sha256) ON TABLE platform.model_admission_calls TO ai_res_api_group;
+
+GRANT UPDATE(finalized_at) ON TABLE platform.model_admission_calls TO ai_res_api_group;
+
+GRANT SELECT ON TABLE platform.model_admission_controls TO ai_res_api_group;
+
+GRANT UPDATE(blocked) ON TABLE platform.model_admission_controls TO ai_res_api_group;
+
+GRANT UPDATE(call_sequence) ON TABLE platform.model_admission_controls TO ai_res_api_group;
+
+GRANT SELECT ON TABLE platform.model_admission_versions TO ai_res_api_group;
 
 GRANT SELECT ON TABLE platform.model_profiles TO ai_res_api_group;
 

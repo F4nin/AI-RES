@@ -7,6 +7,7 @@ from collections.abc import AsyncIterator, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from ai_res.llm.observed_identity import IdentityObservation, ManagedVersions
 from ai_res.llm.registry import ModelProfile
 from ai_res.llm.types import FinishReason, Message, StreamChunk, ToolCall, Usage
 
@@ -21,6 +22,7 @@ class TransportCall:
     response_schema: Mapping[str, Any] | None = None
     tool_definitions: Sequence[Mapping[str, Any]] | None = None
     traceparent: str | None = None
+    managed_versions: ManagedVersions | None = None
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -39,6 +41,7 @@ class TransportResult:
     usage: Usage
     tool_calls: tuple[ToolCall, ...] = ()
     provider_request_ref: str | None = None
+    observation: IdentityObservation | None = None
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

@@ -1,0 +1,1137 @@
+diff --git a/transports/bifrost-http/server/server.go b/transports/bifrost-http/server/server.go
+--- a/transports/bifrost-http/server/server.go
++++ b/transports/bifrost-http/server/server.go
+@@ -3492,6 +3492,10 @@
+ 	s.Ctx, s.cancel = schemas.NewBifrostContextWithCancel(ctx)
+ 	handlers.SetVersion(s.Version)
+ 	configDir := GetDefaultConfigDir(s.AppDir)
++	candidateGuard, err := prepareCandidateIntegrity(configDir)
++	if err != nil {
++		return errCandidateIntegrity
++	}
+ 	// Ensure app directory exists
+ 	if err := os.MkdirAll(configDir, 0o755); err != nil {
+ 		return fmt.Errorf("failed to create app directory %s: %v", configDir, err)
+@@ -3888,10 +3892,10 @@
+ 	if s.SidekiqRunner != nil {
+ 		s.SidekiqDispatcherStop = s.SidekiqRunner.StartDispatcher(sidekiq.DispatchInterval, sidekiq.StaleAfter)
+ 	}
+-	if s.GovernanceHandler != nil {
+-		s.GovernanceHandler.StartExpiryCleanupScheduler(s.Ctx)
+-	}
++	// The fixed candidate has one non-expiring key and no management routes.
++	// Workspace expiry cleanup would mutate its frozen SQLite snapshot.
++	// Per-request authentication and key expiry checks remain unchanged.
+ 
+ 	// Checking if config has server config and use it to set read buffer size
+ 	logger.Debug("server read buffer size: %d", s.Config.ServerConfig.ReadBufferSize)
+ 	maxRequestBodySizeMB := s.Config.ClientConfig.MaxRequestBodySizeMB
+@@ -3898,7 +3902,7 @@
+ 	lib.ApplyBodyBufferPoolLimit(s.Config.ServerConfig, maxRequestBodySizeMB*1024*1024)
+ 	// Create fasthttp server instance
+ 	s.Server = &fasthttp.Server{
+-		Handler:            handlers.ServerRootHandler(s.CORSMiddleware, s.Config, s.Router.Handler),
++		Handler:            candidateGuard.wrap(handlers.ServerRootHandler(s.CORSMiddleware, s.Config, s.Router.Handler)),
+ 		MaxRequestBodySize: maxRequestBodySizeMB * 1024 * 1024,
+ 		ReadBufferSize:     s.Config.ServerConfig.ReadBufferSize,
+ 		// Explain an oversized body (413 naming the configured limit) instead of fasthttp's generic 400.
+@@ -3909,6 +3913,9 @@
+ 	// upstream starts serving mid-uptime stays invisible until a restart or a
+ 	// key edit, since nothing else re-fetches list-models.
+ 	s.RestartLiveModelRefresher(s.Ctx)
++	if err := candidateGuard.activate(s.Config); err != nil {
++		return errCandidateIntegrity
++	}
+ 	return nil
+ }
+ 
+diff --git a/transports/bifrost-http/server/plugins.go b/transports/bifrost-http/server/plugins.go
+--- a/transports/bifrost-http/server/plugins.go
++++ b/transports/bifrost-http/server/plugins.go
+@@ -170,7 +170,10 @@
+ 		if err != nil {
+ 			return nil, fmt.Errorf("routing plugin requires the governance plugin: %w", err)
+ 		}
+-		return routing.Init(ctx, routingConfig, logger, bifrostConfig.ConfigStore, governancePlugin)
++		// The fixed candidate has no routing rules or semantic vector store.
++		// Keep routing's unused persistent generation registry from mutating
++		// the frozen SQLite snapshot; governance and its auth store stay intact.
++		return routing.Init(ctx, routingConfig, logger, nil, governancePlugin)
+ 
+ 	case maxim.PluginName:
+ 		maximConfig, err := MarshalPluginConfig[maxim.Config](pluginConfig)
+diff --git a/transports/bifrost-http/server/candidate_integrity.go b/transports/bifrost-http/server/candidate_integrity.go
+new file mode 100644
+--- /dev/null
++++ b/transports/bifrost-http/server/candidate_integrity.go
+@@ -0,0 +1,618 @@
++// Candidate-only transport boundary. This file is applied only by the isolated
++// integrity build, never the official image. All failures are intentionally opaque.
++package server
++
++import (
++	"bytes"
++	"context"
++	"crypto/rand"
++	"crypto/sha256"
++	"database/sql"
++	"encoding/binary"
++	"encoding/hex"
++	"encoding/json"
++	"errors"
++	"hash"
++	"io"
++	"math"
++	"net/url"
++	"os"
++	"path/filepath"
++	"sort"
++	"strconv"
++	"strings"
++	"sync"
++	"syscall"
++	"time"
++
++	sqlite3 "github.com/mattn/go-sqlite3"
++	"github.com/maximhq/bifrost/transports/v2/bifrost-http/lib"
++	"github.com/valyala/fasthttp"
++)
++
++const candidateIntegrityVersion = "ai-res-candidate-integrity/0.1"
++const candidateMaxFile = 1_048_576
++const candidateMaxSnapshot = 8_388_608
++const candidateMaxTables = 256
++const candidateMaxRows = 20_000
++const candidateMaxColumns = 512
++
++var errCandidateIntegrity = errors.New("candidate configuration integrity refused")
++
++var candidateInputNames = []string{
++	"/etc/bifrost/config.template.json", "/etc/bifrost/pricing.json",
++	"/etc/bifrost/model-parameters.json", "/etc/bifrost/mcp-library.json",
++	"/run/secrets/bifrost_admin_password", "/run/secrets/bifrost_virtual_key", "/run/secrets/llm_relay_auth",
++}
++
++const candidateTemplateJSON = `{
++  "version": 2,
++  "client": {
++    "initial_pool_size": 1,
++    "drop_excess_requests": true,
++    "enable_logging": false,
++    "disable_content_logging": true,
++    "retain_content_in_object_storage": false,
++    "allow_per_request_content_storage_override": false,
++    "logging_headers": [],
++    "allow_direct_keys": false,
++    "enforce_auth_on_inference": true,
++    "whitelisted_routes": [],
++    "allowed_origins": [],
++    "max_request_body_size_mb": 1
++  },
++  "config_store": {"enabled": true, "type": "sqlite", "config": {"path": "/app/data/config.db"}},
++  "logs_store": {"enabled": false},
++  "framework": {
++    "pricing": {
++      "pricing_url": "file:///etc/bifrost/pricing.json",
++      "model_parameters_url": "file:///etc/bifrost/model-parameters.json",
++      "mcp_library_url": "file:///etc/bifrost/mcp-library.json",
++      "pricing_sync_interval": 86400,
++      "live_models_sync_interval": 0,
++      "mcp_library_sync_interval": 0
++    }
++  },
++  "plugins": [],
++  "providers": {
++    "deepseek": {
++      "keys": [{
++        "id": "00000000-0000-4000-8000-000000000016",
++        "name": "s16-relay",
++        "value": "$LLM_RELAY_AUTH",
++        "models": ["deepseek-flash"],
++        "weight": 1
++      }],
++      "network_config": {
++        "base_url": "http://llm-gateway:8081",
++        "allow_private_network": true,
++        "default_request_timeout_in_seconds": 30,
++        "max_retries": 0
++      },
++      "concurrency_and_buffer_size": {"concurrency": 1, "buffer_size": 1},
++      "send_back_raw_request": false,
++      "send_back_raw_response": false,
++      "store_raw_request_response": false
++    }
++  },
++  "governance": {
++    "auth_config": {
++      "is_enabled": true,
++      "admin_username": "ai-res-poc",
++      "admin_password": "$BIFROST_ADMIN_PASSWORD",
++      "disable_auth_on_inference": false
++    },
++    "virtual_keys": [{
++      "id": "00000000-0000-4000-8000-000000000017",
++      "name": "s16-adapter",
++      "value": "sk-bf-$BIFROST_VIRTUAL_KEY",
++      "is_active": true,
++      "allow_all_providers": false,
++      "disable_content_logging": true,
++      "provider_configs": [{
++        "provider": "deepseek",
++        "allowed_models": ["deepseek-flash"],
++        "key_ids": ["00000000-0000-4000-8000-000000000016"],
++        "weight": 1
++      }]
++    }]
++  }
++}
++`
++
++const candidatePricingJSON = `{
++  "deepseek/deepseek-flash": {
++    "provider": "deepseek",
++    "mode": "chat",
++    "base_model": "deepseek-flash",
++    "input_cost_per_token": 0.0000003,
++    "output_cost_per_token": 0.0000012
++  }
++}
++`
++
++const candidateModelParametersJSON = `{
++  "deepseek/deepseek-flash": {
++    "provider": "deepseek",
++    "mode": "chat",
++    "supported_endpoints": ["/v1/chat/completions"],
++    "supported_modalities": ["text"],
++    "supported_output_modalities": ["text"],
++    "supports_function_calling": true,
++    "supports_native_streaming": true,
++    "supports_response_schema": false
++  }
++}
++`
++
++const candidateMCPLibraryJSON = `{"servers": []}
++`
++
++// candidateIntegrity never exports secret or database values. The fixed marker
++// contains only a process nonce and the rendered-file digest; it is not approval.
++type candidateIntegrity struct {
++	mu             sync.Mutex
++	root           string
++	readInput      func(string) ([]byte, error)
++	inputs         map[string][32]byte
++	configDigest   [32]byte
++	liveDigest     [32]byte
++	databaseDigest [32]byte
++	config         *lib.Config
++	marker         []byte
++	ready          bool
++	blocked        bool
++}
++
++func candidateRegularFile(path string, exactMode os.FileMode) ([]byte, error) {
++	fd, err := syscall.Open(path, syscall.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK|syscall.O_CLOEXEC, 0)
++	if err != nil {
++		return nil, errCandidateIntegrity
++	}
++	source := os.NewFile(uintptr(fd), path)
++	defer source.Close()
++	info, err := source.Stat()
++	if err != nil || !info.Mode().IsRegular() || info.Size() < 1 || info.Size() > candidateMaxFile || info.Mode().Perm()&0022 != 0 {
++		return nil, errCandidateIntegrity
++	}
++	native, ok := info.Sys().(*syscall.Stat_t)
++	if !ok || native.Nlink != 1 {
++		return nil, errCandidateIntegrity
++	}
++	if exactMode != 0 && info.Mode().Perm() != exactMode {
++		return nil, errCandidateIntegrity
++	}
++	raw, err := io.ReadAll(io.LimitReader(source, candidateMaxFile+1))
++	if err != nil || len(raw) != int(info.Size()) || len(raw) > candidateMaxFile {
++		return nil, errCandidateIntegrity
++	}
++	return raw, nil
++}
++
++func candidateRendered(inputs map[string][]byte) ([]byte, error) {
++	expected := map[string]string{
++		"/etc/bifrost/config.template.json":  candidateTemplateJSON,
++		"/etc/bifrost/pricing.json":          candidatePricingJSON,
++		"/etc/bifrost/model-parameters.json": candidateModelParametersJSON,
++		"/etc/bifrost/mcp-library.json":      candidateMCPLibraryJSON,
++	}
++	for path, raw := range expected {
++		if !bytes.Equal(inputs[path], []byte(raw)) {
++			return nil, errCandidateIntegrity
++		}
++	}
++	rendered := append([]byte(nil), inputs["/etc/bifrost/config.template.json"]...)
++	placeholders := map[string]string{"bifrost_admin_password": "$BIFROST_ADMIN_PASSWORD", "bifrost_virtual_key": "$BIFROST_VIRTUAL_KEY", "llm_relay_auth": "$LLM_RELAY_AUTH"}
++	for name, placeholder := range placeholders {
++		value := inputs["/run/secrets/"+name]
++		if len(value) == 65 && value[64] == '\n' {
++			value = value[:64]
++		}
++		if len(value) != 64 {
++			return nil, errCandidateIntegrity
++		}
++		for _, letter := range value {
++			if !(letter >= '0' && letter <= '9' || letter >= 'a' && letter <= 'f') {
++				return nil, errCandidateIntegrity
++			}
++		}
++		if bytes.Count(rendered, []byte(placeholder)) != 1 {
++			return nil, errCandidateIntegrity
++		}
++		rendered = bytes.Replace(rendered, []byte(placeholder), value, 1)
++	}
++	return rendered, nil
++}
++
++func prepareCandidateIntegrity(configDir string) (*candidateIntegrity, error) {
++	if configDir != "/app/data" {
++		return nil, errCandidateIntegrity
++	}
++	return prepareCandidateIntegrityAt(configDir, func(path string) ([]byte, error) { return candidateRegularFile(path, 0) })
++}
++
++func prepareCandidateIntegrityAt(root string, reader func(string) ([]byte, error)) (*candidateIntegrity, error) {
++	info, err := os.Lstat(root)
++	if err != nil || !info.IsDir() || info.Mode().Perm() != 0700 || info.Mode()&os.ModeSymlink != 0 {
++		return nil, errCandidateIntegrity
++	}
++	entries, err := os.ReadDir(root)
++	if err != nil || len(entries) != 1 || entries[0].Name() != "config.json" {
++		return nil, errCandidateIntegrity
++	}
++	raw, err := candidateRegularFile(filepath.Join(root, "config.json"), 0600)
++	if err != nil {
++		return nil, errCandidateIntegrity
++	}
++	inputs := make(map[string][]byte, len(candidateInputNames))
++	for _, path := range candidateInputNames {
++		value, e := reader(path)
++		if e != nil {
++			return nil, errCandidateIntegrity
++		}
++		inputs[path] = value
++	}
++	expected, err := candidateRendered(inputs)
++	if err != nil || !bytes.Equal(raw, expected) {
++		return nil, errCandidateIntegrity
++	}
++	digests := make(map[string][32]byte, len(inputs))
++	for path, value := range inputs {
++		digests[path] = sha256.Sum256(value)
++	}
++	return &candidateIntegrity{root: root, readInput: reader, inputs: digests, configDigest: sha256.Sum256(raw)}, nil
++}
++
++func candidateLiveSnapshot(config *lib.Config) ([32]byte, error) {
++	if config == nil || config.ClientConfig == nil {
++		return [32]byte{}, errCandidateIntegrity
++	}
++	config.Mu.RLock()
++	raw, err := json.Marshal(struct {
++		Client    any
++		Providers any
++		Framework any
++	}{config.ClientConfig, config.Providers, config.FrameworkConfig})
++	config.Mu.RUnlock()
++	if err != nil || len(raw) > candidateMaxSnapshot {
++		return [32]byte{}, errCandidateIntegrity
++	}
++	return sha256.Sum256(raw), nil
++}
++
++// SQLite snapshot includes ALL schema objects, ALL tables, ALL columns and ALL
++// rows. There are no bookkeeping exceptions: an unexplained change is refusal.
++// Every query runs in one readonly transaction, including WAL-visible content.
++func candidateSQLiteSnapshot(parent context.Context, path string) ([32]byte, error) {
++	original, err := os.Lstat(path)
++	if err != nil || !original.Mode().IsRegular() || original.Mode()&os.ModeSymlink != 0 {
++		return [32]byte{}, errCandidateIntegrity
++	}
++	ctx, cancel := context.WithTimeout(parent, 2*time.Second)
++	defer cancel()
++	uri := url.URL{Scheme: "file", Path: path}
++	db, err := sql.Open("sqlite3", uri.String()+"?mode=ro&_query_only=1&_busy_timeout=250")
++	if err != nil {
++		return [32]byte{}, errCandidateIntegrity
++	}
++	defer db.Close()
++	db.SetMaxOpenConns(1)
++	db.SetMaxIdleConns(0)
++	conn, err := db.Conn(ctx)
++	if err != nil {
++		return [32]byte{}, errCandidateIntegrity
++	}
++	defer conn.Close()
++	err = conn.Raw(func(raw any) error {
++		driver, ok := raw.(*sqlite3.SQLiteConn)
++		if !ok {
++			return errCandidateIntegrity
++		}
++		driver.SetLimit(sqlite3.SQLITE_LIMIT_LENGTH, candidateMaxFile)
++		driver.SetLimit(sqlite3.SQLITE_LIMIT_COLUMN, 2*candidateMaxColumns)
++		return nil
++	})
++	if err != nil {
++		return [32]byte{}, errCandidateIntegrity
++	}
++	tx, err := conn.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
++	if err != nil {
++		return [32]byte{}, errCandidateIntegrity
++	}
++	defer tx.Rollback()
++	budget := candidateSnapshotBudget{digest: sha256.New()}
++	tables, err := candidateSnapshotSchema(ctx, tx, &budget)
++	if err != nil {
++		return [32]byte{}, errCandidateIntegrity
++	}
++	for _, table := range tables {
++		if err = candidateSnapshotTable(ctx, tx, table, &budget); err != nil {
++			return [32]byte{}, errCandidateIntegrity
++		}
++	}
++	if err = tx.Commit(); err != nil {
++		return [32]byte{}, errCandidateIntegrity
++	}
++	current, err := os.Lstat(path)
++	if err != nil || !os.SameFile(original, current) {
++		return [32]byte{}, errCandidateIntegrity
++	}
++	var result [32]byte
++	copy(result[:], budget.digest.Sum(nil))
++	return result, nil
++}
++
++type candidateSnapshotBudget struct {
++	digest hash.Hash
++	bytes  int
++	rows   int
++}
++
++func (b *candidateSnapshotBudget) frame(value any) error {
++	raw, err := json.Marshal(value)
++	if err != nil || len(raw) > candidateMaxFile || b.bytes+len(raw) > candidateMaxSnapshot {
++		return errCandidateIntegrity
++	}
++	b.bytes += len(raw)
++	var prefix [8]byte
++	binary.BigEndian.PutUint64(prefix[:], uint64(len(raw)))
++	if _, err = b.digest.Write(prefix[:]); err != nil {
++		return errCandidateIntegrity
++	}
++	if _, err = b.digest.Write(raw); err != nil {
++		return errCandidateIntegrity
++	}
++	return nil
++}
++
++func candidateSnapshotSchema(ctx context.Context, tx *sql.Tx, budget *candidateSnapshotBudget) ([]string, error) {
++	// SQLite schema metadata must retain bytes as well: JSON normalizes invalid
++	// UTF-8 and Scan into string can coerce an unexpected SQLite storage class.
++	rows, err := tx.QueryContext(ctx, "SELECT type,name,tbl_name,typeof(type),typeof(name),typeof(tbl_name),typeof(sql),hex(CAST(sql AS BLOB)) FROM sqlite_schema ORDER BY type,name,tbl_name")
++	if err != nil {
++		return nil, errCandidateIntegrity
++	}
++	defer rows.Close()
++	var tables []string
++	objects := 0
++	for rows.Next() {
++		var kind, name, table, kindClass, nameClass, tableClass, definitionClass, definitionHex string
++		if err = rows.Scan(&kind, &name, &table, &kindClass, &nameClass, &tableClass, &definitionClass, &definitionHex); err != nil {
++			return nil, errCandidateIntegrity
++		}
++		if kindClass != "text" || nameClass != "text" || tableClass != "text" || (definitionClass != "text" && definitionClass != "null") {
++			return nil, errCandidateIntegrity
++		}
++		objects++
++		if objects > 2048 {
++			return nil, errCandidateIntegrity
++		}
++		frame := []string{hex.EncodeToString([]byte(kind)), hex.EncodeToString([]byte(name)), hex.EncodeToString([]byte(table)), definitionClass, definitionHex}
++		if err = budget.frame(frame); err != nil {
++			return nil, errCandidateIntegrity
++		}
++		if kind == "table" {
++			tables = append(tables, name)
++			if len(tables) > candidateMaxTables {
++				return nil, errCandidateIntegrity
++			}
++		}
++	}
++	if err = rows.Err(); err != nil {
++		return nil, errCandidateIntegrity
++	}
++	sort.Strings(tables)
++	return tables, nil
++}
++
++type candidateSQLiteValue struct {
++	Class string
++	Value string
++}
++
++func candidateStorageValue(class any, value any) (candidateSQLiteValue, error) {
++	kind, ok := class.(string)
++	if !ok {
++		return candidateSQLiteValue{}, errCandidateIntegrity
++	}
++	result := candidateSQLiteValue{Class: kind}
++	switch kind {
++	case "null":
++		if value != nil {
++			return candidateSQLiteValue{}, errCandidateIntegrity
++		}
++	case "integer":
++		number, ok := value.(int64)
++		if !ok {
++			return candidateSQLiteValue{}, errCandidateIntegrity
++		}
++		result.Value = strconv.FormatInt(number, 10)
++	case "real":
++		number, ok := value.(float64)
++		if !ok {
++			return candidateSQLiteValue{}, errCandidateIntegrity
++		}
++		result.Value = strconv.FormatUint(math.Float64bits(number), 16)
++	case "text", "blob":
++		encoded, ok := value.(string)
++		if !ok || len(encoded)%2 != 0 || len(encoded) > candidateMaxFile {
++			return candidateSQLiteValue{}, errCandidateIntegrity
++		}
++		if _, err := hex.DecodeString(encoded); err != nil {
++			return candidateSQLiteValue{}, errCandidateIntegrity
++		}
++		result.Value = encoded
++	default:
++		return candidateSQLiteValue{}, errCandidateIntegrity
++	}
++	return result, nil
++}
++
++func candidateSnapshotTable(ctx context.Context, tx *sql.Tx, table string, budget *candidateSnapshotBudget) error {
++	// Names come only from sqlite_schema; every identifier is still SQL-escaped.
++	quote := func(name string) string { return "\"" + strings.ReplaceAll(name, "\"", "\"\"") + "\"" }
++	identifier := quote(table)
++	metadata, err := tx.QueryContext(ctx, "SELECT * FROM "+identifier+" LIMIT 0")
++	if err != nil {
++		return errCandidateIntegrity
++	}
++	columns, err := metadata.Columns()
++	closeErr := metadata.Close()
++	if err != nil || closeErr != nil || len(columns) == 0 || len(columns) > candidateMaxColumns {
++		return errCandidateIntegrity
++	}
++	encodedColumns := make([]string, len(columns))
++	expressions := make([]string, 0, 2*len(columns))
++	for i, column := range columns {
++		encodedColumns[i] = hex.EncodeToString([]byte(column))
++		name := quote(column)
++		// CASE/CAST expressions have no declared BOOLEAN/DATETIME type. This keeps
++		// mattn's declared-column conversions out of the storage representation.
++		// typeof distinguishes INTEGER from REAL and TEXT from BLOB; hex keeps all
++		// TEXT/BLOB bytes, including invalid UTF-8. REAL uses exact IEEE-754 bits.
++		expressions = append(expressions, "typeof("+name+")", "CASE typeof("+name+") WHEN 'text' THEN hex(CAST("+name+" AS BLOB)) WHEN 'blob' THEN hex("+name+") WHEN 'integer' THEN CAST("+name+" AS INTEGER) WHEN 'real' THEN CAST("+name+" AS REAL) ELSE NULL END")
++	}
++	if err = budget.frame([]any{hex.EncodeToString([]byte(table)), encodedColumns}); err != nil {
++		return errCandidateIntegrity
++	}
++	rows, err := tx.QueryContext(ctx, "SELECT "+strings.Join(expressions, ",")+" FROM "+identifier)
++	if err != nil {
++		return errCandidateIntegrity
++	}
++	defer rows.Close()
++	var hashes []string
++	for rows.Next() {
++		budget.rows++
++		if budget.rows > candidateMaxRows {
++			return errCandidateIntegrity
++		}
++		scanned := make([]any, 2*len(columns))
++		pointers := make([]any, len(scanned))
++		for i := range scanned {
++			pointers[i] = &scanned[i]
++		}
++		if err = rows.Scan(pointers...); err != nil {
++			return errCandidateIntegrity
++		}
++		values := make([]candidateSQLiteValue, len(columns))
++		for i := range columns {
++			value, e := candidateStorageValue(scanned[2*i], scanned[2*i+1])
++			if e != nil {
++				return errCandidateIntegrity
++			}
++			values[i] = value
++		}
++		raw, e := json.Marshal(values)
++		if e != nil || len(raw) > candidateMaxFile || budget.bytes+len(raw) > candidateMaxSnapshot {
++			return errCandidateIntegrity
++		}
++		budget.bytes += len(raw)
++		digest := sha256.Sum256(raw)
++		hashes = append(hashes, hex.EncodeToString(digest[:]))
++	}
++	if err = rows.Err(); err != nil {
++		return errCandidateIntegrity
++	}
++	sort.Strings(hashes)
++	for _, digest := range hashes {
++		if err = budget.frame(digest); err != nil {
++			return errCandidateIntegrity
++		}
++	}
++	return nil
++}
++
++func (guard *candidateIntegrity) activate(config *lib.Config) error {
++	guard.mu.Lock()
++	defer guard.mu.Unlock()
++	if guard.ready || guard.blocked {
++		return errCandidateIntegrity
++	}
++	guard.config = config
++	live, err := candidateLiveSnapshot(config)
++	if err != nil {
++		return errCandidateIntegrity
++	}
++	database, err := candidateSQLiteSnapshot(context.Background(), filepath.Join(guard.root, "config.db"))
++	if err != nil {
++		return errCandidateIntegrity
++	}
++	nonce := make([]byte, 16)
++	if _, err = rand.Read(nonce); err != nil {
++		return errCandidateIntegrity
++	}
++	marker, err := json.Marshal(map[string]string{"version": candidateIntegrityVersion, "bootNonce": hex.EncodeToString(nonce), "configSha256": hex.EncodeToString(guard.configDigest[:])})
++	if err != nil {
++		return errCandidateIntegrity
++	}
++	target, err := os.OpenFile(filepath.Join(guard.root, "candidate-integrity.json"), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
++	if err != nil {
++		return errCandidateIntegrity
++	}
++	n, writeErr := target.Write(marker)
++	closeErr := target.Close()
++	if writeErr != nil || closeErr != nil || n != len(marker) {
++		return errCandidateIntegrity
++	}
++	guard.liveDigest, guard.databaseDigest, guard.marker = live, database, marker
++	guard.ready = true
++	return nil
++}
++
++func (guard *candidateIntegrity) valid() bool {
++	guard.mu.Lock()
++	defer guard.mu.Unlock()
++	if !guard.ready || guard.blocked {
++		return false
++	}
++	if err := guard.check(); err != nil {
++		guard.blocked = true
++		return false
++	}
++	return true
++}
++
++func (guard *candidateIntegrity) check() error {
++	raw, err := candidateRegularFile(filepath.Join(guard.root, "config.json"), 0600)
++	if err != nil || sha256.Sum256(raw) != guard.configDigest {
++		return errCandidateIntegrity
++	}
++	marker, err := candidateRegularFile(filepath.Join(guard.root, "candidate-integrity.json"), 0600)
++	if err != nil || !bytes.Equal(marker, guard.marker) {
++		return errCandidateIntegrity
++	}
++	for path, digest := range guard.inputs {
++		value, e := guard.readInput(path)
++		if e != nil || sha256.Sum256(value) != digest {
++			return errCandidateIntegrity
++		}
++	}
++	live, err := candidateLiveSnapshot(guard.config)
++	if err != nil || live != guard.liveDigest {
++		return errCandidateIntegrity
++	}
++	database, err := candidateSQLiteSnapshot(context.Background(), filepath.Join(guard.root, "config.db"))
++	if err != nil || database != guard.databaseDigest {
++		return errCandidateIntegrity
++	}
++	return nil
++}
++
++func (guard *candidateIntegrity) wrap(next fasthttp.RequestHandler) fasthttp.RequestHandler {
++	return func(ctx *fasthttp.RequestCtx) {
++		method, uri := string(ctx.Method()), string(ctx.RequestURI())
++		if !(method == "GET" && uri == "/health" || method == "POST" && uri == "/v1/chat/completions") {
++			ctx.SetStatusCode(fasthttp.StatusForbidden)
++			ctx.SetContentType("application/json")
++			ctx.SetBodyString(`{"error":"CANDIDATE_ROUTE_REFUSED"}`)
++			return
++		}
++		if !guard.valid() {
++			ctx.SetStatusCode(fasthttp.StatusServiceUnavailable)
++			ctx.SetContentType("application/json")
++			ctx.SetBodyString(`{"error":"CANDIDATE_INTEGRITY_REFUSED"}`)
++			return
++		}
++		next(ctx)
++	}
++}
+diff --git a/transports/bifrost-http/server/candidate_integrity_test.go b/transports/bifrost-http/server/candidate_integrity_test.go
+new file mode 100644
+--- /dev/null
++++ b/transports/bifrost-http/server/candidate_integrity_test.go
+@@ -0,0 +1,447 @@
++package server
++
++import (
++	"context"
++	"crypto/sha256"
++	"database/sql"
++	"encoding/json"
++	"os"
++	"path/filepath"
++	"strings"
++	"testing"
++
++	"github.com/maximhq/bifrost/framework/configstore"
++	"github.com/maximhq/bifrost/transports/v2/bifrost-http/lib"
++	"github.com/valyala/fasthttp"
++)
++
++func candidateTestInputs() map[string][]byte {
++	result := map[string][]byte{
++		"/etc/bifrost/config.template.json":  []byte(candidateTemplateJSON),
++		"/etc/bifrost/pricing.json":          []byte(candidatePricingJSON),
++		"/etc/bifrost/model-parameters.json": []byte(candidateModelParametersJSON),
++		"/etc/bifrost/mcp-library.json":      []byte(candidateMCPLibraryJSON),
++	}
++	for name, letter := range map[string]string{"bifrost_admin_password": "a", "bifrost_virtual_key": "b", "llm_relay_auth": "c"} {
++		result["/run/secrets/"+name] = []byte(strings.Repeat(letter, 64) + "\n")
++	}
++	return result
++}
++
++func candidateTestReader(inputs map[string][]byte) func(string) ([]byte, error) {
++	return func(path string) ([]byte, error) {
++		raw, ok := inputs[path]
++		if !ok {
++			return nil, errCandidateIntegrity
++		}
++		return append([]byte(nil), raw...), nil
++	}
++}
++
++func candidateTestPrepared(t *testing.T) (*candidateIntegrity, map[string][]byte, string) {
++	t.Helper()
++	root := t.TempDir()
++	if err := os.Chmod(root, 0700); err != nil {
++		t.Fatal(err)
++	}
++	inputs := candidateTestInputs()
++	rendered, err := candidateRendered(inputs)
++	if err != nil {
++		t.Fatal("fixture render")
++	}
++	if err := os.WriteFile(filepath.Join(root, "config.json"), rendered, 0600); err != nil {
++		t.Fatal(err)
++	}
++	guard, err := prepareCandidateIntegrityAt(root, candidateTestReader(inputs))
++	if err != nil {
++		t.Fatal("prepare")
++	}
++	return guard, inputs, root
++}
++
++func candidateTestActive(t *testing.T) (*candidateIntegrity, map[string][]byte, string) {
++	t.Helper()
++	guard, inputs, root := candidateTestPrepared(t)
++	db, err := sql.Open("sqlite3", filepath.Join(root, "config.db"))
++	if err != nil {
++		t.Fatal(err)
++	}
++	if _, err = db.Exec("CREATE TABLE settings (id INTEGER PRIMARY KEY, value TEXT); INSERT INTO settings VALUES (1,'initial')"); err != nil {
++		t.Fatal(err)
++	}
++	if err = db.Close(); err != nil {
++		t.Fatal(err)
++	}
++	config := &lib.Config{ClientConfig: &configstore.ClientConfig{DropExcessRequests: true}}
++	if err = guard.activate(config); err != nil {
++		t.Fatal("activate")
++	}
++	return guard, inputs, root
++}
++
++func candidateRequest(guard *candidateIntegrity, method, uri string) (int, bool) {
++	called := false
++	next := func(ctx *fasthttp.RequestCtx) { called = true; ctx.SetStatusCode(200) }
++	var ctx fasthttp.RequestCtx
++	ctx.Request.Header.SetMethod(method)
++	ctx.Request.SetRequestURI(uri)
++	guard.wrap(next)(&ctx)
++	return ctx.Response.StatusCode(), called
++}
++
++func TestCandidateIntegrityOnlyExactRoutesReachNext(t *testing.T) {
++	guard, _, _ := candidateTestActive(t)
++	for _, item := range []struct {
++		method, uri string
++		allow       bool
++	}{
++		{"GET", "/health", true}, {"POST", "/v1/chat/completions", true},
++		{"POST", "/api/config", false}, {"GET", "/api/config", false}, {"PUT", "/api/providers/deepseek", false},
++		{"GET", "/api/governance/virtual-keys", false}, {"POST", "/v1/chat/completions?x=1", false},
++		{"POST", "/v1/chat/completions/", false}, {"POST", "/v1//chat/completions", false},
++		{"POST", "/v1/chat/%63ompletions", false}, {"POST", "/prefix/v1/chat/completions", false},
++		{"POST", "http://host/v1/chat/completions", false}, {"HEAD", "/health", false}, {"OPTIONS", "/v1/chat/completions", false},
++		{"GET", "/health?", false}, {"POST", "/openai/v1/chat/completions", false},
++	} {
++		t.Run(item.method+item.uri, func(t *testing.T) {
++			status, called := candidateRequest(guard, item.method, item.uri)
++			if called != item.allow {
++				t.Fatalf("route allowed=%v", called)
++			}
++			if item.allow && status != 200 {
++				t.Fatal("positive route refused")
++			}
++			if !item.allow && status != 403 {
++				t.Fatal("refusal must precede downstream auth")
++			}
++		})
++	}
++}
++
++func TestCandidateIntegrityFreshBootstrapRefusesExistingOrUnsafeState(t *testing.T) {
++	for _, kind := range []string{"db", "wal", "shm", "unknown", "directory", "symlink", "hardlink", "mode", "missing", "wrong-render", "changed-template", "bad-secret"} {
++		t.Run(kind, func(t *testing.T) {
++			_, inputs, root := candidateTestPrepared(t)
++			path := filepath.Join(root, "config.json")
++			switch kind {
++			case "db", "wal", "shm", "unknown":
++				name := map[string]string{"db": "config.db", "wal": "config.db-wal", "shm": "config.db-shm", "unknown": "extra"}[kind]
++				if err := os.WriteFile(filepath.Join(root, name), []byte("refuse"), 0600); err != nil {
++					t.Fatal(err)
++				}
++			case "directory":
++				if err := os.Chmod(root, 0755); err != nil {
++					t.Fatal(err)
++				}
++			case "symlink":
++				if err := os.Rename(path, filepath.Join(root, "outside")); err != nil {
++					t.Fatal(err)
++				}
++				if err := os.Symlink(filepath.Join(root, "outside"), path); err != nil {
++					t.Fatal(err)
++				}
++			case "hardlink":
++				external := filepath.Join(t.TempDir(), "shared-config")
++				raw, e := os.ReadFile(path)
++				if e != nil {
++					t.Fatal(e)
++				}
++				if e = os.WriteFile(external, raw, 0600); e != nil {
++					t.Fatal(e)
++				}
++				if e = os.Remove(path); e != nil {
++					t.Fatal(e)
++				}
++				if e = os.Link(external, path); e != nil {
++					t.Fatal(e)
++				}
++			case "mode":
++				if err := os.Chmod(path, 0644); err != nil {
++					t.Fatal(err)
++				}
++			case "missing":
++				if err := os.Remove(path); err != nil {
++					t.Fatal(err)
++				}
++			case "wrong-render":
++				if err := os.WriteFile(path, []byte("{}"), 0600); err != nil {
++					t.Fatal(err)
++				}
++			case "changed-template":
++				inputs["/etc/bifrost/config.template.json"] = []byte("{}")
++			case "bad-secret":
++				inputs["/run/secrets/llm_relay_auth"] = []byte("wrong")
++			}
++			if _, err := prepareCandidateIntegrityAt(root, candidateTestReader(inputs)); err == nil {
++				t.Fatal("unsafe bootstrap accepted")
++			}
++		})
++	}
++	if _, err := prepareCandidateIntegrity(t.TempDir()); err == nil {
++		t.Fatal("noncandidate app dir accepted")
++	}
++}
++
++func TestCandidateIntegrityMarkerPublishedOnlyAfterActivation(t *testing.T) {
++	guard, _, root := candidateTestPrepared(t)
++	if _, err := os.Stat(filepath.Join(root, "candidate-integrity.json")); !os.IsNotExist(err) {
++		t.Fatal("marker before activation")
++	}
++	if status, called := candidateRequest(guard, "GET", "/health"); status != 503 || called {
++		t.Fatal("uninitialized guard accepted")
++	}
++	guard, _, root = candidateTestActive(t)
++	raw, err := os.ReadFile(filepath.Join(root, "candidate-integrity.json"))
++	if err != nil {
++		t.Fatal(err)
++	}
++	var marker map[string]string
++	if err = json.Unmarshal(raw, &marker); err != nil {
++		t.Fatal(err)
++	}
++	if len(marker) != 3 || marker["version"] != candidateIntegrityVersion || len(marker["bootNonce"]) != 32 || len(marker["configSha256"]) != 64 {
++		t.Fatal("marker shape")
++	}
++	info, err := os.Stat(filepath.Join(root, "candidate-integrity.json"))
++	if err != nil || info.Mode().Perm() != 0600 {
++		t.Fatal("marker mode")
++	}
++	if err = guard.activate(guard.config); err == nil {
++		t.Fatal("second activation accepted")
++	}
++}
++
++func TestCandidateIntegrityMutationsAreStickyAndNeverReachNext(t *testing.T) {
++	for _, kind := range []string{"rendered", "marker", "mounted", "live", "database", "schema", "missing-db", "corrupt-db"} {
++		t.Run(kind, func(t *testing.T) {
++			guard, inputs, root := candidateTestActive(t)
++			configPath := filepath.Join(root, "config.json")
++			original, err := os.ReadFile(configPath)
++			if err != nil {
++				t.Fatal(err)
++			}
++			databasePath := filepath.Join(root, "config.db")
++			originalDatabase, err := os.ReadFile(databasePath)
++			if err != nil {
++				t.Fatal(err)
++			}
++			originalInputs := candidateTestInputs()
++			switch kind {
++			case "rendered":
++				if err = os.WriteFile(configPath, []byte("{}"), 0600); err != nil {
++					t.Fatal(err)
++				}
++			case "marker":
++				if err = os.WriteFile(filepath.Join(root, "candidate-integrity.json"), []byte("{}"), 0600); err != nil {
++					t.Fatal(err)
++				}
++			case "mounted":
++				inputs["/etc/bifrost/pricing.json"] = []byte("{}")
++			case "live":
++				guard.config.Mu.Lock()
++				guard.config.ClientConfig.DropExcessRequests = false
++				guard.config.Mu.Unlock()
++			case "database", "schema":
++				db, e := sql.Open("sqlite3", filepath.Join(root, "config.db"))
++				if e != nil {
++					t.Fatal(e)
++				}
++				query := "UPDATE settings SET value='tampered' WHERE id=1"
++				if kind == "schema" {
++					query = "CREATE TABLE unexpected (value TEXT)"
++				}
++				_, e = db.Exec(query)
++				if e != nil {
++					t.Fatal(e)
++				}
++				if e = db.Close(); e != nil {
++					t.Fatal(e)
++				}
++			case "missing-db":
++				if err = os.Remove(filepath.Join(root, "config.db")); err != nil {
++					t.Fatal(err)
++				}
++			case "corrupt-db":
++				if err = os.WriteFile(filepath.Join(root, "config.db"), []byte("not sqlite"), 0600); err != nil {
++					t.Fatal(err)
++				}
++			}
++			if status, called := candidateRequest(guard, "POST", "/v1/chat/completions"); status != 503 || called {
++				t.Fatal("mutation accepted")
++			}
++			if err = os.WriteFile(configPath, original, 0600); err != nil {
++				t.Fatal(err)
++			}
++			if err = os.WriteFile(filepath.Join(root, "candidate-integrity.json"), guard.marker, 0600); err != nil {
++				t.Fatal(err)
++			}
++			for name, value := range originalInputs {
++				inputs[name] = value
++			}
++			guard.config.Mu.Lock()
++			guard.config.ClientConfig.DropExcessRequests = true
++			guard.config.Mu.Unlock()
++			if err = os.WriteFile(databasePath, originalDatabase, 0600); err != nil {
++				t.Fatal(err)
++			}
++			// Demonstrate that every mutated dependency is truly healthy again;
++			// the final refusal therefore comes from the latch, not stale damage.
++			if err = guard.check(); err != nil {
++				t.Fatal("dependencies not restored")
++			}
++			if status, called := candidateRequest(guard, "GET", "/health"); status != 503 || called {
++				t.Fatal("restored bytes cleared sticky block")
++			}
++		})
++	}
++}
++
++func TestCandidateSQLiteLogicalHashIsReadonlyOrderIndependentAndBounded(t *testing.T) {
++	root := t.TempDir()
++	path := filepath.Join(root, "config.db")
++	db, err := sql.Open("sqlite3", path)
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer db.Close()
++	if _, err = db.Exec("CREATE TABLE policy (a TEXT,b INTEGER); INSERT INTO policy VALUES ('a',1),('b',2)"); err != nil {
++		t.Fatal(err)
++	}
++	before, err := candidateSQLiteSnapshot(context.Background(), path)
++	if err != nil {
++		t.Fatal("snapshot")
++	}
++	if _, err = db.Exec("DELETE FROM policy; INSERT INTO policy VALUES ('b',2),('a',1)"); err != nil {
++		t.Fatal(err)
++	}
++	after, err := candidateSQLiteSnapshot(context.Background(), path)
++	if err != nil || before != after {
++		t.Fatal("logical row order changed hash")
++	}
++	if _, err = db.Exec("INSERT INTO policy VALUES ('x',3)"); err != nil {
++		t.Fatal(err)
++	}
++	changed, err := candidateSQLiteSnapshot(context.Background(), path)
++	if err != nil || changed == before {
++		t.Fatal("row mutation hidden")
++	}
++	if _, err = db.Exec("INSERT INTO policy VALUES (zeroblob(1048577),4)"); err != nil {
++		t.Fatal(err)
++	}
++	if _, err = candidateSQLiteSnapshot(context.Background(), path); err == nil {
++		t.Fatal("oversize field accepted")
++	}
++	ctx, cancel := context.WithCancel(context.Background())
++	cancel()
++	if _, err = candidateSQLiteSnapshot(ctx, path); err == nil {
++		t.Fatal("canceled snapshot accepted")
++	}
++}
++
++func TestCandidateSQLiteWALIsObservedWithoutWritingPolicy(t *testing.T) {
++	root := t.TempDir()
++	path := filepath.Join(root, "config.db")
++	db, err := sql.Open("sqlite3", path)
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer db.Close()
++	db.SetMaxOpenConns(1)
++	if _, err = db.Exec("PRAGMA journal_mode=WAL; CREATE TABLE policy (value TEXT); INSERT INTO policy VALUES ('original')"); err != nil {
++		t.Fatal(err)
++	}
++	before, err := candidateSQLiteSnapshot(context.Background(), path)
++	if err != nil {
++		t.Fatal("WAL snapshot")
++	}
++	bytesBefore, err := os.ReadFile(path + "-wal")
++	if err != nil {
++		t.Fatal(err)
++	}
++	again, err := candidateSQLiteSnapshot(context.Background(), path)
++	if err != nil || again != before {
++		t.Fatal("readonly repeated snapshot changed policy")
++	}
++	bytesAfter, err := os.ReadFile(path + "-wal")
++	if err != nil {
++		t.Fatal(err)
++	}
++	if sha256.Sum256(bytesBefore) != sha256.Sum256(bytesAfter) {
++		t.Fatal("snapshot wrote WAL")
++	}
++	if _, err = db.Exec("UPDATE policy SET value='changed in WAL'"); err != nil {
++		t.Fatal(err)
++	}
++	after, err := candidateSQLiteSnapshot(context.Background(), path)
++	if err != nil || after == before {
++		t.Fatal("WAL mutation hidden")
++	}
++	missing := filepath.Join(root, "missing.db")
++	if _, err = candidateSQLiteSnapshot(context.Background(), missing); err == nil {
++		t.Fatal("missing database accepted")
++	}
++	if _, err = os.Stat(missing); !os.IsNotExist(err) {
++		t.Fatal("readonly snapshot created database")
++	}
++}
++
++func TestCandidateSQLiteSnapshotPreservesStorageClassesAndRawValues(t *testing.T) {
++	cases := []struct{ name, schema, initial, changed string }{
++		{"integer-versus-real", "CREATE TABLE policy (value)", "INSERT INTO policy VALUES (CAST(1 AS INTEGER))", "UPDATE policy SET value=CAST(1 AS REAL)"},
++		{"text-versus-blob", "CREATE TABLE policy (value)", "INSERT INTO policy VALUES ('YWJj')", "UPDATE policy SET value=X'616263'"},
++		{"declared-boolean-raw-integer", "CREATE TABLE policy (value BOOLEAN)", "INSERT INTO policy VALUES (1)", "UPDATE policy SET value=2"},
++		{"declared-datetime-raw-text", "CREATE TABLE policy (value DATETIME)", "INSERT INTO policy VALUES ('2026-11-18 10:00:00')", "UPDATE policy SET value='2026-11-18T10:00:00Z'"},
++		{"real-low-bits", "CREATE TABLE policy (value)", "INSERT INTO policy VALUES (1.0000000000000002)", "UPDATE policy SET value=1.0000000000000004"},
++		{"invalid-utf8-bytes", "CREATE TABLE policy (value)", "INSERT INTO policy VALUES (CAST(X'80' AS TEXT))", "UPDATE policy SET value=CAST(X'81' AS TEXT)"},
++	}
++	for _, item := range cases {
++		t.Run(item.name, func(t *testing.T) {
++			path := filepath.Join(t.TempDir(), "config.db")
++			db, err := sql.Open("sqlite3", path)
++			if err != nil {
++				t.Fatal(err)
++			}
++			defer db.Close()
++			if _, err = db.Exec(item.schema + ";" + item.initial); err != nil {
++				t.Fatal(err)
++			}
++			before, err := candidateSQLiteSnapshot(context.Background(), path)
++			if err != nil {
++				t.Fatal("initial snapshot")
++			}
++			if _, err = db.Exec(item.changed); err != nil {
++				t.Fatal(err)
++			}
++			after, err := candidateSQLiteSnapshot(context.Background(), path)
++			if err != nil {
++				t.Fatal("changed snapshot")
++			}
++			if before == after {
++				t.Fatal("storage mutation hidden by lossy representation")
++			}
++		})
++	}
++}
++
++func TestCandidateSQLiteSnapshotPreservesDuplicateRowMultiplicity(t *testing.T) {
++	path := filepath.Join(t.TempDir(), "config.db")
++	db, err := sql.Open("sqlite3", path)
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer db.Close()
++	if _, err = db.Exec("CREATE TABLE policy (value); INSERT INTO policy VALUES (1)"); err != nil {
++		t.Fatal(err)
++	}
++	before, err := candidateSQLiteSnapshot(context.Background(), path)
++	if err != nil {
++		t.Fatal(err)
++	}
++	if _, err = db.Exec("INSERT INTO policy VALUES (1)"); err != nil {
++		t.Fatal(err)
++	}
++	after, err := candidateSQLiteSnapshot(context.Background(), path)
++	if err != nil || after == before {
++		t.Fatal("duplicate row count hidden")
++	}
++}

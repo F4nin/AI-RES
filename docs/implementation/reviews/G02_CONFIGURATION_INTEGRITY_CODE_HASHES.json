@@ -1,0 +1,23 @@
+{
+  "date": "2026-11-18",
+  "files": {
+    "backend/src/ai_res/cli/flash_candidate.py": "93c790327f128422b178d077dff26eff10c0d79e7f1a6f5ba3ff12557a2b6609",
+    "backend/src/ai_res/modules/model_registry/candidate_host.py": "f1e90a2bf815a8daa441dd54c51f11f5794253f10d220eaee60413ee315fcfd8",
+    "backend/src/ai_res/modules/model_registry/candidate_integrity.py": "6756a0259addabbbb65e80b9fb62237fb615da9572add1faefcdff314a60d57f",
+    "backend/tests/fixtures/bifrost_integrity_probe.py": "a3775ae629f7fd9fc20fad8895da5f996c1fccba90712b6051467240d64ba2b3",
+    "backend/tests/fixtures/candidate_sqlite_mutation.go": "3a3410756a528181a4f6732e4dd3f2a27b5f1f039fdc6128f20b348a32a40a89",
+    "backend/tests/fixtures/flash_candidate_fake_relay.py": "b02fbc67e6624377ce9a1ec9b6ff0e522ce664a085808634e2cf37321041c30d",
+    "backend/tests/integration/test_bifrost_candidate_integrity.py": "3172f6cb84f622c50130a62e90e7c4da9aec56d79b063eba7881d194025d755e",
+    "backend/tests/unit/test_candidate_host.py": "db0b0e54426b50ddac0265e1dc4d44853b5dcf09489578127698bf90f92f3cf6",
+    "backend/tests/unit/test_candidate_integrity.py": "021c580656d2d06169a1c01b49e4c313e18d0e69c95da2317f467e691b14763c",
+    "backend/tests/unit/test_flash_candidate_cli.py": "502db4c18ed00da31dce8188539e56045c332207fb639bed416e9bc79df8a696",
+    "infra/llm_poc/bifrost_integrity/Dockerfile": "e813c0828885bf1f37cd7440c5cf443c7beee02bb5194a35fbb9bfa4f10580b8",
+    "infra/llm_poc/bifrost_integrity/build.py": "6c863141e7c158bcdde7f66aaff8d1fca8fd61d815a97938a25297b1de0cb064",
+    "infra/llm_poc/bifrost_integrity/integrity.patch": "7a69b6e13e721ba722aadb2ffa1f75986e6780b9f9ed74da655cd31ef836331b",
+    "infra/llm_poc/bifrost_integrity/manifest.json": "53f677ebac41678086d180a446638ba54569d27207ae49dea6d1d787f8aefaa6",
+    "infra/llm_poc/bifrost_integrity/start-candidate.sh": "7765d0178af310d8467f2be356f9973e3e3fc7fe7712bdc858657d828b592447"
+  },
+  "head": "db8d4af34b0933aa2562adcf072b717eb0e3e3e9",
+  "scope": "G156 ADR137 configuration integrity, not live/human approval",
+  "workingDiff": true
+}

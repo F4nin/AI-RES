@@ -1,0 +1,109 @@
+{
+  "version": "slice01-live-evidence/1",
+  "status": "V1_GOVERNED_CALL_REFUSED_DIAGNOSTIC_CAUSE_LOST",
+  "head": "5bc8324e967713a607c93f20d54cb3fc57e76fcb",
+  "workingDiff": true,
+  "manifestSha256": "5252af2b7fed7a5f03c9f6d742549ab675fdecb2fc55998730577302bb993315",
+  "managedVersions": {
+    "codeRevision": "5bc8324e967713a607c93f20d54cb3fc57e76fcb",
+    "configSha256": "2bd8ae75bcf0ce67e75b96d9cbe5fe670b3570035a34337c1cfb9e4a469469cc",
+    "profileId": "01a1ef1f-5182-70f8-8dda-603e33876b8b",
+    "profileVersion": 1,
+    "promptSha256": "31b654db0de179afd212bc9f9d0fe6eb4ba953a52cdb547ecaa00e4a9042eb16",
+    "toolsSha256": null
+  },
+  "candidate": {
+    "latencyMs": 1243,
+    "observationSha256": "7bba4d746247210daf4687cd7df59e59e7cf764d353e8409ca47bba509517175",
+    "profileId": "01a1ef1f-5182-70f8-8dda-603e33876b8b",
+    "remainingUSD": "9.9999877",
+    "requestRef": "slice01-probe-582b058799d64991862d96086d1cb239",
+    "status": "CANDIDATE_OBSERVED_NOT_APPROVED",
+    "usage": {
+      "inputTokens": 37,
+      "outputTokens": 1
+    },
+    "usedOrReservedUSD": "0.0000123"
+  },
+  "observation": {
+    "identity": {
+      "fingerprint": {
+        "presence": "VALUE",
+        "value": "bc19ba97cbe016479903222bb1578db6"
+      },
+      "provider": "deepseek",
+      "requestModelId": "deepseek-flash",
+      "responseModelId": "deepseek-flash",
+      "routingModelId": "deepseek-flash"
+    },
+    "kind": "OBSERVATION",
+    "managedVersions": {
+      "codeRevision": "5bc8324e967713a607c93f20d54cb3fc57e76fcb",
+      "configSha256": "2bd8ae75bcf0ce67e75b96d9cbe5fe670b3570035a34337c1cfb9e4a469469cc",
+      "profileId": "01a1ef1f-5182-70f8-8dda-603e33876b8b",
+      "profileVersion": 1,
+      "promptSha256": "31b654db0de179afd212bc9f9d0fe6eb4ba953a52cdb547ecaa00e4a9042eb16",
+      "toolsSha256": null
+    },
+    "observedAt": "2026-11-18T16:27:48.985622Z",
+    "providerRequestRef": "9ecb48ff-8fc7-4844-b92c-addd4e6dcc5c",
+    "requestRef": "slice01-probe-582b058799d64991862d96086d1cb239",
+    "schemaVersion": "0.2"
+  },
+  "bifrostImage": "sha256:c52717deb74c85d4980e0710464a76942ec091daacdb1e11d266ab1e068864a9",
+  "promptBundle": {
+    "diagnosticTemplateSha256": "3be7337124e869119d41bd2ce8765057c40d2a420ee8e14e5f1efe7dd05b510d",
+    "requirementsTemplateSha256": "136d6efe6f874c388ea8bc536c25eaedd1ecbaf87bf627bebc0addfd9f8d5b30",
+    "version": "slice01-prompts/1"
+  },
+  "source": {
+    "sourceId": "7bd38c76-d691-455f-81ef-d49e132c28dc",
+    "versionId": "a504dbcc-81fa-47f8-a645-9e39b8c0658b",
+    "checksum": "65fbd975a3ab2021057b1c1944cf66418aa846039e51b166d2a98eb29e7169fb",
+    "license": "MIT",
+    "provenance": {
+      "caveat": "May be present in model training; schema/grounding are not absolute quality evidence",
+      "checkedAt": "2026-11-18",
+      "classification": "INTERNAL",
+      "commit": "25588846c314b15a5e427ffe816e6b4af7be68c7",
+      "content": "public demonstration application requirements; no project private source",
+      "license": "MIT",
+      "licenseSha256": "12714b2d6887e8c850f13faaf294e52a04eb485ec2ad6fa367d4431d72d0aaf5",
+      "repository": "https://github.com/realworld-apps/realworld",
+      "sourceId": "TD-06",
+      "sourceSha256": "65fbd975a3ab2021057b1c1944cf66418aa846039e51b166d2a98eb29e7169fb",
+      "upstreamPath": "docs/src/content/docs/specifications/frontend/routing.md"
+    }
+  },
+  "profileId": "01a1ef1f-5182-70f8-8dda-603e33876b8b",
+  "humanApproval": true,
+  "requirementsCallPerformed": true,
+  "providerCalls": 2,
+  "automaticRetries": 0,
+  "fallbacks": 0,
+  "providerBillingVerified": false,
+  "accounting": "Known usage charged conservatively at peak/cache-miss rates; actual provider invoice not checked.",
+  "originalTechnicalAccountUnchanged": true,
+  "authorizationUSD": "10",
+  "acceptanceSha256": "07c7a87527ec253c7f386d9ea645bc8b8eeca9bbc2c586d43b8061917357b8e3",
+  "decisionId": "cf39f20d-597a-411f-b2d1-c7ab29281610",
+  "limitations": [
+    "Not a product WorkerRun or requirement approval.",
+    "Candidate diagnostic is not an approved Requirements result.",
+    "New profile/identity/Bifrost acceptance must be performed personally by owner; terminal opened for review.",
+    "Full pre-pr and new exact Linux CI remain outstanding for delivery.",
+    "V2 diagnostics/versioned continuation under same total budget is being implemented; no V2 provider calls yet."
+  ],
+  "requirementsResultAccepted": false,
+  "totalUsedOrReservedUSD": "0.0014235",
+  "remainingUSD": "9.9985765",
+  "requirementsAdmissionStatus": "VALIDATED",
+  "failure": {
+    "hostCode": "PRODUCER_REFUSED",
+    "producerExitCode": 2,
+    "causeKnown": false,
+    "rawOutputRetained": false,
+    "automaticReplay": false
+  },
+  "runtimeStopped": true
+}

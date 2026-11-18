@@ -34,7 +34,7 @@ class Settings(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     environment: Literal["local", "test", "prod"] = "prod"  # safest default (ADR-022)
-    llm_gateway: Literal["unconfigured", "deterministic-test-double"] = "unconfigured"
+    llm_gateway: Literal["unconfigured", "deterministic-test-double", "bifrost-observed"] = "unconfigured"
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     otlp_endpoint: str | None = None  # OTLP/HTTP base URL of the Collector (S13); unset = no export
     release_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9._+-]{1,64}$")  # supplied by the release process (infra release manifest); never invented

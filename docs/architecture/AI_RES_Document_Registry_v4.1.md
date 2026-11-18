@@ -1,7 +1,7 @@
 # AI RES — Реестр проектной документации
 
 **Версия:** 4.1  
-**Дата актуализации:** 2026-11-10  
+**Дата актуализации:** 2026-11-17 (редакция NCP-16)
 **Назначение:** единая точка определения актуальных документов, статусов и связей. Реестр описывает фактические файлы, а не просто планируемые артефакты.
 
 ## 1. Правила управления документами
@@ -39,7 +39,7 @@
 | DOC-019 | Secrets/keys | `AI_RES_Secrets_and_Key_Management_v1.1.md` | BASELINED | SOPS/age + Compose secrets baseline; runtime rotation tests pending |
 | DOC-020 | Security requirements | `AI_RES_Security_Controls_and_Requirements_v1.2.md` | BASELINED | SEC controls baseline; P0 tests are release blockers |
 | DOC-021 | Методология | `AI_RES_Methodology_and_Source_Traceability_Matrix_v1.2.md` | BASELINED | Methodology traceability to chapters 2–10 and current design decisions |
-| DOC-022 | Реестр документов | `AI_RES_Document_Registry_v4.1.md` | BASELINED | Canonical current registry v4.1 |
+| DOC-022 | Реестр документов | `AI_RES_Document_Registry_v4.1.md` | BASELINED | Canonical current registry v4.1; dated owner-approved NCP-16 revision |
 | DOC-023 | Аутентификация и сессии | `AI_RES_Authentication_and_Session_Management_v1.1.md` | BASELINED | Local Auth MVP, server-side sessions, CSRF and privileged MFA |
 | DOC-024 | Архитектура наблюдаемости | `AI_RES_Observability_Architecture_v1.2.md` | BASELINED | Observability design; SLO/retention/sizing remain deployment gates |
 | DOC-025 | Требования к мониторингу и alerting | `AI_RES_Monitoring_and_Alerting_Requirements_v1.0.md` | WORKING | OBS-MON/SEC/ALR requirements |
@@ -85,12 +85,12 @@
 | DOC-072 | Persistence Implementation Blueprint | `AI_RES_Persistence_Implementation_Blueprint_v1.0.md` | BASELINED | Alembic/SQLAlchemy, repository layout, migrations, backfill, Unit of Work, RLS, CI acceptance and DoD |
 | DOC-073 | Проверка Persistence Implementation Blueprint | `AI_RES_Persistence_Implementation_Blueprint_Verification_v1.0.md` | WORKING | Static/package verification; live PostgreSQL not tested |
 | DOC-074 | Пакет Persistence Implementation Blueprint | `AI_RES_Persistence_Implementation_Blueprint_Package_v1.0.zip` | WORKING | Blueprint, scaffold, operational SQL and updated normative documents |
-| DOC-075 | Завершение архитектурных блоков и baseline решений | `AI_RES_Architecture_Completion_and_Baseline_Decisions_v1.0.md` | BASELINED | Каноническая карта закрытых решений и границ MVP/post-MVP |
-| DOC-076 | LLM Gateway и Model Registry | `AI_RES_Model_Gateway_and_Model_Registry_v1.0.md` | BASELINED | LLMGatewayPort, Bifrost preferred behind adapter, model routing and PoC gate |
+| DOC-075 | Завершение архитектурных блоков и baseline решений | `AI_RES_Architecture_Completion_and_Baseline_Decisions_v1.1.md` | BASELINED | Каноническая карта закрытых решений и границ MVP/post-MVP |
+| DOC-076 | LLM Gateway и Model Registry | `AI_RES_Model_Gateway_and_Model_Registry_v1.1.md` | BASELINED | LLMGatewayPort, Bifrost preferred behind adapter, model routing and PoC gate |
 | DOC-077 | Knowledge, Memory и Retrieval Architecture | `AI_RES_Knowledge_Memory_Retrieval_Architecture_v1.0.md` | BASELINED | PostgreSQL FTS + pgvector, MinIO, immutable context, ACL-aware retrieval |
-| DOC-078 | Evaluation Framework и Release Gates | `AI_RES_Evaluation_and_Release_Gates_v1.0.md` | BASELINED | Task-class evaluation sets, deterministic/security gates and release manifest |
+| DOC-078 | Evaluation Framework и Release Gates | `AI_RES_Evaluation_and_Release_Gates_v1.1.md` | BASELINED | Task-class evaluation sets, deterministic/security gates and release manifest |
 | DOC-079 | Learning & Experience Lifecycle | `AI_RES_Learning_Experience_Lifecycle_v1.0.md` | BASELINED | Non-parametric MVP, governed improvement, A0-A2 only |
-| DOC-082 | Baseline manifest | `AI_RES_Architecture_Baseline_Manifest_v1.2.json` | BASELINED | SHA-256 manifest for Registry v4.1 canonical files |
+| DOC-082 | Baseline manifest | `AI_RES_Architecture_Baseline_Manifest_v1.3.json` | BASELINED | SHA-256 manifest for Registry v4.1 canonical files |
 | DOC-083 | Проверка завершения архитектурных блоков | `AI_RES_Architecture_Completion_Verification_v1.2.md` | WORKING | Static verification report; no runtime certification |
 
 ## 3. Исходные методические материалы
@@ -283,3 +283,9 @@ No document is marked runtime-verified by this status reconciliation.
 ## 7. Контроль статусов
 
 `BASELINED` относится к утверждённому нормативному дизайну/требованиям, а не к факту программной реализации. Частичные baseline обязаны перечислять WORKING-параметры и post-MVP ограничения. Runtime, security, performance и production acceptance фиксируются отдельными verification artifacts и release gates.
+
+## 8. Редакция NCP-16 — решение владельца 2026-11-17
+
+Принят ограниченный вариант B для DeepSeek Flash первого среза: rolling alias с наблюдаемой identity, явным ограничением воспроизводимости и остановкой при обнаруженном drift до повторной человеческой приёмки. DOC-075/076/078 обновлены до v1.1, DOC-082 до manifest v1.3; прежние версии сохранены как исторические. Bootstrap-путь и номер Registry v4.1 сохранены, редакция различается датой/этой записью и SHA-256 нового manifest.
+
+Принято только нормативное исключение. Машинные identity/admission/drift contracts и runtime enforcement ещё не реализованы; profile/Bifrost approval, расходы и остальные gates не предоставлены. Ни один продуктовый этап не повышает статус из-за этой редакции.

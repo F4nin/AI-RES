@@ -1,0 +1,272 @@
+{
+  "status": "REAL_PROVIDER_OBSERVED_NOT_PROFILE_APPROVAL",
+  "codeRevision": "504ceb0a1d5132fa3fa8f9bc998bb8ddecd4cce2",
+  "candidate": {
+    "bifrostImageSha256": "b0e0b5f06c7e472129c9b1a2f8aee4e83d169ac5dda6b263536e8005b6b0d18c",
+    "codeRevision": "504ceb0a1d5132fa3fa8f9bc998bb8ddecd4cce2",
+    "configSha256": "0f32a762803448713ffd37f8133fc908525b16924f8e127040a0ade089c08dcd",
+    "planSha256": "a2631206efe75f3e5abf95aa281a866b6efed55e13bb810bdc46dbd05b26b469",
+    "promptSha256": "edf7a9c9682e6e2c0d97e5315acf374ff59146200e01c55ad6612a7c5614e37b",
+    "sourceTreeSha256": "75f16a8d0c4370ce54d24238f960243527e813302074fb1e4d7ffc25a007a28f",
+    "tariffSha256": "bfc54b5cb9744dbf60ee23de4bbdcfe6dc32d22c33ea7dbce71440641cca0a7b",
+    "toolsSha256": null
+  },
+  "originalBudgetPreserved": true,
+  "providerBillingVerified": false,
+  "automaticRetries": 0,
+  "fallbacks": 0,
+  "cases": [
+    {
+      "sequence": 1,
+      "case": "TEXT",
+      "observedAt": "2026-11-18T12:32:42.533464Z",
+      "outcome": "COMPLETE",
+      "capabilityOk": true,
+      "identity": {
+        "fingerprint": {
+          "presence": "VALUE",
+          "value": "bc19ba97cbe016479903222bb1578db6"
+        },
+        "provider": "deepseek",
+        "requestModelId": "deepseek-flash",
+        "responseModelId": "deepseek-flash",
+        "routingModelId": "deepseek-flash"
+      },
+      "usage": {
+        "inputTokens": 36,
+        "outputTokens": 1
+      },
+      "immediateAccountingConfirmed": true,
+      "finalAccounting": {
+        "sequence": 1,
+        "case": "TEXT",
+        "state": "SETTLED",
+        "outcome": "KNOWN",
+        "chargedUSD": "0.000012000000000000000000",
+        "inputTokens": 36,
+        "outputTokens": 1
+      }
+    },
+    {
+      "sequence": 2,
+      "case": "JSON",
+      "observedAt": "2026-11-18T12:33:21.526419Z",
+      "outcome": "COMPLETE",
+      "capabilityOk": true,
+      "identity": {
+        "fingerprint": {
+          "presence": "VALUE",
+          "value": "bc19ba97cbe016479903222bb1578db6"
+        },
+        "provider": "deepseek",
+        "requestModelId": "deepseek-flash",
+        "responseModelId": "deepseek-flash",
+        "routingModelId": "deepseek-flash"
+      },
+      "usage": {
+        "inputTokens": 68,
+        "outputTokens": 5
+      },
+      "immediateAccountingConfirmed": true,
+      "finalAccounting": {
+        "sequence": 2,
+        "case": "JSON",
+        "state": "SETTLED",
+        "outcome": "KNOWN",
+        "chargedUSD": "0.000026400000000000000000",
+        "inputTokens": 68,
+        "outputTokens": 5
+      }
+    },
+    {
+      "sequence": 3,
+      "case": "TOOL",
+      "observedAt": "2026-11-18T12:33:26.259863Z",
+      "outcome": "COMPLETE",
+      "capabilityOk": true,
+      "identity": {
+        "fingerprint": {
+          "presence": "VALUE",
+          "value": "bc19ba97cbe016479903222bb1578db6"
+        },
+        "provider": "deepseek",
+        "requestModelId": "deepseek-flash",
+        "responseModelId": "deepseek-flash",
+        "routingModelId": "deepseek-flash"
+      },
+      "usage": {
+        "inputTokens": 313,
+        "outputTokens": 33
+      },
+      "immediateAccountingConfirmed": true,
+      "finalAccounting": {
+        "sequence": 3,
+        "case": "TOOL",
+        "state": "SETTLED",
+        "outcome": "KNOWN",
+        "chargedUSD": "0.00013350000000000000",
+        "inputTokens": 313,
+        "outputTokens": 33
+      }
+    },
+    {
+      "sequence": 4,
+      "case": "SSE",
+      "observedAt": "2026-11-18T12:33:31.159266Z",
+      "outcome": "COMPLETE",
+      "capabilityOk": true,
+      "identity": {
+        "fingerprint": {
+          "presence": "VALUE",
+          "value": "bc19ba97cbe016479903222bb1578db6"
+        },
+        "provider": "deepseek",
+        "requestModelId": "deepseek-flash",
+        "responseModelId": "deepseek-flash",
+        "routingModelId": "deepseek-flash"
+      },
+      "usage": {
+        "inputTokens": 36,
+        "outputTokens": 1
+      },
+      "immediateAccountingConfirmed": true,
+      "finalAccounting": {
+        "sequence": 4,
+        "case": "SSE",
+        "state": "SETTLED",
+        "outcome": "KNOWN",
+        "chargedUSD": "0.000012000000000000000000",
+        "inputTokens": 36,
+        "outputTokens": 1
+      }
+    },
+    {
+      "sequence": 5,
+      "case": "CANCEL",
+      "observedAt": "2026-11-18T12:33:35.443762Z",
+      "outcome": "CANCELLED",
+      "capabilityOk": false,
+      "identity": {
+        "fingerprint": {
+          "presence": "VALUE",
+          "value": "bc19ba97cbe016479903222bb1578db6"
+        },
+        "provider": "deepseek",
+        "requestModelId": "deepseek-flash",
+        "responseModelId": "deepseek-flash",
+        "routingModelId": "deepseek-flash"
+      },
+      "usage": null,
+      "immediateAccountingConfirmed": false,
+      "finalAccounting": {
+        "sequence": 5,
+        "case": "CANCEL",
+        "state": "SETTLED",
+        "outcome": "UNKNOWN",
+        "chargedUSD": "0.60030720000000000000",
+        "inputTokens": null,
+        "outputTokens": null
+      }
+    },
+    {
+      "sequence": 6,
+      "case": "TIMEOUT",
+      "observedAt": "2026-11-18T12:34:58.205066Z",
+      "outcome": "COMPLETE",
+      "capabilityOk": true,
+      "identity": {
+        "fingerprint": {
+          "presence": "VALUE",
+          "value": "bc19ba97cbe016479903222bb1578db6"
+        },
+        "provider": "deepseek",
+        "requestModelId": "deepseek-flash",
+        "responseModelId": "deepseek-flash",
+        "routingModelId": "deepseek-flash"
+      },
+      "usage": {
+        "inputTokens": 37,
+        "outputTokens": 1
+      },
+      "immediateAccountingConfirmed": true,
+      "finalAccounting": {
+        "sequence": 6,
+        "case": "TIMEOUT",
+        "state": "SETTLED",
+        "outcome": "KNOWN",
+        "chargedUSD": "0.000012300000000000000000",
+        "inputTokens": 37,
+        "outputTokens": 1
+      }
+    }
+  ],
+  "accounting": {
+    "attempts": 6,
+    "usedOrReservedUSD": "0.600503400000000000000000",
+    "remainingUSD": "9.399496600000000000000000",
+    "pending": false,
+    "blocked": false,
+    "records": [
+      {
+        "sequence": 1,
+        "case": "TEXT",
+        "state": "SETTLED",
+        "outcome": "KNOWN",
+        "chargedUSD": "0.000012000000000000000000",
+        "inputTokens": 36,
+        "outputTokens": 1
+      },
+      {
+        "sequence": 2,
+        "case": "JSON",
+        "state": "SETTLED",
+        "outcome": "KNOWN",
+        "chargedUSD": "0.000026400000000000000000",
+        "inputTokens": 68,
+        "outputTokens": 5
+      },
+      {
+        "sequence": 3,
+        "case": "TOOL",
+        "state": "SETTLED",
+        "outcome": "KNOWN",
+        "chargedUSD": "0.00013350000000000000",
+        "inputTokens": 313,
+        "outputTokens": 33
+      },
+      {
+        "sequence": 4,
+        "case": "SSE",
+        "state": "SETTLED",
+        "outcome": "KNOWN",
+        "chargedUSD": "0.000012000000000000000000",
+        "inputTokens": 36,
+        "outputTokens": 1
+      },
+      {
+        "sequence": 5,
+        "case": "CANCEL",
+        "state": "SETTLED",
+        "outcome": "UNKNOWN",
+        "chargedUSD": "0.60030720000000000000",
+        "inputTokens": null,
+        "outputTokens": null
+      },
+      {
+        "sequence": 6,
+        "case": "TIMEOUT",
+        "state": "SETTLED",
+        "outcome": "KNOWN",
+        "chargedUSD": "0.000012300000000000000000",
+        "inputTokens": 37,
+        "outputTokens": 1
+      }
+    ]
+  },
+  "limitations": [
+    "CANCEL immediate runner accounting unconfirmed; subsequent authoritative ledger read proves SETTLED UNKNOWN with full reserve.",
+    "TIMEOUT default10s returned COMPLETE; timeout was not observed and is not claimed PASS.",
+    "Candidate showed separate15min SQLite housekeeping drift; scoped routing-store fix requires new build/native/idle/CI evidence.",
+    "Human identity/Bifrost/profile acceptance and product observed wiring not performed."
+  ]
+}

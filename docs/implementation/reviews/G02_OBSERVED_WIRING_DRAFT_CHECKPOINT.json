@@ -1,0 +1,82 @@
+{
+  "status": "DRAFT_KNOWN_HIGH_NOT_REVIEWED_NOT_VERIFIED",
+  "worktree": "/tmp/g156-observed-wiring-38f5955",
+  "head": "38f5955b4c363b5a0a38c6e1db69de5daeb97aff",
+  "branch": "wip/g156-observed-wiring-checkpoint",
+  "python": "3.13.5",
+  "files": {
+    "backend/src/ai_res/llm/adapters/bifrost.py": "4f6e4722632c23395ee5add9dde2fb135bf0623bc995a20cbdc18b98b3eda59a",
+    "backend/src/ai_res/llm/admission.py": "4b12f1ef1c170bff8fad94484243cc2a82b1d0445b709c1f4f794521d2addeca",
+    "backend/src/ai_res/llm/factory.py": "1d5ae2115d9766737bba1a4f1d9f799ec40f14f23642358c9537667f746d0fef",
+    "backend/src/ai_res/llm/gateway.py": "edb6dc90bf22307e9b88f42d8e89c5ee4b43e9069a6a6a8cecb825712dd693cb",
+    "backend/src/ai_res/llm/registry.py": "bdb9d2292495de94a67c024177c8c0acd6e2a14cb502fb5222cba66a766c448c",
+    "backend/src/ai_res/llm/routing.py": "9a6a7ddae857cb693fed838db91f51dfd8ce4a28c81599747fbebeb71658ea3d",
+    "backend/src/ai_res/llm/transport.py": "80912ac2ddf9c215ef63d99509a7af49fd1fa94125699ec581603f00e501f388",
+    "backend/src/ai_res/llm/types.py": "e8d0201cb411350b73053225a18fdc32f210d654e6fc8872d50724534b51515d",
+    "backend/src/ai_res/modules/model_registry/gateway_admission.py": "6edc402f3d9366f190c0ea13063348081e50882f66e18654fcaa0d5cadbde1ed",
+    "backend/src/ai_res/modules/model_registry/observed_profiles.py": "b875d14e00369ee1a0af8c978274baa46c874f4a2940fd8ff0a35b0667983dfc",
+    "backend/src/ai_res/modules/model_registry/repository.py": "f85a7059b20976179f203d9a495a4c8935f3e5212510a9d320d675ec1fe68684",
+    "backend/src/ai_res/platform/config.py": "3d412792347e0b2488a0081db51e73027f4b721ec848264fc02eada6fba79861",
+    "backend/tests/unit/test_observed_gateway.py": "8b360380363634e99a1f3d22ae69a4bbf8c196c33b7b17aad07ef716d3518b81",
+    "backend/tests/unit/test_observed_registry_admission.py": "268b1bd6b14c6cb7eb64fbf98126dc8b07fe523e557107317bc549e8fc34d01a"
+  },
+  "patch": "/tmp/g156-observed-wiring-evidence-38f5955/observed-wiring.patch",
+  "patchSha256": "6685c0dc3b975ddc69f795a8932464c30074e2b5198ef82748aa08d94a7806c3",
+  "checks": [
+    {
+      "cwd": "/tmp/g156-observed-wiring-38f5955/backend",
+      "command": "PYTHONPATH=src:testkit /Users/ekaterinamarusova/AI-RES-Workspace/AI-RES/backend/.venv/bin/python -B -m pytest tests/unit tests/architecture tests/contract -q",
+      "exit": 0,
+      "result": "1495 passed, 0 failed/skipped, 4 warnings, 10.50s",
+      "log": "/tmp/g156-observed-wiring-evidence-38f5955/pytest.log"
+    },
+    {
+      "cwd": "/tmp/g156-observed-wiring-38f5955/backend",
+      "command": "PYTHONPATH=src:testkit /Users/ekaterinamarusova/AI-RES-Workspace/AI-RES/backend/.venv/bin/python -B -m ruff check .",
+      "exit": 0,
+      "result": "PASS",
+      "log": "/tmp/g156-observed-wiring-evidence-38f5955/ruff.log"
+    },
+    {
+      "cwd": "/tmp/g156-observed-wiring-38f5955/backend",
+      "command": "PYTHONPATH=src:testkit /Users/ekaterinamarusova/AI-RES-Workspace/AI-RES/backend/.venv/bin/python -B -m mypy --strict --cache-dir /tmp/g156-observed-mypy src/ai_res",
+      "exit": 0,
+      "result": "198 source files PASS",
+      "log": "/tmp/g156-observed-wiring-evidence-38f5955/mypy.log"
+    },
+    {
+      "cwd": "/tmp/g156-observed-wiring-38f5955/backend",
+      "command": "PYTHONPATH=src:testkit /Users/ekaterinamarusova/AI-RES-Workspace/AI-RES/backend/.venv/bin/lint-imports --no-cache",
+      "exit": 0,
+      "result": "15 kept, 0 broken",
+      "log": "/tmp/g156-observed-wiring-evidence-38f5955/imports.log"
+    },
+    {
+      "cwd": "/tmp/g156-observed-wiring-38f5955",
+      "command": "git diff --check",
+      "exit": 0,
+      "result": "PASS"
+    }
+  ],
+  "knownFinding": {
+    "severity": "HIGH",
+    "path": "backend/src/ai_res/llm/adapters/bifrost.py:516",
+    "sink": "backend/src/ai_res/llm/gateway.py:546",
+    "issue": "On intra-stream inconsistency the adapter attaches current observation. If first identity is drift X and current identity equals approved Y, finalize(Y) can mark VALIDATED even though output is refused. Following call is then not durably blocked.",
+    "minimalFix": "Use malformed/no observation for any intra-stream identity/ref inconsistency; add X-to-approved-Y regression proving no output and durable next-dispatch refusal.",
+    "state": "NOT_FIXED: parent instructed stop new changes for context checkpoint."
+  },
+  "limitations": [
+    "Observed SSE buffered until complete native validation and durable finalize, bounded by existing transport max_stream_bytes; latency differs from immutable incremental streaming.",
+    "Unit mocks do not prove PostgreSQL/end-to-end product/provider semantics; no Docker, provider calls, secrets, migrations, pre-pr or Linux CI for this draft.",
+    "No independent review: author work only. Parent will review and obtain separate general/security review.",
+    "No real model profiles, seeds, approval, grants, monthly budget, business labels or regions created; unconfigured remains default.",
+    "Identity operator intentionally does not activate full model profile status/approval timestamps. Actual activation lacks a narrow owner CLI path in existing code; not implemented here.",
+    "Trusted caller authorizer, exact managed-version resolver and budget ledger must be injected. No Run producer/ADR129/WorkerRuntime changes.",
+    "Unknown outcome/finalization failure preserves existing durable pending barrier; no new reconciliation authority or auto-clear invented.",
+    "Canonical/mirrored contracts and shared implementation docs unchanged; parent owns documentation."
+  ],
+  "checkpointCommit": "37338251fc2525a5b9bfb378b9bd1d19ceba9fb4",
+  "published": false,
+  "integratedIntoRoot": false
+}

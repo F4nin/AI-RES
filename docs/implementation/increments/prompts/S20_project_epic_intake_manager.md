@@ -25,7 +25,7 @@ sendManagerMessage (202 + Operation `MANAGER_MESSAGE`), Manager intake workflow,
 - `docs/architecture/AI_RES_Requirements_Lifecycle_v2.7.md` — §4
 - `docs/architecture/AI_RES_Agent_Architecture_Concept_v4.6.md` — Manager (роль и полномочия)
 - `docs/architecture/AI_RES_Public_API_v1.3.yaml` — sendManagerMessage
-- `docs/architecture/AI_RES_Architecture_Completion_and_Baseline_Decisions_v1.0.md` — §6, §9
+- `docs/architecture/AI_RES_Architecture_Completion_and_Baseline_Decisions_v1.1.md` — §6, §9
 - `docs/architecture/AI_RES_Claude_Code_Implementation_Spec_v1.22.md` — §3 Non-negotiable constraints, §8 Test matrix/DoD, §9 Prohibited shortcuts, §10 Delivery report; Addendum v1.22 (приоритет Registry v4.1).
 - `docs/architecture/AI_RES_Document_Registry_v4.1.md` — §2 (canonical версии и статусы); BASELINED ≠ реализовано, WORKING ≠ утверждено.
 

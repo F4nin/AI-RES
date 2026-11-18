@@ -1,5 +1,65 @@
 # REQUIREMENTS_TRACEABILITY
 
+## SLICE-01 / ADR-115 и ADR-142 — 2026-11-18
+
+| Основание | Реализация/проверка | Evidence |
+|---|---|---|
+| ADR-115: документ → LLMGatewayPort → WorkerResult → owner view | scripts/slice01/producer.py, requirements.py; строгие S14/quote/type checks | SLICE-01_RESULT.json, live evidenceV3 |
+| DOC-007 v1.1 WORKING | Две точки validation, exact IDs/sourceVersion/checksum/строки, без автоматического исправления | test_slice01_requirements.py; 84 targeted unit, реальный V3 |
+| DOC-076 v1.1 §3.1/7, IAM/Auth | Existing guarded gateway/admission/owner services; личный exact identity generation1–3 | PG slice tests, native tests, actual audited approvals |
+| Утверждённый owner budget10USD | Один ledger, append versions, reserve/ARM/claim, known/UNKNOWN fail-closed | test_slice01_ledger.py83; 6knowncalls/0.0032058USD |
+| Secrets/observability boundaries | Prewrite bounded secret screening, private quarantine, machine diagnostics | producer/capture negative tests; logs без source/results |
+| TEST_DATA_SOURCES TD-06 | MIT RealWorld immutablecommit, text/checksum не изменялись | fixtures/slice01/source.json, V3line7 |
+
+Статус TESTED, финальные pre-pr/CI/доставка pending. Это development experiment;
+не WorkerRun/ReadinessGate и не подтверждение semantic completeness/requirement approval.
+[Отчёт](increments/SLICE-01_requirements_experiment_REPORT.md). История ниже.
+
+**G156 / ADR141, 2026-11-18:** DOC076 v1.1 §3.1/7 → explicit governed Flash
+observed composition + durable begin/finalize + bounded SSE + final authorization;
+reverse identity/ref/terminal inconsistency blocks result/next call. PG10PASS и
+unit50PASS. IAM v1.5 §7–8 / Auth v1.1 §5–6 / OD01/21 → owner-only offline full
+profile/Bifrost human command, exact hashes/session/MFA/Policy, single-APPROVED,
+atomic lifecycle/audit/replay. PG21PASS (включая real CLI authentication,
+policy-wait revoke и audit-wait expiry rollback), pure32PASS. Два independent
+APPROVE/open0. [Отчёт](increments/G02_identity_admission_operator_REPORT.md).
+Actual human acceptance/OD21/SLICE readiness этими synthetic tests не повышены.
+
+**G156 / ADR140,2026-11-18:** DOC076§3.1/7 + IAM§8/Auth§5–6/DOC068§1.13 →
+explicit authenticated identity acceptance/block, immutable generation+globalaudit,
+EXECUTE-only operator/empty exact login binding, finalsnapshot/Policy →61newPGcases,
+306jointPASS; independent database/general/security APPROVE. Candidate launch
+reuse guarded contexts →22purecases/два APPROVE; actual TLS/live остаются отдельным
+evidence. [Отчёт](increments/G02_identity_admission_operator_REPORT.md).
+Identity acceptance не profile activation; fullG156/SLICE/G02 readiness не повышены.
+
+**G156 / ADR139,2026-11-18:** DOC076§3.1/7 exact identity evidence + IAM§8
+exact human/version/hash + Auth§5/6 live session/MFA → OwnerReviewService,
+review_evidence, shared ADR138 fence →9newunit/42newPG,187jointPGPASS и два
+independent APPROVE. [Отчёт](increments/G02_owner_review_binding_REPORT.md).
+Покрытие ограничено подготовкой сравнения; human approval/lifecycle executor/
+observed gateway/live/SLICE остаются OPEN, readiness продукта не повышается.
+
+**G156 / ADR138, 2026-11-18:** DOC076§3.1/7 revoke/result refusal + DOC068/072
+короткие транзакции/least privilege →0025 lifecycle trigger + admission transaction
+fence/readiness →36new PG cases и111joint regressionPASS; fast1419/contract22PASS,
+два independent APPROVE. [Отчёт](increments/G02_admission_lifecycle_fence_REPORT.md).
+Human approval/product dispatch/live evidence не покрыты; G156 OPEN.
+
+**G156 / ADR135,2026-11-18:** DOC076§3.1/7 raw observed identity → narrow SDK observer everyframeincl suppressed, posthook/converter/union integrity, serializer presence/zeroUsage →Go normal/race11parents+134subPASS,vet0,два independent APPROVE. Source/build provenance source-reviewed и fresh acquisition PASS; actual patched image/full synthetic native pipeline подтверждён32cases(24patched+8official),0failed/skipped,27deselected; real provider NOT VERIFIED. Live/profile/SLICE functional coverage не повышается. [Отчёт](increments/G02_bifrost_candidate_patch_REPORT.md).
+
+**G156 / ADR134, 2026-11-18:** DOC076 budget/fail-closed/observed identity → exact synthetic body codec + privateTLS onceclaim/settlement + profileless native probe + bounded reserve/INTENT/probe/accounting runner. Fast1281passed, runner43passed с14realPG; realTLS/PG18passed отдельно. Actual pinned Bifrost/fake upstream8passed включает negative terminal fingerprint loss: SSE readiness не достигнута. Product wiring/owner lifecycle/host freshness/live approval/SLICE не покрыты, functional coverage не повышается до VERIFIED. [Отчёт](increments/G02_candidate_egress_preparation_REPORT.md), [review](reviews/G02_CANDIDATE_EGRESS_REVIEWS.md).
+
+**G156 / ADR133,2026-11-17:** DOC076 budget/fail-closed + approved technical10USD envelope →0024/TechnicalPaidLedger →PG40cases/process+logical restore,fast957,actual drift/upgrades6 и два independent APPROVE. Ledger локально TESTED; это уточняет исторические ниже «ledger отсутствует». Нет trusted host/tariff freshness/privateTLS sole-egress/candidate runner/key/live human acceptance/SLICE. Product functional coverage не повышается; G156 OPEN/IMPLEMENTATION NOT VERIFIED, G02 NOT_STARTED. [Отчёт](increments/G02_flash_paid_ledger_REPORT.md).
+
+**G156 / ADR132, checkpoint0020–0022:** DOC076§3.1/7 + DOC068/072 persistence → admission generations/control/call receipts/audit и guard → реальные PG32cases, process-loss и logical restore. Покрыты sticky block, profile-wide pending при audit failure/новой generation, exact evidence replay, role/RLS/immutable history и owner unblock только новой generation. Independent reviews APPROVE/open0; actual owner lifecycle coordination/authorization, candidate ledger/transport/live approval этим checkpoint не покрыты. Последующий0023 honest observed mode/readonly reference покрыт16new cases в PG56run +oldprofile/grants/guard cases; root actual drift/upgrades7passed,fast957passed,два independent APPROVE. Full backend1901passed/3legacy failures; affected+upgrade/drift11passed после точечных исправлений. [Отчёт](increments/G02_model_admission_persistence_REPORT.md).
+
+**ADR131, делегирование 2026-11-17:** DOC076§3.1 обязательный состав metadata → required fingerprint VALUE для expectation в schema0.2/parser/direct DTO → tests121cases (TDDRED5). Candidate absence/null сохраняются, value missing/changed против valid expectation отказывается; no expectation/selfapproval/old0.1 tests сохранены. Выбор состава CLOSED, actualvalues/profile не утверждены. Durable G156/concurrency/restart/live evidence по-прежнему не покрыты этим изменением.
+
+**G02/G156, 2026-11-17:** DOC076 v1.1 §3.1/7 (разделение controlled versions/provider facts, missing/unexpected identity, no autoapproval/fallback) → ADR130 → новый чистый `llm/observed_identity.py` и `tests/unit/test_llm_observed_identity.py`. Покрывается только parsing/exact comparison proposal; durable block/concurrency/restart/reapproval/audit, реальный provider и human acceptance ещё не покрыты этим срезом. G156 OPEN; S17/S20/S21 NOT_STARTED. [Отчёт](increments/G02_flash_admission_preparation_REPORT.md), [план](groups/G02_FLASH_ADMISSION.md).
+
+**NCP-16, решение владельца 2026-11-17: ACCEPTED вариант B только для DeepSeek Flash первого среза.** Нормативная развилка закрыта; DOC-075/076/078 v1.1 и manifest v1.3 фиксируют исключение. Управляемые версии AI RES неизменяемы; наблюдаемая provider identity отделена, drift блокирует результат и дальнейшие вызовы затронутого профиля до повторной человеческой приёмки. Скрытый drift/возврат прежней модели не гарантируются. Это документационное изменение: identity/admission/drift runtime NOT IMPLEMENTED/NOT VERIFIED, профиль/Bifrost не утверждены, платные вызовы не разрешены. G-156 сохраняет технические условия допуска; SLICE-01 и G02 не разблокированы автоматически. Доступ к кабинету DeepSeek есть, владелец может создать ключ в любой момент; значение ключа не получено/не подключено. Последующим прямым решением владельца установлен общий потолок 10 USD на технический прогон допуска Flash/Bifrost, включая retries/ошибки с возможным списанием. Это не целевой расход и не лимит на каждый запуск; SLICE-01 автоматически не включён. До вызовов подготовить минимальный план с актуальными тарифами/верхней оценкой и контролем остатка; ключ ещё не подключён. [ADR-128](decisions/ADR-128-flash-observed-identity-exception.md).
+
 Требования нормативных документов → этапы реализации → статус. Индекс сгенерирован из canonical документов Registry v4.1 (DOC-003, -009, -017, -020, -023, -025, -031, -032, -033, -039, -068, -072); 764 уникальных ID. Сопоставление выполнено на уровне семейств (G-14): при старте этапа исполнитель уточняет конкретные ID, указывает тесты и меняет статус (NOT_STARTED → IMPLEMENTED → TESTED → VERIFIED). TX-01…TX-09 (DOC-064 §8) — S05, S09, S12.
 
 ## 1. Семейства → этапы
@@ -811,3 +871,15 @@ Dev-time гарантия модульных границ (Spec §3, Domain Mode
 | WS-MVP-20 | DOC-009 | Event notifications | Желательно для Критические | S35 | NOT_STARTED |
 | WS-MVP-21 | DOC-009 | UX continuity | После MVP / UX Пользователь  | S35 | DEFERRED (post-MVP) |
 | WS-MVP-22 | DOC-009 | Configurable workspace views | После MVP | S35 | DEFERRED (post-MVP) |
+
+## G156 / ADR136 — development host checkpoint2026-11-18
+
+DOC076§3.1/5/7, secrets/runtime separation → ADR136 host binding/freshness/claim/accounting boundaries → candidate_host/composition/account_reader → unit host77 + affected142 + realPG22; локально TESTED, actual topology/mutable config/live/humanG156 NOT VERIFIED.
+
+## G156 / ADR136 — native isolation audit2026-11-18
+
+DOC076§5/7, DOC015§8/9, secrets baseline → actual renderer/mount-namespace digests, selected live+DB policy, auth/model/direct-key/network/log negatives → `test_bifrost_effective_isolation.py`6nativePASS. Inspector Mounts-order defect → reorder+Source regression/host78PASS,fast1390PASS. **Effective-integrity requirement не выполнено:** native admin mutation меняет live/SQLite при unchanged config file/image/inspect; guard enforcement остаётся до key/live. [Отчёт](increments/G02_bifrost_effective_isolation_REPORT.md), G156 OPEN, product/model coverage не повышено.
+
+## G156 / ADR137 — candidate configuration integrity2026-11-18
+
+DOC076§5/7, DOC015§8/9, secrets/runtime boundaries → fresh exact inputs+compiletime route denial+sticky actual file/live/logical SQLite invariants → new integrity.patch/build и host0.2 namespace/health/boot binding. Go8+42normal/racePASS/typedcollisions/WAL/readfailure; native12PASS(file/DB/admin/restart/atomic/proxy/preclaim+settlement/2successfulSSE), legacy65PASS; fast1419PASS. [Отчёт](increments/G02_candidate_configuration_integrity_REPORT.md), G156 OPEN: локальный technicalconditionTESTED не повышает model/profile/live/product coverage и не даёт human approval.

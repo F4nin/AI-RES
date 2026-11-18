@@ -1,0 +1,12 @@
+{
+  "checkpoint": "G156 ADR138 2026-11-18",
+  "branch": "feat/g02-manager-tools-planning",
+  "head": "db8d4af34b0933aa2562adcf072b717eb0e3e3e9",
+  "scope": "Local lifecycle fence only; working diff, not full G156 verification",
+  "files": {
+    "backend/src/ai_res/modules/model_registry/admission.py": "1c6926f87808accce4db077f1adc085d2259a9327ef4134043a33010c427620d",
+    "backend/src/ai_res/db/migrations/versions/0025_model_admission_lifecycle_fence.py": "e01361de68f4e734f64865f8da7ccb239d40605968998c90d4332b3ce5635a08",
+    "backend/tests/integration/postgres/test_model_admission_lifecycle.py": "307678925a49d564d5ae3d0f18e99246dc7ce9ca66f4e03d7dd5080a4003e03d",
+    "backend/ops/postgres/schema_snapshot.sql": "a1f99961316f5f267e67964a0791e51217ab2805b0347e1e9a65ef265ebef460"
+  }
+}

@@ -12,18 +12,23 @@ SET password_encryption = 'scram-sha-256';
 
 SELECT 'CREATE ROLE ai_res_owner NOLOGIN' WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'ai_res_owner') \gexec
 SELECT format('CREATE ROLE %I NOLOGIN', r) FROM (VALUES ('ai_res_api_group'), ('ai_res_outbox_group'), ('ai_res_consumer_group'),
-  ('ai_res_auditor_group'), ('ai_res_checkpointer_group')) v(r) WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = r) \gexec
+  ('ai_res_auditor_group'), ('ai_res_checkpointer_group'), ('ai_res_model_admission_operator')) v(r) WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = r) \gexec
 SELECT format('CREATE ROLE %I LOGIN', r) FROM (VALUES ('ai_res_migrator'), ('ai_res_api'), ('ai_res_outbox_dispatcher'), ('ai_res_event_consumer'),
   ('ai_res_auditor'), ('ai_res_backup')) v(r) WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = r) \gexec
 SELECT 'CREATE DATABASE ai_res_db OWNER ai_res_owner' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'ai_res_db') \gexec
 
 -- Attributes: none of them may ever carry SUPERUSER/CREATEDB/CREATEROLE/REPLICATION/BYPASSRLS.
 ALTER ROLE ai_res_owner NOLOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+-- PostgreSQL16 requires this owner-only privilege for CREATE FUNCTION ... SET
+-- of a custom GUC. It does not make that GUC an authorization credential.
+GRANT SET ON PARAMETER app.migration_mode TO ai_res_owner;
 ALTER ROLE ai_res_api_group NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
 ALTER ROLE ai_res_outbox_group NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
 ALTER ROLE ai_res_consumer_group NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
 ALTER ROLE ai_res_auditor_group NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
 ALTER ROLE ai_res_checkpointer_group NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+-- ADR140: dormant EXECUTE-only group; no login/password/membership is provisioned.
+ALTER ROLE ai_res_model_admission_operator NOLOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
 ALTER ROLE ai_res_migrator LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD :'migrator_pw';
 ALTER ROLE ai_res_api LOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD :'api_pw';
 ALTER ROLE ai_res_outbox_dispatcher LOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD :'outbox_pw';

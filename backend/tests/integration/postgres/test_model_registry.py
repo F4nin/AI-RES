@@ -78,7 +78,8 @@ def test_profile_is_immutable_except_lifecycle_and_never_deleted_or_truncated(mi
         with pytest.raises(errors.IntegrityConstraintViolation, match="never deleted"):
             c.execute("DELETE FROM platform.model_profiles WHERE id=%s", [pid])
         with pytest.raises(errors.IntegrityConstraintViolation, match="TRUNCATE"):
-            c.execute("TRUNCATE platform.model_profiles")
+            # Include referencing admission evidence so the BEFORE TRUNCATE guard, not the FK precheck, rejects this stronger attack.
+            c.execute("TRUNCATE platform.model_profiles CASCADE")
         with pytest.raises(errors.UniqueViolation):
             add_profile(c)  # same (profile_key, profile_version)
         assert add_profile(c, "alpha", 2)

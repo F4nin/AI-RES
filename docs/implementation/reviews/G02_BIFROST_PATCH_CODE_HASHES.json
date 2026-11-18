@@ -1,0 +1,19 @@
+{
+  "version": "g156-bifrost-patch-code-evidence/0.1",
+  "date": "2026-11-18",
+  "head": "db8d4af34b0933aa2562adcf072b717eb0e3e3e9",
+  "branch": "feat/g02-manager-tools-planning",
+  "scope": "Candidate SDK patch/build and both synthetic Bifrost fixture tests/helper; no product approval, documentation excluded.",
+  "aggregateSha256": "d22e7e8bd767373b94c4ae6d08c95af8c409c0217a3baeb5f85f9c07c6053349",
+  "fileSha256": {
+    "backend/tests/fixtures/flash_candidate_fake_relay.py": "69cd4234d824dcd2159ba5926df2d3b594ac215472148970c402153e804c0de4",
+    "backend/tests/integration/test_flash_candidate_bifrost.py": "a4a34ca1d1eec8658ed1d5fbd88692a8ee91456c1347df383085f137d3eb8bbb",
+    "backend/tests/integration/test_flash_candidate_bifrost_patch.py": "4dbb9f8ad43b4bf4d4024895a980d9f209160b5a547d05563784c5edf29b5680",
+    "infra/llm_poc/bifrost_patch/Dockerfile": "465186a5fd2b56c92c2bc411d33f76e7c62a471613e9eede295f1398bef67d31",
+    "infra/llm_poc/bifrost_patch/README.md": "7adec7e482e8c4e353b23f4e000ab08e0c23fb1caf5861fa64b79eaaf3812410",
+    "infra/llm_poc/bifrost_patch/build.py": "f75552059311308f70c7f2597eb6fed421fd3154661bfb9f79b09a14ea4eb7d0",
+    "infra/llm_poc/bifrost_patch/fingerprint.patch": "ec45313c57bb94c75fbec20725b5b41205159012ed131547ccadb4ba7355b025",
+    "infra/llm_poc/bifrost_patch/headless-index.html": "72a8bf520eb0ab9d7e7c398b2656130c84b4d3aa1f48898a1f78b7e3849324af",
+    "infra/llm_poc/bifrost_patch/manifest.json": "4efa22236ae1960d8b2497ec6bdb87a1b67f3eb266f6f4745199fd8ae51c05c8"
+  }
+}

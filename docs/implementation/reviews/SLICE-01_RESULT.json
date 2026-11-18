@@ -1,0 +1,91 @@
+{
+  "version": "slice01-reviewed-output/1",
+  "status": "DETERMINISTIC_CHECKS_PASSED_OWNER_REVIEW_REQUIRED",
+  "experiment": "SLICE-01",
+  "sourceFixture": "TD-06 RealWorld routing.md",
+  "receivedAt": "2026-11-18T17:19:17.460761+00:00",
+  "result": {
+    "findingTypes": [
+      {
+        "declaredType": "FR",
+        "findingId": "F1",
+        "normalizedType": "FR"
+      }
+    ],
+    "promptSha256": "71a2791d4295333800184d1b540fe09859e867cf93d19f2486c3ed4bf29c1d26",
+    "promptVersion": "slice01-requirements/3",
+    "sourceChecksum": "65fbd975a3ab2021057b1c1944cf66418aa846039e51b166d2a98eb29e7169fb",
+    "sourceId": "45eb4e16-a49c-4df6-a21c-3f1a978ff1b3",
+    "sourceVersionId": "bd97d565-8c39-4a0e-8fb6-bd785bc88ab4",
+    "workerResult": {
+      "artifactRefs": [],
+      "blockers": [],
+      "completedAt": "2026-02-14T12:00:00Z",
+      "contractVersion": "1.1",
+      "findings": [
+        {
+          "classification": "SOURCE_ASSERTION",
+          "evidenceRefs": [
+            {
+              "checksum": "65fbd975a3ab2021057b1c1944cf66418aa846039e51b166d2a98eb29e7169fb",
+              "locator": "lines:7-7",
+              "objectId": "bd97d565-8c39-4a0e-8fb6-bd785bc88ab4",
+              "objectType": "SourceVersion",
+              "quote": "  - List of articles pulled from either Feed, Global, or by Tag",
+              "versionId": "bd97d565-8c39-4a0e-8fb6-bd785bc88ab4"
+            }
+          ],
+          "findingId": "F1",
+          "statement": "The home page must show a list of articles pulled from either Feed, Global, or by Tag."
+        }
+      ],
+      "limitations": [
+        "Slice limited to a single requirement; other routing items in lines 5-21 were not extracted."
+      ],
+      "proposedChanges": [],
+      "questions": [],
+      "resultStatus": "COMPLETED",
+      "summary": "Extracted one grounded requirement: the home page lists articles pulled from Feed, Global, or by Tag.",
+      "taskId": "f57d24cd-4262-4ce6-9e4e-9e24edf064c1",
+      "toolExecutionRefs": [],
+      "validation": {
+        "selfAssessment": "PASS_WITH_LIMITATIONS"
+      },
+      "workerRole": "REQUIREMENTS",
+      "workerRunId": "a9e503c8-8da6-4d1b-ac1b-d355e82a57b5"
+    }
+  },
+  "identity": {
+    "identity": {
+      "fingerprint": {
+        "presence": "VALUE",
+        "value": "bc19ba97cbe016479903222bb1578db6"
+      },
+      "provider": "deepseek",
+      "requestModelId": "deepseek-flash",
+      "responseModelId": "deepseek-flash",
+      "routingModelId": "deepseek-flash"
+    },
+    "kind": "OBSERVATION",
+    "managedVersions": {
+      "codeRevision": "5bc8324e967713a607c93f20d54cb3fc57e76fcb",
+      "configSha256": "9d16b0131d6945707a80c0986622ea90e82197883092747a665f126f3325ba2b",
+      "profileId": "01a1ef1f-5182-70f8-8dda-603e33876b8b",
+      "profileVersion": 1,
+      "promptSha256": "c3e48598b8645c551ee67858a2a504fbc0ad701eaf384cc187cbab75a3095e51",
+      "toolsSha256": null
+    },
+    "observedAt": "2026-11-18T17:19:17.405771Z",
+    "providerRequestRef": "dc1aca11-36fa-4745-8848-2f709a5529b8",
+    "requestRef": "slice01-run-c0b5da64a74f4b39a264035c8d38b076",
+    "schemaVersion": "0.2"
+  },
+  "usage": {
+    "inputTokens": 1763,
+    "outputTokens": 391
+  },
+  "usedOrReservedUSD": "0.0032058",
+  "remainingUSD": "9.9967942",
+  "originalArtifactSha256": "89956541d89a5d1e5a95c85b42e151b645b06a98b856b543a1e0c33ef20afbe8",
+  "interpretation": "Candidate from a public test document, not an approved AI RES requirement; literal grounding/schema/type checked, semantic usefulness for owner review."
+}

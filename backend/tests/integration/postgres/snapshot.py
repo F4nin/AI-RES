@@ -26,6 +26,10 @@ _DBACL_SQL = """
 SELECT format('DATABASE ACL %s', coalesce(array_to_string(ARRAY(SELECT x::text FROM unnest(datacl) x ORDER BY x::text), ','), '<default>'))
   FROM pg_database WHERE datname = current_database()
 """
+_PARAMETER_SQL = """
+SELECT format('PARAMETER ACL %s %s',parname,array_to_string(ARRAY(SELECT x::text FROM unnest(paracl) x ORDER BY x::text),','))
+  FROM pg_parameter_acl ORDER BY parname
+"""
 
 
 def _normalize(dump: str) -> str:
@@ -38,6 +42,6 @@ def build_snapshot(pg: Pg) -> str:
                                    "--exclude-schema=langgraph", "--exclude-schema=temporal"])
     assert code == 0, out.decode(errors="replace")[-800:]
     with pg.connect() as c:
-        catalog = [r[0] for sql in (_ROLE_SQL, _MEMBER_SQL, _DBACL_SQL) for r in c.execute(sql.encode()).fetchall()]
+        catalog = [r[0] for sql in (_ROLE_SQL, _MEMBER_SQL, _DBACL_SQL, _PARAMETER_SQL) for r in c.execute(sql.encode()).fetchall()]
     header = "-- AI RES design snapshot of ai_res_db at Alembic head (S04). Regenerate: make db-snapshot. Do not edit by hand.\n"
-    return header + "\n-- CATALOG\n" + "\n".join(f"-- {line}" for line in catalog) + "\n\n-- SCHEMA\n" + _normalize(out.decode())
+    return header + "\n-- CATALOG\n" + "\n".join(f"-- {line.rstrip()}" for line in catalog) + "\n\n-- SCHEMA\n" + _normalize(out.decode())

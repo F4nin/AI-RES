@@ -23,7 +23,7 @@
 - `docs/architecture/AI_RES_Claude_Code_Implementation_Spec_v1.22.md` — §4 Increment 1; §7; §8 (Contracts)
 - `docs/architecture/AI_RES_API_and_Interaction_Contracts_v1.10.md` — §15 Contract compatibility and versioning; §17 Contract testing and quality gates; §18
 - `docs/architecture/AI_RES_Document_Registry_v4.1.md` — §2 (DOC-006/007/008/050/056/057), §5
-- `docs/architecture/AI_RES_Architecture_Baseline_Manifest_v1.2.json` — files[].sha256
+- `docs/architecture/AI_RES_Architecture_Baseline_Manifest_v1.3.json` — files[].sha256
 - `.claude/rules/api-and-contracts.md` — «OpenAPI/AsyncAPI toolchain»
 - `docs/architecture/AI_RES_Claude_Code_Implementation_Spec_v1.22.md` — §3 Non-negotiable constraints, §8 Test matrix/DoD, §9 Prohibited shortcuts, §10 Delivery report; Addendum v1.22 (приоритет Registry v4.1).
 - `docs/architecture/AI_RES_Document_Registry_v4.1.md` — §2 (canonical версии и статусы); BASELINED ≠ реализовано, WORKING ≠ утверждено.

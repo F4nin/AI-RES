@@ -43,8 +43,17 @@ def test_offline_sql_is_reviewable_and_secret_free():
     assert "CREATE SCHEMA iam AUTHORIZATION ai_res_owner" in sql and "CREATE SCHEMA execution AUTHORIZATION ai_res_owner" in sql
     assert "REVOKE ALL ON SCHEMA public FROM PUBLIC" in sql
     assert not re.search(r"(?i)password\s+'", sql)
+    # Approved forward0022 removes a session-dependent audit CHECK, preserving data/defaults/grants (ADR132).
+    # 0023 expands only Flash's explicit observed mode; its IS TRUE CHECK retains immutable non-NULL pins.
+    # Keep DROP denied everywhere else: exact exceptions never permit table/schema/column removal.
+    restore_actor_fix = "ALTER TABLE platform.model_admission_audit DROP CONSTRAINT ck_maa_writer;"
+    observed_pin_expand = "ALTER TABLE platform.model_profiles ALTER COLUMN pinned_model_version DROP NOT NULL;"
+    guarded_sql = sql
+    for reviewed_statement in (restore_actor_fix, observed_pin_expand):
+        assert sql.count(reviewed_statement) == 1
+        guarded_sql = guarded_sql.replace(reviewed_statement, "")
     for forbidden in ("temporal", "langgraph", "CREATE ROLE", "ALTER ROLE", "DROP "):
-        assert forbidden not in sql, f"offline SQL unexpectedly contains {forbidden!r}"
+        assert forbidden not in guarded_sql, f"offline SQL unexpectedly contains {forbidden!r}"
 
 
 def test_no_hidden_secret_or_dsn_in_alembic_ini():

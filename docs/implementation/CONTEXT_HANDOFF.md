@@ -1,4 +1,312 @@
-# CONTEXT_HANDOFF — состояние для продолжения работы (обновлять в конце каждого этапа и сессии)
+# CONTEXT_HANDOFF — checkpoint перед обновлением контекста
+
+**Текущий этап: SLICE-01, TESTED; финальные gates/доставка IN_PROGRESS (2026-11-18).**
+Реальное извлечение версии 3 успешно: один FR о списке статей на главной странице,
+цитата буквально найдена в строке 7. Владелец увидел результат в чате.
+[Результат](reviews/SLICE-01_RESULT.json), [отчёт](increments/SLICE-01_requirements_experiment_REPORT.md).
+Это кандидат из публичного тестового RealWorld, не утверждённое требование AI RES.
+
+Новый общий account 10 USD: 6 KNOWN calls, used0.0032058USD, remaining9.9967942,
+pendingfalse/blockedfalse. Старый technical account/runtime не менялись. Бюджет и
+allowed_regions=[cn] уже утверждены; INTERNAL только без ПДн/коммерческой тайны.
+MFA действительно активна. Один profile APPROVED/version1, identity generation3,
+три admission versions/VALIDATED calls и один MODEL_PROFILE_APPROVED audit.
+Все human approvals выполнены лично в отдельных Terminal окнах; агент их не вводил.
+
+Standalone tool только backend/scripts/slice01; product/src, canonical, contracts,
+Compose/schema/roles/grants без diff. Source MIT RealWorld commit25588846c314b15a5e427ffe816e6b4af7be68c7,
+sourceSHA65fbd975…, metadata/лицензия в backend/tests/fixtures/slice01.
+Все 45 startup canonical файлов прочитаны до live; ранний порядок чтения до первой
+реализации был нарушен и отражён в отчёте. Не объявлять его соблюдённым задним числом.
+
+V1 ответ не сохранялся, причина отказа утрачена. V2 quarantine сработал: два JSON
+документа вместо outer object и locator12 вместо actual15. V3 добавил явную форму
+JSON и derived numberedLines; validator не ослаблялся, ответы не исправлялись.
+[Диагностика V2](reviews/SLICE-01_V2_FAILURE_DIAGNOSIS.json).
+
+V3manifest a2405a10d99713de146d79bca50b8a615cf00b07763d8713319ceebfbdef0b5a,
+prompt71a2791d4295333800184d1b540fe09859e867cf93d19f2486c3ed4bf29c1d26;
+source hashes в TOOLING_EVIDENCE_V3.json. Wallet один, append AUTHORIZE_VERSION,
+oldrefs retired. Private location infra/secrets/slice01/authorization-2026-11-18;
+актуальные артефакты в versions/3/results, общий wallet в корне. НЕ reset/init;
+новая версия требует старый stopped runtime, no IN_FLIGHT/blocked, fresh refs/price,
+новый probe и личное identity-only approval. Старые source-v1/v2 архивы сохранены.
+Все три owned runtime остановлены, volumes/основной стек не удалялись.
+
+Проверки: V2 scope371PASS/35.52s, V3 affected87PASS/22.35s,
+fast1896PASS/4warnings/15.12s, explicitmypy10modulesPASS, secrets0. MFA helper
+compatibility исправлена: stablecode/status, один ручной OTP/запуск, без detail
+parsing/retry; root28PASS/0.12s и independent APPROVE/open0. Tool source не менялся.
+Independent general/architecture/Python/security/database reviews всех final sources
+APPROVE/open0; source review не runtime. Evidence V1/V2/V3 и реальные model факты раздельны.
+
+**Полный локальный pre-pr завершён exit0:** contracts22/Renovate10/backend3228
+(541warnings,755.90s)/infra369/runtime148/PoC19, errors/skips0. Runtimeaudit0vulns,
+21imagepins/0mismatch. Permanent FINAL_LOCAL_GATES.json сохранён; source hashesV3.
+Новый Linux CI ещё не запускался, VERIFIED не заявлять. Ветка
+feat/g02-manager-tools-planning, HEAD5bc8324e967713a607c93f20d54cb3fc57e76fcb + diff;
+новых commits/push пока нет.
+Исходный чужой diff: G02_WORK/report/hash evidence и старые префиксы HANDOFF/STATUS/
+KNOWN_GAPS; сохранить отдельно и не включать в SLICE commit. candidate_tariff.json не stage.
+
+Дальше: exact review/evidence →
+commit/push/PR/обязательный Linux CI → merge только зелёный → итоговый контекст и STOP.
+Не повторять платные запросы: эксперимент уже прошёл. S17/G02 не начинать без новой команды.
+Ниже — сохранённая история до поручения SLICE; её STOP/MFA0 больше не актуальны.
+
+
+**Final local gates:** contracts22/Renovate10/backend2853/fast1538/PG31/infra369/
+runtime148/PoC19PASS; scanner0findings; rebuiltAPI14reviewedfiles/0hashmismatch и
+trustedTLS admin login/logout PASS. Pre-pr scanner false positives исправлены,
+завершён scoped resume exit0 без повтора полного backend; исходныйpre-pr exit2
+не объявляется exit0. Следующий шаг только delivery PR34/exactLinuxCI, затем STOP
+для обновления контекста. SLICE-01/G02 не начинать. После CI обновить evidence
+ЛОКАЛЬНО без ещё одного docs-only push.
+
+**Актуально, 2026-11-18 / ADR141.** По поручению владельца завершить все реализации
+перед SLICE-01; SLICE-01/G02 не начинать, после завершения сохранить контекст.
+Observed gateway draft373 интегрирован в root, HIGH reverse-SSE и final caller
+reauthorization исправлены. Реализованы полный offline owner profile/Bifrost
+approval CLI, exact auth/MFA/Policy/evidence, atomic audit/replay и one-APPROVED.
+Новых migrations/grants/ALLOW/canonical/public API changes нет. Два независимых
+source reviews APPROVE/open0; [20hashes](reviews/G02_OBSERVED_APPROVAL_CODE_HASHES.json),
+[отчёт](increments/G02_identity_admission_operator_REPORT.md),
+[review](reviews/G02_OBSERVED_APPROVAL_REVIEWS.md), [ADR141](decisions/ADR-141-observed-gateway-profile-approval.md).
+
+Backend2853PASS/541existingwarnings; fast1538PASS/mypy204/15imports; final affected
+PG31PASS/17.04s. Full pre-pr дошёл до scanner false positives; expressions исправлены
+без ослабления checks, оставшиеся infra/runtime/PoC gates завершаются отдельно,
+полный backend повторно не запускается. Точные команды/exit codes — в отчёте.
+Git: feat/g02-manager-tools-planning, проверенная база1e971f5 + scoped20code/test
+files и docs. PR34 остаётся текущей доставкой; один итоговый code+docs push после
+локальных gates. Не делать второй checkpoint push ради слов/CI evidence.
+
+Владелец подтвердил50USD/месяц и INTERNAL для обычных данных без ПДн/коммерческой
+тайны, затем явно поручил самому создать default admin; дальнейшая персональная
+настройка — позже с его помощью. Штатный bootstrap создал AI RES / Administrator /
+admin@ai-res.local с уникальным случайным паролем в ignored
+infra/secrets/local-admin/initial_password (0600,parent0700). Trusted HTTPS login200 /
+opaque cookie / Origin+CSRF logout204 PASS, secret values не выводились.
+Новых вопросов о создании default admin не задавать; пароль/metadata не коммитить.
+
+Реальный model profile не утверждён/не включён, MFA не подделывалась. Настройка и
+личная приёмка отложены владельцем; code readiness не заменяет эти действия.
+Provider calls этого продолжения0, original10USD/8attempt account не менялся:
+последнее подтверждённое6attempts/0.6005034usedOrReserved/9.3994966remaining.
+Actual timeout не наблюдался в прежнем live case, не заявлять PASS. Перед любым
+дальнейшим candidate call требуются свежие source/config/tariff/original balance.
+G156 code locally TESTED, полный real-provider admission NOT VERIFIED; G02/S17/
+S20/S21 и SLICE-01 NOT_STARTED. Остановка после текущей доставки для обновления
+контекста. История ниже не очередь новой работы и не отмена актуального scope.
+
+---
+
+Исторические checkpoints:
+
+**Остановка2026-11-18 по просьбе владельца:** текущие тесты закончены, сохранить
+продолжение и сообщить, чтобы владелец обновилконтекст. Новую работу/интеграцию
+до продолжения не начинать. Общее поручение остаётся: закончить допуск Flash как
+конечный MVP-результат, затем вернуться к группам; не создавать новые prepстадии.
+G156 IN_PROGRESS, G02/S17/S20/S21 NOT_STARTED; profile/human/SLICE ещёнепройдены.
+
+**Исправление после замечания владельца:** push документационного checkpoint был
+лишним: он автоматически запустил повторный PR CI44312593429 на docsHEAD1e971f5.
+Повтор отменён, GitHub подтвердил COMPLETED/CANCELLED. Это не PASS нового SHA.
+Проверенный runtime-код остаётся38f5955 (оба CI SUCCESS), sourcebyte-identical1e.
+До новой команды владельца не запускать работу, тесты, commit/push или CI;
+не перезапускать CI только ради сохранения контекста. Последние правки handoff,
+status/report сохранены ЛОКАЛЬНО без commit/push. Владелец обновляет контекст.
+Contracts1e44312593676/44312587592PASS. Untracked runtimeinput
+infra/llm_poc/candidate_tariff.json намеренно не committed. WIP373 не интегрирован.
+
+**Проверенный CODEHEAD38f5955b4c363b5a0a38c6e1db69de5daeb97aff**, ветка
+feat/g02-manager-tools-planning, draft[PR34](https://github.com/F4nin/AI-RES/pull/34),
+не merged. [PRCI44308595231](https://github.com/F4nin/AI-RES/actions/runs/44308595231)
+ALLJOBS SUCCESS: backend2740/541warnings/1186.47s(19:46), dependencyauditclean.
+[PushCI44308586420](https://github.com/F4nin/AI-RES/actions/runs/44308586420)alljobsPASS,
+backend2740/870.89s(14:30); оба contracts38PASS(44308595171/44308586258).
+Static/runtime/supplychainPASS; старые896FAIL/abeCANCELLED не засчитываются.
+Full localpre-pr ранееPASS:backend2740/infra369/runtime148/poc19/contracts22.
+Current3fileGo fix: normal/race8parent+42sub twicePASS,vet0,native12PASS/152.32s,
+secret0. Exact source hashes [artifact](reviews/G02_CONFIGURATION_INTEGRITY_ROUTING_CODE_HASHES.json).
+Документационныйcheckpointпосле38 не меняетэтотcode; не приписыватьему CIновогоSHA.
+
+**Concretebug закрыт technicalevidence:** optionalroutingstore=nil сохраняет основной
+ConfigStore/governance/auth и fullSQL/stickyguard, убирает unused15minregistryGC.
+Imagec52717deb74c85d4980e0710464a76942ec091daacdb1e11d266ab1e068864a9,
+binary2915a33294b510562bfd16a4083b70c77afac34f4ca99ebebe220285d1b49212.
+[922.37s/182healthchecksPASS](reviews/G02_CONFIGURATION_INTEGRITY_ROUTING_IDLE_EVIDENCE.json),
+0providercalls/controlsunchanged.2independentsourceAPPROVE/open0. Diagnostic clone
+удалён; finalownedBF/control/relay +mainstack сохраненыдляпродолжения, volumesretained.
+
+**Provider/budget:** [6realcases](reviews/G02_FLASH_LIVE_EVIDENCE.json).
+TEXT/JSON/TOOL/SSE COMPLETE/capabilitytrue/stablefingerprint
+bc19ba97cbe016479903222bb1578db6, allmodelIDsdeepseek-flash/providerdeepseek.
+CANCELclosed: initialCLIunconfirmed, laterSETTLEDUNKNOWN/full0.6003072reserve.
+TIMEOUTdefault10s completedfast: timeoutNOTOBSERVED,notPASS.6of8attemptsused,
+used+reserved0.6005034USD,remaining9.3994966,pendingfalse/blockedfalse; actualbilling
+notverified. NOreset/newwallet/autoretry. Originalaccount/setup/evidence in ignored
+infra/secrets/candidate/setup-location.json; providerplaintext0600 ONLYrelay,
+SOPSarchivekept, no keyprinted. Main24secretsunchanged. PrivateTLS401/signed400PASS.
+Helper-local Dockerobserver required(MacDockerAPI Config.OnBuild differs).
+Relayextra_hosts llm-poc-control=172.29.156.10, TLS/SAN/CA unchanged;18+10isolation
+checksAPPROVE. Actualfinalcandidatepreparedc527+descriptor38; afterdocsHEAD1e sourceRevisioncheck
+будетfailclosed: пересоздатьactualsourcebindingтолькопередразрешённымследующимcall; no morepaid since6.
+Initial/tmp preflight script asserts0attempts: DO NOTreuse/reset; futurebalance must
+honourcurrent6/remaining2. Before any furthercall checkcurrentactualsource/descriptor,
+image/boot/tariff/account; currentstoredphase mayneedexplicitoperatorresume.
+
+**Separateproductwiring DRAFT saved in LOCALGIT, not integrated/published:** branch
+wip/g156-observed-wiring-checkpoint, commit37338251fc2525a5b9bfb378b9bd1d19ceba9fb4,
+worktree /tmp/g156-observed-wiring-38f5955. [Checkpoint+14hashes/commands/logs](reviews/G02_OBSERVED_WIRING_DRAFT_CHECKPOINT.json).
+Pure1495PASS/4warnings/10.50s,Ruff0,mypy198,imports15; NO PG/pre-pr/LinuxCI/provider/
+independentreview forDRAFT. Root38 doesNOTcontainthiscode. KnownHIGH: SSEidentity
+X→approvedY canfinalizeVALIDATED(Y) despiteoutputrefusal, notdurablyblockingnextcall.
+FIRST nextfix: onanyintra-streamidentity/ref inconsistency finalizemalformed/no
+observation +reverse-drift regression. Then independentgeneral/securityreview,
+integration+affectedproducttests/fullpre-pr/newexactCI inSAMEMVPpoint. Draftobserved
+SSE buffers withinexistingmax_stream_bytes untildurablefinalize; immutable incremental.
+
+**Do notfakecomplete:** normalproductfactory/port implementation is stillDRAFT.
+Real fullprofileactivation/globalhumanapproval CLI currentlymissing, existingidentity
+executor onlyACCEPT_IDENTITY/BLOCK and doesnotsetprofileAPPROVED. Owner/migrator may
+provisionCANDIDATE perADR106, butcredential/chat is nothumanAuthSession. Before actual
+activation requireexacthuman/Bifrost/profileacceptance, realowneraccount/session/MFA/
+binding+explicitpolicypermissions (packagedpolicycurrentlydeniesmodelactions); admin
+bootstrap hasNOTbeen authorized. Classification/egresslabels+exactoperatingbudget
+remainOD21;10USDtechnicalbudget doesnotauthorizeSLICE/production. Do notinventALLOW,
+businessvalues, monthly50WORKING, ornewgrants. Finishnecessarycode withdefaultdeny;
+askonlyconcretenondelegableownerdecisions afterreviewableresult. Mainrelease/deployment
+notauthorized. SLICEdata/license/separatebudget beforeS17, ADR129/G107 beforeS20.
+
+Исторические checkpoints ниже сохраняются как evidence, не очередь новых стадий.
+
+**Checkpoint 2026-11-18 / ADR139: authenticated owner-review binding локально TESTED.**
+Backend-only prepare/revalidate связывает exact configured owner+profile, живые
+session/user/member/MFA, отдельный Policy action, actual observation/expectation
+hashes и полный profile/control/generation/pending snapshot. Нет approval DML,
+новых grants/migrations/routes или включённого профиля. Defaults deny.
+[Отчёт](increments/G02_owner_review_binding_REPORT.md),
+[review](reviews/G02_OWNER_REVIEW_REVIEWS.md),
+[4 code hashes](reviews/G02_OWNER_REVIEW_CODE_HASHES.json).
+
+Final joint PG187passed/0failed/errors/skipped/1existingwarning/73.17s,
+newPG42passed/18.35s; contracts6/6+22passed. Два independent final source
+APPROVE/open0; исправлены session-expiry-after-wait и factor/session lock inversion.
+Final fast1428passed/4existingwarnings, Ruff0/mypy197files/15importsKEPT.
+Финальные scope checks — в отчёте. Модельных calls/spend0.
+
+**Далее:** narrowly privileged operator approval/lifecycle executor с exact human
+решением и атомарным global audit; затем observed gateway integration. Материал
+review не permission/approval/provenance attestation: executor снова authenticate/
+authorize/revalidate. Real owner binding, evidence/Bifrost/profile acceptance,
+final pre-pr/LinuxCI, reviewedtariff/account/key/live/SLICE остаются.
+Подготовка G156 IN_PROGRESS/NOT VERIFIED, G02/S17/S20/S21 NOT_STARTED;
+старт G02 только по новому согласию после всей подготовки. До S20 ADR129/G107.
+
+**Git:** `feat/g02-manager-tools-planning`, HEAD
+`db8d4af34b0933aa2562adcf072b717eb0e3e3e9` + working diff.149initial files
+сохранены кроме scoped helper/doc edits; frozen migrations/schema/canonical/
+contracts/SDK/main stack/secrets этим срезом не менялись. Runtime только disposable
+PG; commit/push/PR/newCI отсутствуют до общей приёмки подготовки. Исторический
+ADR138 hash admission.py заменён новым helper-extraction hash только в ADR139
+artifact; его собственный historical evidence не переписывается.
+Ниже сохранена история checkpoints; актуальна эта сводка.
+
+**Checkpoint 2026-11-18 / ADR138: admission lifecycle fence локально TESTED.**
+Новая forward0025 и guard сериализуют lifecycle UPDATE observed Flash с begin/finalize
+без новых runtime grants. READ COMMITTED и активный exact trigger/origin обязательны;
+отказ сохраняет no-ticket/pending. [Отчёт](increments/G02_admission_lifecycle_fence_REPORT.md),
+[review](reviews/G02_ADMISSION_LIFECYCLE_REVIEWS.md), [4 code hashes](reviews/G02_ADMISSION_LIFECYCLE_CODE_HASHES.json).
+
+Final PG regression111passed/1existing warning/49.87s, fast1419passed/4warnings,
+Ruff0/mypy196files/15importsKEPT, contracts6/6+22passed. Два independent source
+reviewers APPROVE/open0, snapshot только+20lines к initial bytes; реальные calls/spend0.
+FullG156/pre-pr/LinuxCI/live/human/SLICE NOT VERIFIED, подготовка IN_PROGRESS,
+G02/S17/S20/S21 NOT_STARTED. Предыдущая остановка снята новой командой только для подготовки.
+
+**Продолжение:** owner lifecycle с аутентификацией точного человека и привязкой evidence,
+затем observed gateway integration; defaults disabled. Осталось5крупных блоков:
+(1) admission/owner/wiring, (2) final regression/review/pre-pr/LinuxCI,
+(3) reviewed tariff/original account/safe key setup, (4) live observations+human
+Bifrost/profile approvals, (5) SLICE01(data/license/separatebudget).
+ADR138 закрывает только гонку внутри первого блока. До S20 отдельно ADR129/G107.
+Старт G02 требует нового явного согласия после всей подготовки.
+
+**Git/runtime:** та же ветка `feat/g02-manager-tools-planning`, HEAD
+`db8d4af34b0933aa2562adcf072b717eb0e3e3e9` + working diff;142initial files
+сохранены кроме scoped edits. Только disposable PG; main18IDs/StartedAt unchanged.
+Задача не писала main data/secrets; checksum stores не проверялся.0025 frozen после
+apply,0017/0020–24/SDK/canonical/contracts сохранены.
+Commit/push/PR/newCI нет. Ниже исторические checkpoints, актуальна эта сводка.
+
+**Checkpoint2026-11-18 / ADR137: configuration integrity локально TESTED.** Отдельный hardened candidate сохраняет SQLite/auth; fresh exact bootstrap, outer raw-URI allowlist, sticky mounted/rendered/marker/live/logicalSQLitesnapshot. Bookkeeping exceptions нет. Host0.2 связывает actual namespace/guardedhealth под env-i и image/source/StartedAt/Pid/RestartCount перед reserve/probe/onceclaim; settlement после отзыва сохраняется. [Отчёт](increments/G02_candidate_configuration_integrity_REPORT.md), [review](reviews/G02_CONFIGURATION_INTEGRITY_REVIEWS.md), [15code hashes](reviews/G02_CONFIGURATION_INTEGRITY_CODE_HASHES.json), [build proof](reviews/G02_CONFIGURATION_INTEGRITY_BUILD_PROVENANCE.json).
+
+**Evidence:** Go normal/race8parent+42subPASS,vet0; finalfast1419passed/4warnings,mypy195files/15importsKEPT; corrected native12passed/104.20s. Legacy65casesPASS в joint run; тот run имел1test-fixture failure renderedrestore, после clean-env fix повторены new12, не заявлен единый77PASS. Два independent source reviewers APPROVE/open0 после typedSQL/proxy/sticky-test fixes и15hash checks. Image183fc5ac…/binaryd280f39e…; noELFinterpreter. Realprovidercalls/spend0; accounts/tariffs/keys/profiles/approvals не seed-ились. FullG156/pre-pr/LinuxCI/live/human/SLICE NOT VERIFIED; G02/S17/S20/S21 NOT_STARTED.
+
+**Остановка после документирования по прямой команде владельца:** сообщить о сохранении, затем ждать обновления контекста и новой задачи на подготовку. Следующий seam самостоятельно не начинать. При новой команде: прочитать полныйAGENTS/CONTEXT_RETENTION и актуальныеfiles/Git; продолжение — product observed-admission/owner lifecycle/wiring, затем общиеfinalgates/reviewedtariff+originalaccount/safekeysetup/live+human/SLICE, доS20 ADR129/G107. Старт продуктовойG02 требует нового явного согласия после всей подготовки.
+
+**Git/runtime:** `feat/g02-manager-tools-planning`,HEAD`db8d4af34b0933aa2562adcf072b717eb0e3e3e9`, всё в рабочем diff, commit/push/PR/newCI не выполнялись. Исходные125files сохранены кроме authorizedscope additions; SDK/official/mainstack/frozen0020–24/canonical/contracts unchanged. Только owned disposable runtime/internalnet/tmpfs и test-only fault/proxy helpers; main18IDs/StartedAt сохранены. Logs `/tmp/g156-integrity-*` временные; постоянная сводка/evidence в report/artifacts выше. Предыдущие checkpoint записи ниже — история до ADR137, их «config gate OPEN» описывает прежний/official candidate; новый technical mechanism локально TESTED, весь G156 остаётся OPEN.
+
+**Текущий checkpoint2026-11-18 — проверка изолированного Bifrost завершена, effective-config integrity gate OPEN.** Штатный renderer и mounted/rendered digests/mode, выбранные live+SQLite settings, auth/model/direct-key negatives, network/log checks: native6passed/0failed/skipped, final7.18s. **Admin PUT меняет live/SQLite при неизменных config bytes/image/canonical Docker inspect.** Это воспроизведённый пробел допуска, не security acceptance. [Отчёт](increments/G02_bifrost_effective_isolation_REPORT.md), [review](reviews/G02_BIFROST_ISOLATION_REVIEWS.md), [4code hashes](reviews/G02_BIFROST_ISOLATION_CODE_HASHES.json).
+
+**Исправлен отдельный дефект host-инспектора:** Docker меняет порядок Mounts между чтениями. После проверки уникальных Destination mounts сортируются перед hash, все поля сохранены; RED1fail→GREEN78hosttestsPASS. Fast1390passed/4warnings,mypy194files,15importsKEPT; два independent source reviews APPROVE/open0. Existing descriptor hashes автоматически не принимаются; actual real descriptor пока отсутствует. Последняя test-only count-schema строка проверена native6/Ruff после fast.
+
+**Ближайший безопасный шаг:** разработать/реализовать rendered/effective/admin/SQLite integrity enforcement перед reserve/claim, с mutation/restart/failure negatives. Потом оставшиеся admission/owner lifecycle/wiring, final pre-pr/LinuxCI, reviewed tariff/account/key setup, реальные observations+human Bifrost/profile acceptance, SLICE01 с отдельными data/license/budget gates. До S20 отдельно ADR129/G107. Modelcalls/spend0; реального ключа/accounts/tariffs/approval seeds нет. **Подготовка IN_PROGRESS, G02/S17/S20/S21 NOT_STARTED до нового явного согласия после завершения подготовки.**
+
+**Git/runtime:** `feat/g02-manager-tools-planning`, HEAD `db8d4af34b0933aa2562adcf072b717eb0e3e3e9`, всё в рабочем diff; commit/push/PR/newCI не выполнялись. Новый runtime использовал только свои disposable containers/network/tmpfs; existing18main-stack container IDs/StartedAt сохранены. Main stack/config/secrets/official image/frozen0020–24/SDK/canonical не менялись. SDK image использован из cache с новым actual-binary proof. Предыдущие записи ниже — история, их «следующий шаг actual audit» заменён этим checkpoint.
+
+**Текущий checkpoint2026-11-18, после новой команды владельца «Продолжаем реализовывать подготовительные этапы перед следующей группой»: ADR136 development host локально TESTED.** Предыдущая остановка снята этой командой только для подготовки. Concrete protected config/source/image/runtime/tariff gate, explicit local/test runner/control contexts, original-account preflight, claim revalidation и resource cleanup реализованы. Env-only standalone listener теперь accounting-only; baseCLI DRY_RUN/HOST_UNCONFIGURED. Fast1389passed/4warnings,mypy194files,15importsKEPT; realPG22passed(8new+14runner)9.62s; affected142passed0.75s; после final scanner fixture-only правки host77passed/Ruff10exit0. Два independent general/Python/database и security APPROVE/open0. [Отчёт](increments/G02_candidate_development_host_REPORT.md), [review](reviews/G02_DEVELOPMENT_HOST_REVIEWS.md), [10code hashes](reviews/G02_DEVELOPMENT_HOST_CODE_HASHES.json).
+
+**Ближайший незавершённый seam:** фактическая isolated host topology/effective Bifrost config integrity: Docker inspect/mount/source bindings не доказывают неизменность mutable rendered `/app/data`/SQLite/admin state. До key/live этот runtime/config gate обязателен. Далее product admission/owner lifecycle/wiring, final regression/pre-pr/LinuxCI, свежие reviewed tariff/account/key setup, real technical evidence+human Bifrost/profile acceptance, SLICE01(data/license/separatebudget). Host требует нового процесса после code edits; actual local Docker endpoint задаётся trusted composition, не env auto-discovery. Реальных descriptor/account/key seeds не создавали; modelcalls/spend0. До S20 отдельно ADR129/G107. **Подготовка IN_PROGRESS, G02/S17/S20/S21 NOT_STARTED до нового явного согласия после её завершения.**
+
+**Git/сохранность:** `feat/g02-manager-tools-planning`, HEAD `db8d4af34b0933aa2562adcf072b717eb0e3e3e9`; исходные108локальных файлов сохранены. Новый host-scope в uncommitted worktree, commit/push/PR/newCI не было. Frozen0020–24/SDK patch/build/canonical/main stack/secrets не менялись этим срезом. PG tests только disposable Testcontainers; контейнеры завершены, основной runtime сохранён. FullG156/pre-pr/LinuxCI/live/approval NOT VERIFIED. Final checks ниже в отчёте; временные логи не обязательны для восстановления.
+
+Записи ниже — исторические checkpoints; прежние «остановиться/дальше host» относятся к состоянию до указанного возобновления.
+
+**ОСТАНОВКА ПО ПРОСЬБЕ ВЛАДЕЛЬЦА,2026-11-18 (Москва):** закончить текущий пункт и продолжить завтра после новой команды. Текущий пункт **ADR135 SDK/build/native-fixture локально TESTED**, не весь G156. Никакую следующую реализацию сегодня не начинать. G02/S17/S20/S21 NOT_STARTED и требуют нового явного согласия после фактического завершения подготовки.
+
+**Точка возобновления:** прочитать полный AGENTS/CONTEXT_RETENTION, этот handoff, [G02_WORK](groups/G02_WORK.md), [план](groups/G02_FLASH_ADMISSION.md) и фактический Git. SDK patch/сборку с нуля не повторять без новой причины: Go normal/race11parents+134subPASS,vet0; cold image/provenance PASS278.63s; pure14PASS и joint native32PASS(24patched+8official,27deselected),35.70s. Source-only Go/general/security review всех компонентов APPROVE/open0, actual runtime исполняли авторы отдельно. [Полный отчёт/точные команды](increments/G02_bifrost_candidate_patch_REPORT.md), [review](reviews/G02_BIFROST_PATCH_REVIEWS.md), [proof](reviews/G02_BIFROST_BUILD_PROVENANCE.json), [9file hashes](reviews/G02_BIFROST_PATCH_CODE_HASHES.json). Original official-image fingerprint-loss negative сохранён; исправленный candidate native SSE VALUE/ABSENT/NULL и drift/auth/cancel/timeout прошли на fake provider. Это не реальные model metadata/approval.
+
+**Дальше только подготовка:** ближайший unfinished seam — concrete development host composition/gate для готового candidate runner: fixed original account/manifest, actual source/config/image binding, tariff freshness без придуманногоTTL, final revalidation, безопасные secret mounts и закрытие ресурсов. Сначала уточнить точный plan по существующим interfaces/ADR134, затем реализовать уже разрешённый scope. Не создавать real account/tariff/profile approval или включать provider key без готового setup; значение ключа не просить в чате. Product admission/owner lifecycle/wiring остаётся своим блоком. Всего до G02/S17 остаются5крупных блоков: admission/wiring; trustedhost/freshness/key setup; final security/regression/pre-pr/LinuxCI; real technical calls+human acceptance; SLICE01(data/license/separatebudget). До S20 отдельно ADR129/G107. Дата продолжения не обнуляет original10USD/8attempt authorization2026-11-17.
+
+**Git/runtime:** `feat/g02-manager-tools-planning`, HEAD `db8d4af34b0933aa2562adcf072b717eb0e3e3e9`, всё в uncommitted worktree; commit/push/PR/merge/newCI не было. Исходные NCP16/OD19/canonical/mirror changes сохранены и не включаются автоматически в будущий commit. Temporary runtime cleanup/release выполнен, SDK/source/build caches оставлены; main stack/API/official image tags/данные/секреты не менялись текущим пунктом. Current candidate image `sha256:ab781fd7c8032ead0009e62b577c40e29503b73e47e84742f4dd1670a8a62615`, actual binary `08a355456ba9947a1fe009587e2eb4525cf1b3a0158649d968adc9a1cd4f99b8`, SDK patch `ec45313c57bb94c75fbec20725b5b41205159012ed131547ccadb4ba7355b025`, linux/arm64. Cache/tmp не обязательны: checked build tooling поддерживает fresh source fetch/build. Modelcalls/spend0, реальные keys/accounts/profile approvals отсутствуют.
+
+Final docs/scope checks:74canonical/73hashes0mismatch,339localfilelinks0missing,9currentSDK/build/testhashes0mismatch; original40files30byte-identical+10authorizeddocedits/0missing. Diffcheck0/secrets0. После owner stop выполнялись только сохранение документации и проверки её/сохранности, не новая реализация/runtime.
+
+**Актуальная граница поручения, 2026-11-17:** владелец разрешил продолжать только подготовительные шаги и попросил обязательно сообщить об их завершении; **G02 не начинать без нового явного согласия**. S17/S20/S21 NOT_STARTED; статус продуктовой группы NOT_STARTED, подготовка G156 IN_PROGRESS. Старые ниже формулировки G02 IN_PROGRESS относились к подготовке и не дают автоматического разрешения начать S17 после SLICE. Готовность подготовки ещё не заявлена: guard foundation и honest observed representation локально TESTED; owner lifecycle/ledger/probe/live acceptance/SLICE остаются своими условиями.
+
+**ADR135, завершающий checkpoint:** SDK/build/native fixtures локально TESTED; подробности/следующий шаг в новой сводке выше. Закрыты SDK compile/integrity/mixed-family findings, build promisor/env/binary-proof findings и fixture auth/postdispatch evidence gaps; scoped findings0. Final fast1281passed/4warnings,mypy191files,15importsKEPT; infra4Compose/0violations,secrets0. Полный G156/pre-pr/LinuxCI/live/human/SLICE NOT VERIFIED. Работу остановить до новой команды владельца.
+
+**Текущая работа / ADR134,2026-11-18: candidate egress IN_PROGRESS.** Codec/private control/TLS/client/relay/profileless probe/runner локально TESTED. Fast exit0:1281passed/4warnings,Ruff0,mypy191files,15importsKEPT. Runner29unit+14realPG=43passed7.43s, independent security re-review APPROVE/open0 после source-discovery и fd/flock fixes. RealTLS/PG18passed отдельным run; relay78unit. **Actual official Bifrost2.5.1 теряет fingerprint в synthetic terminal SSE chunk**: adapter правильно отказывает; fixture8passed включает этот negative case, не SSE readiness. TEXT/JSON/TOOL fake-upstream проходят. Primary-source SDK cause локализована, patch/image upgrade не применялись. Portable fixture own-image build+21cases PASS(13bootstrap/security+8actualBifrost), security re-review APPROVE/open0; runtime освобождён, main stack не перезапускался. Concrete trusted host/freshness/key setup, product observed wiring/owner lifecycle, live acceptance и SLICE остаются. Product apps/factory/immutable guards и frozen0020–24 не менялись; keys/calls/real accounts/tariffs/spend0. Общий pre-pr/Linux CI/Git delivery текущего diff отсутствуют. [Отчёт](increments/G02_candidate_egress_preparation_REPORT.md), [review](reviews/G02_CANDIDATE_EGRESS_REVIEWS.md). Подготовка не завершена; G02/S17/S20/S21 NOT_STARTED до нового согласия. Старые ниже «runner отсутствует/только план» — исторические checkpoints.
+
+**G156 / ADR133 — paid ledger локально TESTED, 2026-11-17.**0024 `a75c0eb164d9` frozen после disposable PG apply; один original authorization budget≤10USD/≤8attempts, durable reserve/onceclaim, UNKNOWN full hold, block/audit и permanent bodyhash uniqueness. Автор34PGcases; root40PGcases с отдельными процессами/logical restore, fast957passed/4warnings/mypy182files/15contractsKEPT и actual drift/upgrades/security6passed; всё exit0. Два final independent database/Python и security APPROVE/open0. Snapshot reviewed: total657add/1del к HEAD, включая предыдущие guard/mode changes. [Отчёт](increments/G02_flash_paid_ledger_REPORT.md), [review](reviews/G02_PAID_LEDGER_REVIEWS.md). Следующий незавершённый шаг — private-TLS candidate egress claim у relay + bounded runner; он только спланирован read-only. Ledger не даёт live authority; keys/calls/spend0, real accounts/tariffs не seed-ились. Full pre-pr/Linux CI текущего diff нет; подготовка не завершена, G02/S17/S20/S21 не начинаются. Ветка/HEAD прежние, все исходные локальные изменения сохранены; Git delivery не выполнялась.
+
+**G156 durable foundation / ADR132, 2026-11-17:** реализованы0020–0022 и отключённый backend guard: immutable generations, profile-wide pending barrier, sticky block, metadata-only audit, narrow grants/FORCE RLS. Targeted PostgreSQL16:32passed/0failed/skipped, отдельные процессы и настоящий logical dump/restore; independent database/Python и security final APPROVE/open0. Full backend run:1901passed/3failed (legacy expectations); после точечных исправлений все3 + upgrades/drift/offline gates:11passed,exit0. Полный backend повторно ещё не объявлен PASS; pre-pr/Linux CI нет. 0023 honest observed mode/readonly reference теперь локально TESTED:56PGpassed,fast957passed/mypy180files,actual drift/upgrades/legacy7passed;два independent APPROVE. Nullable pin только exact Flash explicit mode, pinned DTO/factory/Bifrost guard не включены. Следующий шаг — ledger/isolated candidate permit/runner. Ledger/candidate runner/key/live/human approval/SLICE остаются. [Отчёт](increments/G02_model_admission_persistence_REPORT.md), [review](reviews/G02_MODEL_ADMISSION_REVIEWS.md). Исторические ниже «no DB/runtime» относятся к раннему validator checkpoint; основной dev-стек/secrets/платные вызовы не затронуты, применялись только disposable PG tests.
+
+**G02 / ADR131 — делегированный выбор состава metadata реализован, 2026-11-17.** Владелец поручил принять решение по концепции AI RES и реализовать. Выбран обязательный fingerprint VALUE для Flash expectation; candidate observations сохраняют ABSENT/NULL как факты. Новый contract0.2/schema/parser/direct constructor; историческая schema0.1 сохранена, активный parser её отвергает. Прежний вопрос optional/mandatory CLOSED, повторно не спрашивать. Точные live values/evidence и Bifrost/profile всё ещё требуют отдельной человеческой приёмки. [ADR131](decisions/ADR-131-flash-required-fingerprint.md), [план](groups/G02_FLASH_ADMISSION.md). Сводки ниже — предыдущие checkpoints0.1; PENDING относится только к фактическим значениям/допуску после этого уточнения.
+
+База/ветка прежние: `db8d4af34b0933aa2562adcf072b717eb0e3e3e9`, `feat/g02-manager-tools-planning`; на старте38локальных файлов сохранены. TDD RED5failed, GREEN121targetedpassed; независимые Python/code и security reviewAPPROVE/open0. Финальные fast/contracts/документы и SHA256 дельты — в [отчёте](increments/G02_flash_admission_preparation_REPORT.md). No DB/public API/secret/runtime changes и modelcalls0. Группа IN_PROGRESS: следующий разрешённый scope — durable G156/ledger/probe, затем реальные evidence/approval и отдельно SLICE01 перед S17; ADR129/G107 до S20. Ни одна внешняя предпосылка не закрыта наличием этого решения.
+
+Delta0.2 final:fast957passed/4warnings,ruff0,mypy174files0issues,15importcontractsKEPT; contracts-check6/6+22passed;prompts40/0,secrets0,diffcheck0,exit0. Registry74canonical/73hashes0mismatch,242localfilelinks0missing. Initial38files:23byte-identical+15authorizededits0unexpected; oldschema0.1 unchanged. Security docs delta finalAPPROVE/open0 отдельно от code verdict. Полный pre-pr/LinuxCI/product admission не выполнялись; hashes/точные команды в текущем checkpoint отчёта, нижние0.1results исторические.
+
+**G02, поручение 2026-11-17: подготовка IN_PROGRESS.** Паспорт впервые создан: [G02_WORK](groups/G02_WORK.md). Состав S17→S20→S21 сохранён, все три NOT_STARTED. Ближайшая незавершённая предпосылка — G156 Flash admission по ADR128 → затем SLICE01 с отдельным бюджетом → S17. OD19/ADR129 enforcement и G107 reconciler+allowlist нужны до первого producer S20; это не замена SLICE. S16/G01/ARCH01/DEP01 не повторять.
+
+Offline validator local evidence: targeted245passed (108new), общий `make pre-push-fast` exit0/944passed/4warnings,ruff0,mypy174files0issues,15importcontractsKEPT; contracts-check6/6 +22tests; два независимых finalAPPROVE/openfindings0. Prompts40/0,secrets0,diffcheck0;74canonical/73hashes/0mismatch,224localfilelinks/0missing на финальном checkpoint. Original29files:20byte-identical,9implementationdocs дополнены/уточнены без удаления исходных записей. Никакой product admission/runtime/DB verification или LinuxCI этим не заявлены. Ответ владельца на один текущий вопрос о metadata составе ещё PENDING; контекст вопроса — DECISIONS_PENDING и план§2.
+
+Ветка `feat/g02-manager-tools-planning` создана от проверенного `db8d4af34b0933aa2562adcf072b717eb0e3e3e9`; исходные29локальных файлов NCP16/OD19 сохранены. Текущий срез — новый WORKING observation/expectation contract, чистый parser/comparison и tests (ADR130), без product wiring/DB/secret/model calls. **Полный G156 IMPLEMENTATION NOT VERIFIED**: durable generation/block/audit/reapproval/ledger/candidate path ещё не реализованы. [Точный scope/минимальный paid plan](groups/G02_FLASH_ADMISSION.md), [отчёт](increments/G02_flash_admission_preparation_REPORT.md). Цена проверена по официальным docs; план≤8attempts,верхнийрезерв4.8024576USD в существующем общем потолке10USD; это расчёт, расход0. Ключ не подключён; schema/metadata и значения требуют human acceptance до включения, первый ответ не autoapproval. Новое CI/commit/PR/merge не выполнялись; результаты текущих локальных проверок — в отчёте, исторический CI им не приписывать.
+
+Текущий безопасный шаг — завершать отключённый G156 по плану, сверяя границы с owner acceptance metadata. До live calls нужны проверенные ledger/probe/key setup, а до включения — весь evidence и отдельные owner approvals. Вопросы владельца по одному; не требовать повторного выбора ADR128/129 или нового разрешения на уже утверждённый10USD technical scope. Ниже сохранены исторические checkpoints; актуальна эта сводка.
+
+**OD-19, делегирование владельца 2026-11-17:** выбор технического механизма принят Implementation Lead в [ADR-129](decisions/ADR-129-runtime-transport-and-authority.md) с учётом уже реализованных узлов. Сохраняются1Temporal namespace/2queues, отдельные Manager/Worker Runtime и общий pool9специализаций. Выбраны mTLS+native RPC/resource authorizer с durable task-issuance receipts; Platform API privateTLS+Ed25519 request binding, отдельный audience, durable nonces и server-owned execution assignments, узкая DB role/RLS/audit. **Это решение и план, не реализация:** protocolPoC NOT VERIFIED, код/контракты/миграции/секреты не менялись; G104/G106/G111 остаются OPEN до evidence, G107 reconciler+allowlist обязателен до первого producer. Owner-вопрос выбора механизма закрыт делегированием; rights/BASELINED/human/model/budget/SLICE gates не расширены.
+
+OD19 checkpoint: `docs/ncp16-flash-identity-exception`, HEAD/base `db8d4af34b0933aa2562adcf072b717eb0e3e3e9`,29локальных изменённых/новых файлов вместе с исходным NCP16 scope. ADR129 independent initial+delta APPROVE,2MEDIUM исправлены/open0; prompts40/0,secret0,diffcheck0,manifest74canonical/73hashes0mismatch,147local links0missing; команды exit0. Отчёт `increments/OD19_runtime_auth_decision_REPORT.md`, review `reviews/OD19_RUNTIME_AUTH_REVIEW.md`. Runtime/DB/wire/secret changes и платных calls нет; commit/push/PR не выполнялись. Дальнейший шаг — protocol PoC и реализация по отдельному поручению, с прежними G02/SLICE/model/security предпосылками.
+
+
+**NCP-16, решение владельца 2026-11-17: ACCEPTED вариант B только для DeepSeek Flash первого среза.** Нормативная развилка закрыта; DOC-075/076/078 v1.1 и manifest v1.3 фиксируют исключение. Управляемые версии AI RES неизменяемы; наблюдаемая provider identity отделена, drift блокирует результат и дальнейшие вызовы затронутого профиля до повторной человеческой приёмки. Скрытый drift/возврат прежней модели не гарантируются. Это документационное изменение: identity/admission/drift runtime NOT IMPLEMENTED/NOT VERIFIED, профиль/Bifrost не утверждены, платные вызовы не разрешены. G-156 сохраняет технические условия допуска; SLICE-01 и G02 не разблокированы автоматически. Доступ к кабинету DeepSeek есть, владелец может создать ключ в любой момент; значение ключа не получено/не подключено. Последующим прямым решением владельца установлен общий потолок 10 USD на технический прогон допуска Flash/Bifrost, включая retries/ошибки с возможным списанием. Это не целевой расход и не лимит на каждый запуск; SLICE-01 автоматически не включён. До вызовов подготовить минимальный план с актуальными тарифами/верхней оценкой и контролем остатка; ключ ещё не подключён. [ADR-128](decisions/ADR-128-flash-observed-identity-exception.md).
+
+Checkpoint записи решения: ветка `docs/ncp16-flash-identity-exception`, проверенная база `db8d4af34b0933aa2562adcf072b717eb0e3e3e9`,26изменённых/новых файлов docs+manifest-pointer, до начала дерево чистое; commit/push/PR не выполнялись. Contracts-check6/6 и contracts-test22passed exit0, prompts40/0,secret0,diffcheck0; manifest74canonical/73hashes и133local links0issues; независимое finalAPPROVE/openfindings0. Отчёт `increments/NCP16_flash_identity_exception_REPORT.md`, review `reviews/NCP16_EXCEPTION_REVIEW.md`. Код/wire/данные/runtime не менялись, модельных calls0. Остальные вопросы G02 ещё не решены.
+
 
 **Текущий процесс, ADR127:** по новому прямому поручению владельца сначала реализуется весь состав группы, затем общая отладка/review/gates и один PR; внутренние контракты не требуют промежуточного DONE/merge, внешние зависимости требуют DONE. Код S18 не меняется; PR33 также доставляет согласованные групповые правила. Предыдущие12 governance hunks исходно исключались из source7dd8475, теперь относящиеся к групповому процессу файлы включены по новому поручению, без перезаписи истории.
 

@@ -13,9 +13,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ai_res.llm.registry import CostRates, Egress, ModelProfile, ModelRegistry, ProfileStatus, RetryClass
 from ai_res.llm.types import Capability
+from ai_res.modules.model_registry.observed_profiles import ProfileIdentityMode
 
 _log = logging.getLogger("ai_res.llm")
-_COLUMNS = ("id, profile_key, profile_version, provider, provider_model_id, pinned_model_version, capabilities, context_window_tokens, max_output_tokens, "
+_COLUMNS = ("id, profile_key, profile_version, identity_mode, provider, provider_model_id, pinned_model_version, capabilities, context_window_tokens, max_output_tokens, "
             "data_classifications, allowed_regions, egress, cost_currency, cost_input_per_million, cost_output_per_million, rate_limit_rpm, rate_limit_tpm, "
             "timeout_seconds, retry_class, fallback_group, evaluation_manifest_ref, status, approved_at, deprecated_at")
 
@@ -37,7 +38,8 @@ async def load_model_registry(session: AsyncSession) -> ModelRegistry:
                                                                    output_per_million=Decimal(r.cost_output_per_million))
             profiles.append(ModelProfile(
                 id=r.id, profile_key=r.profile_key, profile_version=r.profile_version, provider=r.provider, provider_model_id=r.provider_model_id,
-                pinned_model_version=r.pinned_model_version, capabilities=frozenset(Capability(c) for c in r.capabilities),
+                pinned_model_version=r.pinned_model_version, identity_mode=ProfileIdentityMode(r.identity_mode),
+                capabilities=frozenset(Capability(c) for c in r.capabilities),
                 context_window_tokens=r.context_window_tokens, max_output_tokens=r.max_output_tokens, data_classifications=frozenset(r.data_classifications),
                 allowed_regions=frozenset(r.allowed_regions), egress=Egress(r.egress), timeout_seconds=float(r.timeout_seconds),
                 retry_class=RetryClass(r.retry_class), status=ProfileStatus(r.status), cost_rates=rates, rate_limit_rpm=r.rate_limit_rpm,

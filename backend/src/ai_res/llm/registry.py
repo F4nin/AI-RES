@@ -5,6 +5,9 @@ A `ModelProfile` is one immutable VERSION of a routing alias (`profile_key`): pr
 creation (evaluation and release evidence reference an immutable version). Only the lifecycle moves: CANDIDATE -> APPROVED -> DEPRECATED -> RETIRED. Approval is a
 human/owner decision (project-context.md: no automatic approval); nothing in this package approves a profile.
 
+NCP-16 Flash profiles explicitly use FLASH_OBSERVED and a NULL pin. They preserve
+the same immutable profile fields/lifecycle, with no retry, fallback or embedding.
+
 The registry is DATA: no profile is built in. An empty registry refuses every call (fail closed); the first profile arrives with the provider decision (OD-01, S16).
 """
 import re
@@ -29,6 +32,11 @@ class ProfileStatus(StrEnum):
     APPROVED = "APPROVED"
     DEPRECATED = "DEPRECATED"
     RETIRED = "RETIRED"
+
+
+class ProfileIdentityMode(StrEnum):
+    IMMUTABLE = "IMMUTABLE"
+    FLASH_OBSERVED = "FLASH_OBSERVED"
 
 
 class Egress(StrEnum):
@@ -68,7 +76,7 @@ class ModelProfile:
     profile_version: int
     provider: str
     provider_model_id: str
-    pinned_model_version: str
+    pinned_model_version: str | None
     capabilities: frozenset[Capability]
     context_window_tokens: int
     max_output_tokens: int
@@ -85,14 +93,24 @@ class ModelProfile:
     evaluation_manifest_ref: str | None = None
     approved_at: datetime | None = None
     deprecated_at: datetime | None = None
+    identity_mode: ProfileIdentityMode = ProfileIdentityMode.IMMUTABLE
 
     def __post_init__(self) -> None:
         if not _KEY.match(self.profile_key) or self.profile_version < 1:
             raise ValueError("profile_key must be a lower-case alias and profile_version >= 1")
         if not self.provider or not self.provider_model_id:
             raise ValueError("provider and provider_model_id are required")
-        if not self.pinned_model_version or self.pinned_model_version.strip().lower() in _FLOATING_VERSIONS:
-            raise ValueError("pinned_model_version must pin an exact model version, not an alias")
+        if self.identity_mode is ProfileIdentityMode.FLASH_OBSERVED:
+            allowed = {Capability.CHAT, Capability.STRUCTURED_OUTPUT, Capability.TOOL_CALLING, Capability.STREAMING}
+            if (self.provider != "deepseek" or self.provider_model_id != "deepseek-flash" or self.pinned_model_version is not None
+                    or Capability.CHAT not in self.capabilities or not self.capabilities <= allowed
+                    or self.fallback_group is not None or self.retry_class is not RetryClass.NONE):
+                raise ValueError("observed Flash requires a NULL pin, exact route, supported capabilities and no retries/fallback")
+        elif self.identity_mode is ProfileIdentityMode.IMMUTABLE:
+            if not self.pinned_model_version or self.pinned_model_version.strip().lower() in _FLOATING_VERSIONS:
+                raise ValueError("pinned_model_version must pin an exact model version, not an alias")
+        else:
+            raise ValueError("unsupported profile identity mode")
         if not self.capabilities or not self.data_classifications or not self.allowed_regions:
             raise ValueError("capabilities, data_classifications and allowed_regions must not be empty")
         if not all(_LABEL.match(c) for c in self.data_classifications) or not all(_REGION.match(r) for r in self.allowed_regions):

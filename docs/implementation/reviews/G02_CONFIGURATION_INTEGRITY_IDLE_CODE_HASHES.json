@@ -1,0 +1,18 @@
+{
+  "version": "g156-idle-fix/0.1",
+  "baseHead": "896898983e0c4867533c5113dba77cd3bf1d8291",
+  "files": {
+    "infra/llm_poc/bifrost_integrity/integrity.patch": {
+      "sha256": "367d5eca967732974e78bc2d4a9ed4e0d64527df84517c64898d6508377a1765",
+      "bytes": 39104
+    },
+    "infra/llm_poc/bifrost_integrity/manifest.json": {
+      "sha256": "89e0c00daacea9a8300f4b59a40d8fe6ba8e98c18ee1fe47894b57ea5978aba5",
+      "bytes": 726
+    },
+    "backend/tests/integration/test_bifrost_candidate_integrity.py": {
+      "sha256": "2f05b5508e7273ea5c203f64d4497f6d089687a9f0b3a1ba85e03c1a86a1b251",
+      "bytes": 19425
+    }
+  }
+}

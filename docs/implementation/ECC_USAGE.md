@@ -1,5 +1,165 @@
 # ECC_USAGE — использование Everything Claude Code
 
+## SLICE-01 — 2026-11-18
+
+| Роль | Фактическая работа | Результат и независимость |
+|---|---|---|
+| Root | Scope/интеграция/host composition/native fixture, реальные tests/model calls; прочитанные planner/python-testing/verification-loop checklists | Успешный V3; исполнял проверки, не выдавал личные approvals |
+| slice_budget_transport | Автор ledger/tests; отдельный read-only security/database review чужих host/producer/owner/requirements/MFA | 83 ledger tests; final APPROVE/open0 на чужом source |
+| slice_runtime_plan | Автор relay/tests; read-only architecture/Python/requirements/ledger/host review; полное чтение45startupfiles | 62 relay tests; final delta APPROVE, свои файлы не утверждал |
+| slice_requirements_design | Автор requirements/prompts/owner/capture/совместимости MFA и tests; read-only review чужих ledger/relay | Auth/PG/capture/JSON/grounding regressions; свои изменения проверены другими |
+
+Review исправил конкретные дефекты: missing freeze/schema/image binding, потерю
+диагностики, live-controls race window, runtime drift во время human review,
+JSON-escaped secrets до quarantine, неполную схему промпта и line offset.
+V3 validators остались строгими; actual response не нормализовался для принятия.
+MFA helper больше не читает localizeddetail и не повторяет OTP автоматически.
+
+Root final local evidence: V2scope371PASS/35.52s, V3affected87PASS/22.35s,
+fast1896PASS/4warnings/15.12s, explicitmypy10PASS, scanner0, helper28PASS/0.12s.
+Полный pre-pr выполняется, новый CI ещё pending. Реальные SLICEcalls6, известный
+консервативный расход0.0032058USD; роли/review не подменяют эти факты.
+[Отчёт](increments/SLICE-01_requirements_experiment_REPORT.md), tooling/live evidenceV1–V3.
+
+Ранний preflight147tests+19disabled-relay checks и MFA resume20tests сохранены в
+отдельных evidence, это исторические исполнения с прежними hashes. Авторы не
+подменяли независимое review. Native Claude agents/slashcommands/hooks, независимый
+продуктовый WorkerQA, semantic quality и production certification не имитировались.
+
+## G156 / ADR141 — observed product wiring и полный human approval path
+
+Root восстановил действующее поручение/known draft, применил прочитанные локальные
+python-testing и verification-loop как checklists (behavioral RED→GREEN, scope,
+evidence), реализовал fixes/CLI/PG tests и интегрировал. `activation_scope` сначала
+отдельно read-only planner/architect анализировал минимальное закрытие missing
+profile activation, затем написал только profile_approval.py и его unit tests;
+свои файлы не ревьюировал. Новых stages/framework/roles/grants не предложено.
+
+`observed_general_review` — отдельный blind-first code/Python/architecture и
+silent-failure source review; `observed_security_review` — независимый security/
+database/authorization/locks/replay/path/redaction review. Два final APPROVE/open0,
+findings и source hashes — [протокол](reviews/G02_OBSERVED_APPROVAL_REVIEWS.md).
+Проверяющие не выполняли runtime; root исполнил actual PG10 observed +21 approval,
+pure50 observed +32 approval/CLI; fast1538PASS/4warnings. Full final gates/evidence
+уточняются в [текущем отчёте](increments/G02_identity_admission_operator_REPORT.md).
+Native Claude slash commands/hooks, product QA и человеческое approval не заявлены.
+
+Закрыты reverse SSE durable block, final reauthorization, Settings composition,
+second APPROVED, invalid candidate, unsafe getpass fallback и ошибочные reason-code
+assertions. Source review не заменяет Linux CI/live timeout/human acceptance.
+
+## G156 / ADR140 и конечная candidate composition,2026-11-18
+
+Root — author identityoperator/DDL/tests/integrator/runtime operator;
+python-testing/verification-loop прочитаны как checklists. executor_plan отдельно
+planner/architect+general/Python/database review root executor, затем автор только
+candidate_launch.py+unit tests; себя не ревьюировал. executor_normative отдельно
+normative reconnaissance+security/architect/silent-failure review обеих реализаций;
+launch_general отдельно blind-first general/Python/pr-test review launch.
+Native commands/hooks/productQA/human approval не имитируются.
+
+MEDIUM inherited EXECUTE/SQLNULLgeneration и LOWFK исправлены до successfulapply;
+owner parameterSET отдельно source-reviewed после полного firstattempt rollback.
+Оба finalreview executor APPROVE/open0, finaltiny snapshotformat/catalogue delta
+sourceAPPROVE; launch два APPROVE/open0. Root actualjointPG306PASS/fast1434PASS,
+authorlaunch22purePASS; [executor](increments/G02_identity_admission_operator_REPORT.md),
+[review](reviews/G02_IDENTITY_OPERATOR_REVIEWS.md), [launchreview](reviews/G02_CANDIDATE_LAUNCH_REVIEWS.md).
+Fullpre-pr/LinuxCI/realprovider не подменяются source verdict. По уточнению владельца
+завершается весь MVP-допуск, промежуточный report не конец текущего поручения.
+
+
+## G156 / ADR139 — authenticated owner identity-review,2026-11-18
+
+Root — единственный author/integrator/runtime operator; python-testing/verification-
+loop прочитаны как checklists (TDD/evidence/scope). `owner_plan` — отдельный read-only
+planner/architect, затем general/Python/database/pr-test source review;
+`owner_normative` — normative reconnaissance, затем independent security/architect/
+silent-failure source review. Native Claude commands/hooks/productQA не имитируются.
+
+Два MEDIUM (session expiry during fence wait, factor/session lock inversion) исправлены,
+второй воспроизведён actualPG RED locktimeout. Добавлены real waiter/reset interleave,
+active subject change, session/policy staleness и lossless full numeric snapshot.
+Оба finalsource APPROVE/open0/4hashes; reviewers не запускали tests/runtime и не
+читали author report до выводов. Root newPG42PASS/joint187PASS,unit9PASS,
+contracts22PASS; fast/final commands — в [отчёте](increments/G02_owner_review_binding_REPORT.md),
+[протокол](reviews/G02_OWNER_REVIEW_REVIEWS.md). Материал review не human approval,
+G156/pre-pr/LinuxCI/live/SLICE pending. Обязательные роли bounded seam покрыты;
+готовность будущего privileged executor не проверяется текущим source verdict.
+
+## G156 / ADR138 — admission lifecycle fence, 2026-11-18
+
+Root — единственный автор/интегратор/runtime operator; прочитанные python-testing
+и verification-loop как checklists. Отдельные read-only admission_plan
+(planner/architect, затем general/Python/database/pr-test source review),
+admission_normative (canonical/current addenda/Registry/ref/manifest reconnaissance),
+lifecycle_security (blind-first security/architect/silent-failure review).
+Авторы и reviewers различны; native Claude hooks/commands/productQA не имитируются.
+
+Оба actual DDL reviewers APPROVE до first apply; final4hash/source/test/snapshot
+APPROVE/open0. Note о пустом old history закрыт populated receipt/audit fixture.
+Root исправил test-only rollback teardown, повторил full scoped suite; finalPG111PASS,
+fast1419PASS/4warnings,mypy196/15importsKEPT,contracts22PASS.
+[Отчёт](increments/G02_admission_lifecycle_fence_REPORT.md), [протокол](reviews/G02_ADMISSION_LIFECYCLE_REVIEWS.md).
+Source review не human approval/runtime reviewer execution; fullG156/live/CI pending.
+
+## G156 / ADR137 — configuration integrity2026-11-18
+
+`config_integrity_plan`: отдельные planner/architect actualsource analysis, затем ограниченное авторство только3path Go patch/tests, gofmt; runtime не запускал, не reviewer себя. Root: build/launcher/Python/sourcebinding/native fixtures/integration/docs, прочитанные python-testing/verification-loop как checklists. Два отдельные blind-first read-only `bifrost_audit_review` (general/Go/Python/test) и `bifrost_isolation_security` (security/Go/architect/silentfailure); .claude/agents/go-reviewer instructions применены, native slash commands/hooks/productQA/human approval не имитировались.
+
+Исправлены MEDIUM typed SQLite collision и proxy-health spoof, LOW sticky-restoration evidence; оба finalsource APPROVE/open0/15hash0mismatch, tiny Cmd/env-i-restoration deltas отдельно APPROVE. Reviewers не запускали Go/Docker/tests, execution — root. Normal/raceGo8parents+42subPASS,vet0; staticcheck unavailable; fast1419PASS/4warnings,mypy195/15imports; build/proofPASS/newnative12PASS/final104.20s,legacy65PASSизjointс1testfixturefailure(исправлен/повторnew12). NoSQLexceptions, source-only verdict не заменяет wholeG156/pre-pr/LinuxCI/live/human. [Report](increments/G02_candidate_configuration_integrity_REPORT.md), [review](reviews/G02_CONFIGURATION_INTEGRITY_REVIEWS.md). Владелец просит после документов остановиться, G02 NOT_STARTED.
+
+## G156 / ADR136 — native config/isolation audit2026-11-18
+
+Root: planner/architect scope по existing interfaces/pinned source; явно прочитанные `python-testing` и `verification-loop` как checklists реальных fixtures/regression/evidence. `contract-first` прочитан для оценки применимости: public/wire contract не меняется, новой schema machinery нет. Два отдельных blind-first read-only agents `bifrost_audit_review` (general/Python/test) и `bifrost_isolation_security` (security/architect/silent-failure) проверили чужие4codefiles до авторского отчёта. Исправлены MEDIUM provider envelope/direct-key opt-in; final delta/mount-order reviews APPROVE/open0. Runtime принадлежал root, reviewers не запускали tests/Docker и не подменяли human acceptance.
+
+Native6PASS/final7.18s,host78PASS/RED1 доfix,fast1390PASS/4warnings,mypy194/15importsKEPT. Actual audit подтвердил OPEN effective-config integrity: admin меняет live/SQLite при unchangedfile/inspect; pass reproduction не означает security acceptance. Mounts-order canonicalization устраняет false-refusal с сохранением всех полей. Нативные slash commands/hooks не запускались, live/pre-pr/LinuxCI/весьG156 не объявлены выполненными. [Report](increments/G02_bifrost_effective_isolation_REPORT.md), [review](reviews/G02_BIFROST_ISOLATION_REVIEWS.md).
+
+## G156 / ADR136 — development host,2026-11-18
+
+`host_plan`: отдельное read-only planner/architect исследование actual interfaces/ADR133–135, затем только candidate_host.py/test_candidate_host.py (прочитанные Python patterns/testing/TDD), RED missing module→GREEN77PASS; автор не reviewer. Root применил integration/Python/TDD/doc-updater checklists: source binding RED5→GREEN5, explicit resource/claim composition, read-only account query, accounting-only standalone factory, tests и контекст. Native Claude commands/hooks не запускались.
+
+`host_python_review`: отдельный blind-first read-only general/Python/database/pr-test-analyzer; `host_security`: отдельный blind-first read-only security/architect/silent-failure всех boundaries. Исправлены root/NNPfalse, boundedstdout, local drift during awaits, Git redirects/hooks/signing, provider-shaped virtual key, checkout/Docker-path/prod guards и gaps control lifecycle tests; finalAPPROVE/open0. Авторы не присваивают себе независимое review. Reviewers только source/AST/Ruff/read-only smoke, не DB/runtime. Rootfast1389PASS/4warnings,mypy194/15KEPT; actualPG22PASS;finalaffected142PASS. [Evidence](increments/G02_candidate_development_host_REPORT.md), [review](reviews/G02_DEVELOPMENT_HOST_REVIEWS.md). Непроверенные live topology/mutable effective SQLite/admin config/provider/human gates не закрыты review; G156IN_PROGRESS,G02NOT_STARTED.
+
+## G156 / ADR135 — SDK metadata integrity и candidate build,2026-11-18
+
+ECC go-reviewer/architect/security/test-analysis применены как прочитанные инструкции и отдельные ограниченные задания. g02_prerequisite_plan автор patch/Go tests, pinned Go runtime; g02_python_contract_review независимый Go/code/test reviewer SDK, одновременно автор separate build/fixture (свои файлы исключены из verdict); g02_scope_security_review независимый read-only security/Go SDK/build reviewer. Root architect/integration/doc-updater/checklists + source inspection build. Native Claude commands/hooks/Go agents не подключались. Golang-testing skill файла в `.claude/skills` нет; компенсация доступным go-reviewer/behavioral TDD/race/vet/отдельными reviewers. Staticcheck отсутствует и не устанавливался.
+
+SDK initial HIGH duplicate declarations и MEDIUM metadata-to-wire/mixedfamily bypass исправлены; два final APPROVE/open0 на exact ec453… . Behavioral RED исходного SDK3presence subFAIL; final normal/race11parents+134subPASS,vet2packages exit0,4locks unchanged. Source Git sparse/1452files/snapshot hash проверен; actualbuild/fixture NOT VERIFIED. Security build review выявил3MEDIUM (promisor freshfetch/Git env redirect/actual binary SHA), послеfixes/review CLOSED, два final source APPROVE/open0. Pure14passed, fresh scripted source acquisition PASS. Общий runtime передан от SDK автора build автору после cleanup, cold image build/provenance PASS278.63s. Actual fixture auth/control outcome MEDIUM gaps исправлены, два final source APPROVE/open0; pure14PASS, actual32PASS(24patched+8official,27deselected),35.70s. Временный runtime очищен/освобождён, owncache retained, по просьбе владельца работа остановлена до новой команды. Modelcalls/spend0, mainstack/officialimage не менялись. [Отчёт](increments/G02_bifrost_candidate_patch_REPORT.md), [review](reviews/G02_BIFROST_PATCH_REVIEWS.md). G156/SLICE/G02 не разблокированы.
+
+## G156 / ADR134 — candidate boundary, native compatibility и runner, 2026-11-18
+
+Применены architect/contract-first/TDD/Python/database/testing/security/silent-failure компетенции. `g02_prerequisite_plan` автор control/runner, `g02_python_contract_review` автор codec/probe/actual-Bifrost fixture; root автор client/relay/TLS/shared schema и интегратор. General cross-review только чужих файлов, отдельный `g02_scope_security_review` blind-first read-only по всем boundaries. Авторы не объявляются reviewers своих компонентов. Native slash commands/hooks не запускались. Root повторно прочитал doc-updater/verification-loop как checklists для context/evidence/ссылок/секретов; формальный набор каталога не запускался.
+
+Исправлены contradictory settlement facts, split/interleaved secret export, TLS-file modes, known-VK echo, source discovery/bounds и malformed JSONL fd/flock; final security delta APPROVE/open0. Fast1281passed/4warnings,mypy191files,15importsKEPT; runner43passed с14realPG. Actual official Bifrost/fake upstream8passed **включает отказ на потере terminal fingerprint**: это открытый compatibility blocker, не SSE readiness. Primary-source SDK investigation использует только generic upstream URLs, без project data; SDK patch не применялся. Portable fixture own-image build и21cases PASS; independent security re-review закрыл MEDIUM pre-check ignorefile read, open0. Main stack/секреты/modelcalls не затронуты; Docker/PG по очереди. [Отчёт](increments/G02_candidate_egress_preparation_REPORT.md), [review](reviews/G02_CANDIDATE_EGRESS_REVIEWS.md). Full pre-pr/Linux CI и G156/live/profile acceptance не заявлены, G02 NOT_STARTED.
+
+## G156 / ADR133 — ledger и независимое review, 2026-11-17
+
+Отдельный g02_prerequisite_plan выполнил actual-code план и ограниченное авторство новых0024/poc_budget.py/mainPGtests; TDD RED missing module, затем real PG34passed. Root добавил отдельные process/restore cases, интеграцию/catalogue/snapshot и получил40PGpassed/fast957/actual drift-upgrades6. Mypy182files0issues,15importcontractsKEPT. Backend host/product gateway не подключены, calls/spend0.
+
+Независимые blind-first read-only g02_python_contract_review (database/Python/code/tests) и g02_scope_security_review (security/code) проверили DDL до первого apply, frozen hash, модуль и обе тестовые дельты, final APPROVE/open0. Исправлены MEDIUM balance snapshot race и LOW malformed reason; owner/money authority не расширена. Авторы и reviewers различны, reviewers не запускали runtime и не читали author report до выводов. [Отчёт](increments/G02_flash_paid_ledger_REPORT.md), [review](reviews/G02_PAID_LEDGER_REVIEWS.md). Native Claude commands/hooks не запускались.
+
+Security reviewer отдельно применил architect/silent-failure analysis будущего sole-egress A/privateTLS backendclaim vs B/offline signedpermit. Рекомендован A, выявлен replay reuse bodyhash; до apply добавлен permanent UNIQUE и future synthetic marker inside body. Это [read-only план§6](groups/G02_FLASH_ADMISSION.md#6-следующий-candidate-egress-seam-ограниченный-технический-план), PROPOSED/NOT_IMPLEMENTED/NOT_SECURITY_ACCEPTED, без Docker/modelcalls/внешней передачи projectdata; не заменяет ADR129 product enforcement.
+
+## G156 / ADR132 — persistence, migrations и failure semantics, 2026-11-17
+
+Отдельный `g02_prerequisite_plan`: planner/architect actual registry/IAM/persistence, затем ограниченное авторство0020/admission.py/PG tests. Root: integration, forward0021/22, migration/process/logical restore cases, snapshot и shared legacy gates. Использованы прочитанные database/Python/testing/security ECC instructions; native slash commands/hooks не запускались. Независимые blind-first read-only `g02_python_contract_review` (database/Python/code/tests) и `g02_scope_security_review` (security/code) оба final APPROVE/open0 после исправления pending generation barrier, restore CHECK и уточнения evidence. Reviewers не запускали Docker/runtime и не являются авторами проверяемых файлов.
+
+Реальные targeted PG32passed; backend-check ruff0/mypy178files0issues/import15KEPT; full backend1901passed/3legacy failures, после обновления точных expectations affected+drift/upgrade11passed. Полный backend green, pre-pr/Linux CI не заявлены. [Отчёт](increments/G02_model_admission_persistence_REPORT.md), [протокол](reviews/G02_MODEL_ADMISSION_REVIEWS.md). Последующий0023 получил отдельные pre-apply и final database/Python/security APPROVE/open0; real PG56cases выполнил ограниченный автор, root выполнил fast957/actual drift-upgrades7 и вручную просмотрел snapshot271add/1deletion. Его code/evidence не засчитываются историческим0022review автоматически. Полный G156 и подготовка NOT VERIFIED, G02 NOT_STARTED до нового согласия.
+
+## G02 / ADR131 — делегированный выбор и реализация0.2, 2026-11-17
+
+`g02_prerequisite_plan` отдельно применил planner/architect read-only к концепции AI RES/DOC076§3.1/ADR128: обязательный expected fingerprint VALUE в scope, candidate ABSENT/NULL сохраняются, точные live values/profile не утверждены; поиск consumers подтвердил отсутствие runtime wiring. Root применил прочитанный TDD-workflow как checklist RED→GREEN (без ECC checkpoint commits/coverage-порогов вместо правил AI RES), сам изменил parser/test и создал schema0.2, историческую0.1 сохранил. RED5failed, GREEN121passed; verification-loop/doc-updater — scope, diff, версия, контекст. Нативные Claude commands/hooks не запускались.
+
+Отдельные blind-first read-only `g02_python_contract_review` (Python/code/test/type) и `g02_scope_security_review` (code/security) проверили фактическую дельту до авторского отчёта: оба APPROVE/openfindings0. Security reviewer сам выполнил read-only schema/positive match+7negative smoke,exit0; другому reviewer запуск не приписывается. Planner не подменяет независимые review и human approval. Runtime/PG review не заявлены: в этой дельте их нет. Применимые проверки: fast957passed/4warnings,ruff0,mypy174files0issues,15contractsKEPT; contracts6/6+22passed; prompts40/0,secrets0,diff0,exit0. [Текущий отчёт](increments/G02_flash_admission_preparation_REPORT.md), [протокол](reviews/G02_FLASH_IDENTITY_REVIEWS.md). Полный G156/G02 NOT VERIFIED; живой профиль не включён.
+
+## G02 / G156 — подготовка и первый отключённый срез, 2026-11-17
+
+Отдельный `g02_prerequisite_plan` применил planner/architect read-only к текущим ADR128/129, DAG и фактическим llm seams; затем получил ограниченное авторство новых observed_identity.py/schema0.1/tests. Прочитанные python-patterns/python-testing/tdd-workflow/contract-first использованы как checklists; фактический RED missing-module exit2, затем targeted245passed (108new), scopedruff/mypy0. Он не reviewer своего кода. Root применил doc-updater/verification-loop к источникам, сохранности29initialfiles, paid plan, статическим проверкам и контексту; общие официальные provider docs без передачи проектного содержимого.
+
+Отдельный `g02_scope_security_review`: blind-first/read-only code/security по плану/границам и затем actual3files, APPROVE/findings0; независимый read-only smoke3positive+8negative exit0. Отдельный `g02_python_contract_review`: blind-first/read-only Python/code/test/type разбор parser/schema, обязательный providerRequestRef и semantic-schema note исправлены; finalAPPROVE/openfindings0. Документационный earlyAPPROVE не выдаётся за review кода. Native Claude commands/hooks не запускались; runtime QA Worker/human acceptance не заменены. DB/runtime review не заявлены, их scope пока не реализован; они сохраняются для durable/transport фазы.
+
+Root `make pre-push-fast` exit0: ruff0,mypy174files0issues,15importcontractsKEPT,944passed/4warnings/0failed/skipped; contracts-check6/6,contracts-test22passed. Полный pre-pr/LinuxCI/runtime/DB не выполнялись в промежуточном срезе, G156/G02 NOT VERIFIED. [Отчёт](increments/G02_flash_admission_preparation_REPORT.md), [review](reviews/G02_FLASH_IDENTITY_REVIEWS.md), [паспорт](groups/G02_WORK.md).
+
 ## G01 / S19 — 2026-11-17, выполнение
 
 Отдельный `s19_plan`: planner + tdd-guide/pr-test-analyzer для плана; затем ограниченное авторство pure manifest/tests (python-patterns, python-testing, tdd-workflow как прочитанные checklists) и passport/ADR. `g01_architecture`: read-only нормативная разведка/architect, затем ограниченное авторство module-owned metadata readers, platform port, composition и их PG tests. Эти авторы не считаются независимыми reviewers своего кода. Root: TDD service/migration/negative suites, существующие команды Make/CI и verification-loop checklist; нативные Claude slash commands/hooks не запускались.
@@ -103,3 +263,37 @@ Independent blind-first general/code/Python/types/pr-test-analyzer/architect, se
 По прямому текущему поручению владельца root применил прочитанные doc-updater/verification-loop инструкции как checklists согласованности процесса, scope, evidence и ссылок. Native Claude commands/hooks не запускались. Отдельный read-only reviewer проверяет новую редакцию на сохранение внешних DONE/DoD/product security и отсутствие обязательного per-stage full-cycle барьера. Старые записи parallel_plan/group_review выше относятся к исходному документированию ADR124, не к фактическим запускам текущего уточнения. Gates продуктового кода не заменяются docs review; source7dd8475 не меняется.
 
 ADR127 final independent process review: APPROVE/openfindings0,15files/176links0missing; уточнена точка проверки внешних зависимостей перед соответствующим Sxx. [Evidence](reviews/GROUP_PROCESS_ADR127_REVIEW.md). Root check_prompts40/0,8groups23stages compositionunchanged,secret0,diffcheck0. Product tree unchanged; повторный локальный backend для docs-only scope не запускался.
+
+## NCP-16 B — решение владельца, 2026-11-17
+
+Root прочитал doc-updater и verification-loop, применил как checklists источников/версий/evidence/границ. Отдельный g02_dependencies применил architect/planner read-only к normative impact: три v1.1, сохранение bootstrap Registry, новый полный manifest и неизменные шесть machine mirrors. Машинная схема остаётся pending design; runtime guards не ослаблялись. Независимый ncp16_security_review выполнил security/code/docs blind-first review и delta recheck: исправлен1LOW, финал APPROVE/openfindings0;26files/133links/74canonical/73hashes. Протокол reviews/NCP16_EXCEPTION_REVIEW.md. Native Claude commands/hooks и runtime verification не заявляются.
+
+## OD-19 / ADR-129 — 2026-11-17
+
+Root применил прочитанные architect/doc-updater/verification-loop как checklists совместимости, источников и evidence. Отдельный g02_dependencies: planner/architect read-only по existing service tokens/internal API/domain audit/roles/retries; отдельный od19_temporal_feasibility: pinned official Temporal1.29.7/SDK1.36.0 research без project-content egress, выявлены недостаточность defaultAuthorizer/queue-onlyACL и ранний token parse до custom interceptors. Выбраны неизменный task-token format и issuance receipts, а не неподтверждённый MAC-wrapper. Отдельный ncp16_security_review выполнил blind-first security/architecture review ADR129 до отчёта автора: два MEDIUM (вложенные Workflow Commands и Start intent authorization seam) исправлены; final delta APPROVE, open findings0. Протокол reviews/OD19_RUNTIME_AUTH_REVIEW.md. Native Claude commands/hooks и runtime/paid tests не выполнялись.
+
+## G156 — конкретные runtime/CI исправления и реальные наблюдения,2026-11-18
+
+Root — operator/integrator/реальные guarded probes; прежние python-testing/verification-loop
+checklists, без native Claude hooks/commands. executor_plan — source diagnosis и автор
+minimal candidate idle/routing fixes; его Go-reviewer инструкции применены как author
+checklist, Go skill в каталоге отсутствует (компенсация pinnedsource+Go/native checks).
+executor_normative — независимые security/Go/DB reviews + metadata-only actualruntime
+inspect:18enabledchecks/10DNSdelta; launch_general — независимый general/Go/CI review.
+Securityreviews не читали secretvalues/responsecontent и не делали providercalls.
+
+CI896 nativeDockerpath8FAIL corrected; abe cancelled20m, не PASS. Workflow45m+
+verbose/faulthandler diagnostics reviewedAPPROVE; 504 LinuxalljobsPASS. No tests
+removed/skipped. Root realTEXT/JSON/TOOL/SSE stableidentity+knownusage; CANCELlate
+UNKNOWNreserve measured, TIMEOUTnotobserved explicitly. Technicalevidence не human
+approval/immutablepin. Runtime15minSQL_DRIFT isolated to unusedroutingregistry
+complexity_semantic_generations and distributedlocks; exact3filefix reviewed
+APPROVE/open0 by2non-authors, modulepins+fullSQLguard preserved. Root affected
+build/Go/native+longidle/newexactCI pending; do not claim verification before results.
+
+Ownercheckpoint: author executor_plan produced14file observedport draft separately,
+1495purePASS/Ruff/mypy/importsPASS, butscopeauditfoundHIGHreverseSSEdrift. Perowner
+context-update steering no furtherfix/newworkstarted. Root preservedidentical14hashes
+inlocalWIPcommit3733825, nointegration/publication. Thisis NOTindependentreview or
+VERIFIED. Firstcontinuation mustfixfinding+regression thenuseindependentgeneral/
+securityreview. Roottechnical38CI+922.37shealth evidence doesnotcoverthisdraft.

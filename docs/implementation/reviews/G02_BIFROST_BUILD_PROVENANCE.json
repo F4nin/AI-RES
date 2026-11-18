@@ -1,0 +1,36 @@
+{
+  "binarySha256": "08a355456ba9947a1fe009587e2eb4525cf1b3a0158649d968adc9a1cd4f99b8",
+  "buildInputsSha256": "654a53d2849709c30c872c0f121770110c514c505b185290165683ffabbca811",
+  "builder": "golang:1.27.4-bookworm@sha256:4fa7c968ba93f1635670522dbb01a2c78150443e1385746924566079f36570ea",
+  "elapsedSeconds": 278.63,
+  "elfWithoutInterpreter": true,
+  "goBuildInfoSha256": "0c019a49ff340c956a1a9c47c08dbb4267ac5b08c1703d37163c888a2667ab88",
+  "goVersion": "go1.27.4",
+  "imageId": "sha256:ab781fd7c8032ead0009e62b577c40e29503b73e47e84742f4dd1670a8a62615",
+  "licenseSha256": "9108c6efb701f19614cf2ac8d644f1459b7d67bc570ffa15547e4dc2e734b4d1",
+  "localCore": {
+    "Dir": "/src/core",
+    "GoMod": "/src/core/go.mod",
+    "GoVersion": "1.27.3",
+    "Main": true,
+    "Path": "github.com/maximhq/bifrost/core"
+  },
+  "patchSha256": "ec45313c57bb94c75fbec20725b5b41205159012ed131547ccadb4ba7355b025",
+  "runtime": "maximhq/bifrost:v2.5.1@sha256:5ec9873acaf1687556b6e4dd854b92b539d9debf87a5a683b66338648b84d3c8",
+  "source": {
+    "archiveBytes": 37386240,
+    "archiveSha256": "becb11aff118386888f4977c429e23f9e78ce1e9aaa5d2846d96671acee54d9c",
+    "commit": "7cb75fb2f8276ca48d0792c857fecb67b8879e2f",
+    "fileCount": 1452,
+    "origin": "https://github.com/maximhq/bifrost.git",
+    "selection": [
+      "LICENSE",
+      "core/**",
+      "transports/**"
+    ],
+    "sourceKind": "verified-git-sparse",
+    "tree": "fe862c3b2236a41ae4f3bc969f992500e2cb22d0"
+  },
+  "uiMode": "HEADLESS_INFERENCE_ONLY",
+  "version": "bifrost-candidate-build/0.1"
+}

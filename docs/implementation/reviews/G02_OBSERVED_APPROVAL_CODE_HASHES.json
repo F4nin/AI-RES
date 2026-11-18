@@ -1,0 +1,86 @@
+{
+  "status": "FINAL_LOCAL_COMPONENTS_PASS_LINUX_CI_PENDING_REAL_MODEL_NOT_APPROVED",
+  "baseHead": "1e971f57c2ed19f2897db00ef5184e2dc58efd7f",
+  "branch": "feat/g02-manager-tools-planning",
+  "files": {
+    "backend/src/ai_res/llm/adapters/bifrost.py": "a5dbe761cd9dfe390b5293a53b0e8c509251e7e2f82f238f5e64aab1eacf7495",
+    "backend/src/ai_res/llm/admission.py": "4b12f1ef1c170bff8fad94484243cc2a82b1d0445b709c1f4f794521d2addeca",
+    "backend/src/ai_res/llm/factory.py": "1d5ae2115d9766737bba1a4f1d9f799ec40f14f23642358c9537667f746d0fef",
+    "backend/src/ai_res/llm/gateway.py": "c73c2781e871cc07d5974b18c314c65e1322805c701fcf57b0c4f71ccde38286",
+    "backend/src/ai_res/llm/registry.py": "bdb9d2292495de94a67c024177c8c0acd6e2a14cb502fb5222cba66a766c448c",
+    "backend/src/ai_res/llm/routing.py": "9a6a7ddae857cb693fed838db91f51dfd8ce4a28c81599747fbebeb71658ea3d",
+    "backend/src/ai_res/llm/transport.py": "80912ac2ddf9c215ef63d99509a7af49fd1fa94125699ec581603f00e501f388",
+    "backend/src/ai_res/llm/types.py": "e8d0201cb411350b73053225a18fdc32f210d654e6fc8872d50724534b51515d",
+    "backend/src/ai_res/modules/model_registry/gateway_admission.py": "97f31cebed47a1e6d0f91bbace992849501522f1ff94c792cf0247f38f30b44f",
+    "backend/src/ai_res/modules/model_registry/observed_profiles.py": "b875d14e00369ee1a0af8c978274baa46c874f4a2940fd8ff0a35b0667983dfc",
+    "backend/src/ai_res/modules/model_registry/repository.py": "f85a7059b20976179f203d9a495a4c8935f3e5212510a9d320d675ec1fe68684",
+    "backend/src/ai_res/platform/config.py": "3d412792347e0b2488a0081db51e73027f4b721ec848264fc02eada6fba79861",
+    "backend/tests/unit/test_observed_gateway.py": "c0c6fb989e70795961af8819b61d9e85414040acf74bbe04835b6b2703204004",
+    "backend/tests/unit/test_observed_registry_admission.py": "58ee23e623d27e1c47adfff404a40dfa85930923258af4d798a5434e6dfd216d",
+    "backend/tests/integration/postgres/test_observed_gateway.py": "52c8818b8cfa3faf27c4b329c7201b579a74495eef7a8c34c495b856e289fee1",
+    "backend/src/ai_res/modules/model_registry/profile_approval.py": "16b6f6c82428186e134d159b03c5c262bcb7752888e6b8f674e69f84daf5a35a",
+    "backend/src/ai_res/cli/model_profile.py": "f58e30f37ee43914011fc7bad78a545f526e4c497e092c7f53646903bc306f56",
+    "backend/tests/unit/test_profile_approval.py": "cd242cfcf2ca68e66be9328b82fa439093e4a06fa2640679b6c8f73d016ff45e",
+    "backend/tests/unit/test_model_profile_cli.py": "d1d6fa50fdccb3d15c90fe1a6a85e8485d201dc64ed9bac03ed413da8701bcd9",
+    "backend/tests/integration/postgres/test_profile_approval.py": "5763bee775fcc28f355869d44d35e1f519b8dec8e9bc5faeb0045c6916bd918c"
+  },
+  "reviewers": [
+    "observed_general_review",
+    "observed_security_review"
+  ],
+  "providerCallsThisContinuation": 0,
+  "newMigrations": false,
+  "profileEnabled": false,
+  "defaultAdminBootstrapped": true,
+  "realTrustedHttpsLoginAndCsrfLogout": "PASS",
+  "personalMfaAndModelSetup": "DEFERRED_BY_OWNER",
+  "checks": {
+    "fast": {
+      "exit": 0,
+      "passed": 1538,
+      "warnings": 4,
+      "mypyFiles": 204,
+      "importContractsKept": 15
+    },
+    "backendFull": {
+      "exit": 0,
+      "passed": 2853,
+      "warnings": 541,
+      "seconds": 734.95
+    },
+    "affectedPostgres": {
+      "exit": 0,
+      "passed": 31,
+      "seconds": 17.04
+    },
+    "contracts": {
+      "exit": 0,
+      "passed": 22
+    },
+    "renovate": {
+      "exit": 0,
+      "passed": 10
+    },
+    "infraResume": {
+      "exit": 0,
+      "passed": 369,
+      "seconds": 149.58
+    },
+    "runtime": {
+      "exit": 0,
+      "passed": 148,
+      "seconds": 141.41
+    },
+    "poc": {
+      "exit": 0,
+      "passed": 19
+    },
+    "secretScan": {
+      "exit": 0,
+      "findings": 0
+    },
+    "originalPrePrExit": 2,
+    "rebuiltRuntimeSourceMatches": 14,
+    "rebuiltRuntimeSourceMismatches": 0
+  }
+}

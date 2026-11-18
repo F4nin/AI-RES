@@ -802,7 +802,8 @@ async def test_loader_skips_an_invalid_candidate_but_fails_on_an_invalid_approve
     from ai_res.modules.model_registry.repository import RegistryLoadError, load_model_registry
 
     def row(status: str, classes: list[str]) -> SimpleNamespace:
-        return SimpleNamespace(id=uuid4(), profile_key="k" + status.lower(), profile_version=1, provider="p", provider_model_id="m", pinned_model_version="v1",
+        return SimpleNamespace(id=uuid4(), profile_key="k" + status.lower(), profile_version=1, identity_mode="IMMUTABLE",
+                               provider="p", provider_model_id="m", pinned_model_version="v1",
                                capabilities=["CHAT"], context_window_tokens=100, max_output_tokens=10, data_classifications=classes, allowed_regions=["eu"],
                                egress="LOCAL", cost_currency=None, cost_input_per_million=None, cost_output_per_million=None, rate_limit_rpm=None,
                                rate_limit_tpm=None, timeout_seconds=5, retry_class="NONE", fallback_group=None, evaluation_manifest_ref=None,

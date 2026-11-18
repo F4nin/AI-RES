@@ -19,10 +19,16 @@ import socket
 import stat
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
+from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
 import httpx
+from ai_res.llm.adapters.candidate_control import CandidateClaimReceipt, CandidateControlClient, CandidateControlUnavailable
+from ai_res.llm.candidate_payload import CandidatePayloadError, canonicalize_candidate_body
+from ai_res.modules.iam.service_tokens import ServiceTokenIssuer, load_private_key
+from ai_res.platform.config import Settings
+from ai_res.platform.ports import ServiceName
 from starlette.applications import Starlette
 from starlette.requests import ClientDisconnect, Request
 from starlette.responses import JSONResponse, Response, StreamingResponse
@@ -34,9 +40,8 @@ UPSTREAM_PORT = 443
 UPSTREAM_PATH = "/chat/completions"
 MODEL = "deepseek-flash"
 _SECRET = re.compile(r"^[A-Za-z0-9_.:-]{32,256}$")
-_NAME = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 _HEADERS = frozenset({b"host", b"authorization", b"content-type", b"content-length", b"accept", b"user-agent",
-                      b"accept-encoding", b"connection", b"x-request-id", b"traceparent"})
+                      b"accept-encoding", b"connection", b"x-request-id", b"traceparent", b"cache-control"})
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -44,7 +49,7 @@ class RelayConfig:
     auth_token: str = field(repr=False)
     provider_key: str | None = field(default=None, repr=False)
     allow_provider_calls: bool = False
-    max_body_bytes: int = 16_384
+    max_body_bytes: int = 4096
     max_response_bytes: int = 1_048_576
     max_concurrent: int = 1
     total_timeout_seconds: float = 30.0
@@ -96,72 +101,6 @@ def _loads(raw: bytes) -> Any:
     return value
 
 
-def _payload(raw: bytes) -> tuple[dict[str, Any], bool]:
-    try:
-        payload = _loads(raw)
-    except (ValueError, UnicodeError, RecursionError) as exc:
-        raise _Failure("INVALID_JSON") from exc
-    allowed = {"model", "messages", "max_tokens", "stream", "stream_options", "thinking", "temperature",
-               "response_format", "tools", "tool_choice"}
-    if not isinstance(payload, dict) or set(payload) - allowed or payload.get("model") != MODEL:
-        raise _Failure("INVALID_REQUEST")
-    cap = payload.get("max_tokens")
-    if type(cap) is not int or not 1 <= cap <= 1024:
-        raise _Failure("INVALID_TOKEN_CAP")
-    messages = payload.get("messages")
-    if not isinstance(messages, list) or not 1 <= len(messages) <= 32:
-        raise _Failure("INVALID_MESSAGES")
-    for message in messages:
-        if (not isinstance(message, dict) or set(message) != {"role", "content"}
-                or message["role"] not in ("system", "user", "assistant")
-                or not isinstance(message["content"], str) or len(message["content"]) > 8192):
-            raise _Failure("INVALID_MESSAGES")
-    stream = payload.get("stream", False)
-    if type(stream) is not bool:
-        raise _Failure("INVALID_STREAM")
-    if "stream_options" in payload:
-        options = payload["stream_options"]
-        if (not isinstance(options, dict) or set(options) != {"include_usage"}
-                or type(options["include_usage"]) is not bool or not stream):
-            raise _Failure("INVALID_STREAM")
-    if "thinking" in payload and payload["thinking"] != {"type": "disabled"}:
-        raise _Failure("THINKING_DISABLED")
-    if "temperature" in payload:
-        temperature = payload["temperature"]
-        if type(temperature) not in (int, float) or not 0 <= temperature <= 2 or not math.isfinite(temperature):
-            raise _Failure("INVALID_TEMPERATURE")
-    if "response_format" in payload and payload["response_format"] not in ({"type": "text"}, {"type": "json_object"}):
-        raise _Failure("INVALID_FORMAT")
-    tool_names: set[str] = set()
-    if "tools" in payload:
-        tools = payload["tools"]
-        if not isinstance(tools, list) or not 1 <= len(tools) <= 8:
-            raise _Failure("INVALID_TOOLS")
-        for tool in tools:
-            if not isinstance(tool, dict) or set(tool) != {"type", "function"} or tool["type"] != "function":
-                raise _Failure("INVALID_TOOLS")
-            function = tool["function"]
-            if (not isinstance(function, dict) or set(function) - {"name", "description", "parameters", "strict"}
-                    or not isinstance(function.get("name"), str) or not _NAME.fullmatch(function["name"])
-                    or function["name"] in tool_names or not isinstance(function.get("parameters"), dict)
-                    or function["parameters"].get("type") != "object"
-                    or ("description" in function and not isinstance(function["description"], str))
-                    or ("strict" in function and type(function["strict"]) is not bool)):
-                raise _Failure("INVALID_TOOLS")
-            tool_names.add(function["name"])
-    if "tool_choice" in payload:
-        choice = payload["tool_choice"]
-        named = (isinstance(choice, dict) and set(choice) == {"type", "function"} and choice["type"] == "function"
-                 and isinstance(choice["function"], dict) and set(choice["function"]) == {"name"}
-                 and isinstance(choice["function"]["name"], str) and choice["function"]["name"] in tool_names)
-        if not tool_names or (choice not in ("auto", "none", "required") and not named):
-            raise _Failure("INVALID_TOOL_CHOICE")
-    payload["thinking"] = {"type": "disabled"}
-    if stream:
-        payload["stream_options"] = {"include_usage": True}
-    return payload, stream
-
-
 async def _resolve(host: str, port: int) -> Sequence[str]:
     rows = await asyncio.get_running_loop().getaddrinfo(host, port, type=socket.SOCK_STREAM)
     return tuple(str(row[4][0]) for row in rows)
@@ -188,8 +127,10 @@ def _validate_headers(request: Request, config: RelayConfig) -> None:
     hosts = [value for name, value in raw if name == b"host"]
     lengths = [value for name, value in raw if name == b"content-length"]
     types = [value for name, value in raw if name == b"content-type"]
+    cache = [value for name, value in raw if name == b"cache-control"]
     if (len(hosts) != 1 or hosts[0] not in [host.encode("ascii") for host in config.allowed_hosts]
             or len(lengths) > 1 or len(types) != 1 or types[0].split(b";", 1)[0].strip().lower() != b"application/json"
+            or len(cache) > 1 or cache and cache[0] != b"no-cache"
             or any(name not in _HEADERS for name, _ in raw)):
         raise _Failure("INVALID_HEADERS")
     if lengths:
@@ -212,14 +153,15 @@ class _StreamResponse(StreamingResponse):
 
 
 def create_app(config: RelayConfig, *, resolver: Callable[[str, int], Awaitable[Sequence[str]]] = _resolve,
-               client_factory: Callable[..., httpx.AsyncClient] = httpx.AsyncClient) -> Starlette:
+               client_factory: Callable[..., httpx.AsyncClient] = httpx.AsyncClient,
+               control_client: CandidateControlClient | None = None) -> Starlette:
     """Dependency injection is test composition only; upstream hostname/port/path are never configuration or request inputs."""
     slots = asyncio.Semaphore(config.max_concurrent)
 
     async def health(request: Request) -> Response:
         if request.scope.get("raw_path") != b"/health" or request.scope.get("query_string"):
             return _error("NOT_FOUND", 404)
-        return JSONResponse({"status": "enabled" if config.allow_provider_calls else "disabled"})
+        return JSONResponse({"status": "enabled" if config.allow_provider_calls and control_client is not None else "disabled"})
 
     async def dispatch(request: Request) -> Response:
         if (request.scope.get("raw_path") != UPSTREAM_PATH.encode("ascii") or request.scope.get("query_string")
@@ -232,16 +174,66 @@ def create_app(config: RelayConfig, *, resolver: Callable[[str, int], Awaitable[
         provider_key = config.provider_key
         if not config.allow_provider_calls or provider_key is None:
             return _error("PROVIDER_CALLS_DISABLED", 503)
+        if control_client is None:
+            return _error("CANDIDATE_CONTROL_REQUIRED", 503)
         if slots.locked():
             return _error("RELAY_BUSY", 429)
         await slots.acquire()
         client: httpx.AsyncClient | None = None
         upstream: httpx.Response | None = None
         handed_off = False
+        receipt: CandidateClaimReceipt | None = None
+        accounting_attempted = False
+        unknown_reason = "NETWORK"
+        redaction_tails: dict[tuple[str, ...], str] = {}
+        redaction_bytes = 0
+        tail_length = max(len(provider_key), len(config.auth_token))-1
         deadline = asyncio.get_running_loop().time() + config.total_timeout_seconds
 
+        async def account_known(result: dict[str, Any]) -> None:
+            nonlocal accounting_attempted
+            assert control_client is not None and receipt is not None
+            usage = result.get("usage")
+            usage = usage if isinstance(usage, dict) else {}
+            # Mark attempted before the RPC: lost ACK may already be committed.
+            # Never follow it with a conflicting UNKNOWN or another dispatch.
+            accounting_attempted = True
+            await control_client.settle_known(receipt, input_tokens=usage.get("prompt_tokens"),
+                                               output_tokens=usage.get("completion_tokens"), provider_request_ref=result.get("id"))
+
+        def safe_result(result: dict[str, Any]) -> None:
+            nonlocal redaction_bytes
+            encoded = json.dumps(result, ensure_ascii=False, allow_nan=False)
+            if provider_key in encoded or config.auth_token in encoded:
+                raise _Failure("UPSTREAM_FORMAT_INVALID", 502)
+
+            def scan(value: Any, path: tuple[str, ...] = ()) -> None:
+                nonlocal redaction_bytes
+                if isinstance(value, str):
+                    previous = redaction_tails.get(path, "")
+                    joined = previous+value
+                    if provider_key in joined or config.auth_token in joined:
+                        raise _Failure("UPSTREAM_FORMAT_INVALID", 502)
+                    tail = joined[-tail_length:]
+                    redaction_bytes += len(tail.encode())-len(previous.encode())
+                    if path not in redaction_tails:
+                        redaction_bytes += len(repr(path).encode())
+                    if redaction_bytes > config.max_response_bytes:
+                        raise _Failure("UPSTREAM_TOO_LARGE", 502)
+                    redaction_tails[path] = tail
+                elif isinstance(value, dict):
+                    for key, item in value.items():
+                        scan(item, (*path, key))
+                elif isinstance(value, list):
+                    # One conservative channel per structural string field:
+                    # tool/choice array positions cannot evade split detection.
+                    for item in value:
+                        scan(item, (*path, "*"))
+
+            scan(result)
+
         async def close() -> None:
-            nonlocal client, upstream
+            nonlocal client, upstream, accounting_attempted
             try:
                 if upstream is not None:
                     with contextlib.suppress(httpx.HTTPError, OSError):
@@ -252,7 +244,16 @@ def create_app(config: RelayConfig, *, resolver: Callable[[str, int], Awaitable[
                         await client.aclose()
                     client = None
             finally:
-                slots.release()
+                try:
+                    if receipt is not None and not accounting_attempted:
+                        # No successful evidence is returned for this outcome.
+                        # A failed callback leaves DB state authoritative, without
+                        # refunding or reopening any one-use claim.
+                        accounting_attempted = True
+                        with contextlib.suppress(CandidateControlUnavailable):
+                            await control_client.settle_unknown(receipt, reason=unknown_reason)
+                finally:
+                    slots.release()
 
         try:
             async with asyncio.timeout_at(deadline):
@@ -264,19 +265,25 @@ def create_app(config: RelayConfig, *, resolver: Callable[[str, int], Awaitable[
                 content_length = request.headers.get("content-length")
                 if content_length is not None and len(raw) != int(content_length):
                     raise _Failure("INVALID_BODY_LENGTH")
-                payload, stream = _payload(bytes(raw))
+                try:
+                    candidate = canonicalize_candidate_body(bytes(raw))
+                except CandidatePayloadError:
+                    raise _Failure("INVALID_REQUEST") from None
+                stream = candidate.stream
                 address = _public_address(await resolver(UPSTREAM_HOST, UPSTREAM_PORT))
                 host = f"[{address}]" if ":" in address else address
                 client = client_factory(verify=True, trust_env=False, follow_redirects=False,
                                         timeout=httpx.Timeout(15.0, connect=5.0, pool=1.0, write=5.0),
                                         limits=httpx.Limits(max_connections=config.max_concurrent, max_keepalive_connections=0))
-                outgoing = client.build_request("POST", f"https://{host}{UPSTREAM_PATH}", json=payload,
+                outgoing = client.build_request("POST", f"https://{host}{UPSTREAM_PATH}", content=candidate.content,
                                                 headers={"host": UPSTREAM_HOST, "authorization": "Bearer " + provider_key,
                                                          "content-type": "application/json", "accept-encoding": "identity",
                                                          "accept": "text/event-stream" if stream else "application/json"},
                                                 extensions={"sni_hostname": UPSTREAM_HOST})
+                receipt = await control_client.claim(candidate)
                 upstream = await client.send(outgoing, stream=True)
                 if upstream.status_code != 200:
+                    unknown_reason = "PROVIDER_ERROR"
                     raise _Failure("UPSTREAM_RATE_LIMIT" if upstream.status_code == 429 else "UPSTREAM_REJECTED",
                                    429 if upstream.status_code == 429 else 502)
                 if upstream.headers.get("content-encoding", "identity").lower() != "identity":
@@ -288,15 +295,78 @@ def create_app(config: RelayConfig, *, resolver: Callable[[str, int], Awaitable[
                     response = upstream
 
                     async def chunks() -> Any:
+                        nonlocal unknown_reason
                         total = 0
+                        pending = bytearray()
+                        observed: dict[str, Any] = {}
+                        ended = False
                         try:
                             async with asyncio.timeout_at(deadline):
                                 async for part in response.aiter_bytes():
                                     total += len(part)
                                     if total > config.max_response_bytes:
                                         raise _Failure("UPSTREAM_TOO_LARGE", 502)
-                                    yield part
-                        except (TimeoutError, httpx.HTTPError, OSError, _Failure):
+                                    pending.extend(part)
+                                    # Normalize SSE line endings before splitting
+                                    # events; the byte/event bound applies first.
+                                    pending[:] = pending.replace(b"\r\n", b"\n")
+                                    while b"\n\n" in pending:
+                                        event, _, rest = pending.partition(b"\n\n")
+                                        pending[:] = rest
+                                        if len(event) > 65_536:
+                                            raise _Failure("UPSTREAM_TOO_LARGE", 502)
+                                        lines = event.split(b"\n")
+                                        if any(line and not line.startswith((b"data:", b":")) for line in lines):
+                                            raise _Failure("UPSTREAM_FORMAT_INVALID", 502)
+                                        data = b"\n".join(line[5:].lstrip(b" ") for line in lines if line.startswith(b"data:"))
+                                        if not data:
+                                            continue
+                                        if data == b"[DONE]":
+                                            if "usage" not in observed or "id" not in observed:
+                                                raise _Failure("UPSTREAM_USAGE_MISSING", 502)
+                                            await account_known(observed)
+                                            ended = True
+                                            yield b"data: [DONE]\n\n"
+                                            return
+                                        value = _loads(data)
+                                        if not isinstance(value, dict) or "error" in value:
+                                            raise _Failure("UPSTREAM_FORMAT_INVALID", 502)
+                                        choices = value.get("choices", [])
+                                        if not isinstance(choices, list) or len(choices) > 1:
+                                            raise _Failure("UPSTREAM_FORMAT_INVALID", 502)
+                                        for choice in choices:
+                                            # These streaming templates request exactly one
+                                            # text choice and no tools. Refuse extra semantic
+                                            # channels before any fragment can be exported;
+                                            # they must not overwrite a secret-prefix tail.
+                                            if (not isinstance(choice, dict) or type(choice.get("index")) is not int
+                                                    or choice["index"] != 0):
+                                                raise _Failure("UPSTREAM_FORMAT_INVALID", 502)
+                                            delta = choice.get("delta", {})
+                                            if (not isinstance(delta, dict) or delta.get("tool_calls") not in (None, [])
+                                                    or delta.get("function_call") is not None
+                                                    or delta.get("content") is not None and not isinstance(delta["content"], str)):
+                                                raise _Failure("UPSTREAM_FORMAT_INVALID", 502)
+                                        safe_result(value)
+                                        if "id" in value:
+                                            if "id" in observed and observed["id"] != value["id"]:
+                                                raise _Failure("UPSTREAM_FORMAT_INVALID", 502)
+                                            observed["id"] = value["id"]
+                                        if value.get("usage") is not None:
+                                            if "usage" in observed and observed["usage"] != value["usage"]:
+                                                raise _Failure("UPSTREAM_FORMAT_INVALID", 502)
+                                            observed["usage"] = value["usage"]
+                                        yield b"data: "+data+b"\n\n"
+                                    if len(pending) > 65_536:
+                                        raise _Failure("UPSTREAM_TOO_LARGE", 502)
+                                if not ended:
+                                    raise _Failure("UPSTREAM_STREAM_INCOMPLETE", 502)
+                        except asyncio.CancelledError:
+                            unknown_reason = "CANCEL"
+                            raise
+                        except (TimeoutError, httpx.HTTPError, OSError, _Failure, ValueError, UnicodeError, RecursionError,
+                                CandidateControlUnavailable) as error:
+                            unknown_reason = "TIMEOUT" if isinstance(error, TimeoutError) else "UNTRUSTED_RESPONSE"
                             # An explicit terminal error, no DONE: callers must fail the partial stream.
                             yield b'data: {"error":{"code":"UPSTREAM_STREAM_FAILED"}}\n\n'
 
@@ -313,39 +383,87 @@ def create_app(config: RelayConfig, *, resolver: Callable[[str, int], Awaitable[
                     result = _loads(bytes(received))
                     if not isinstance(result, dict) or "error" in result:
                         raise ValueError("invalid successful response")
+                    safe_result(result)
                 except (ValueError, UnicodeError, RecursionError) as exc:
                     raise _Failure("UPSTREAM_FORMAT_INVALID", 502) from exc
+                await account_known(result)
                 return JSONResponse(result, headers={"cache-control": "no-store"})
         except _Failure as exc:
             return _error(exc.code, exc.status)
         except TimeoutError:
+            unknown_reason = "TIMEOUT"
             return _error("UPSTREAM_TIMEOUT", 504)
+        except CandidateControlUnavailable:
+            return _error("CANDIDATE_CONTROL_UNAVAILABLE", 503)
         except (httpx.HTTPError, OSError):
+            unknown_reason = "NETWORK"
             return _error("UPSTREAM_UNAVAILABLE", 502)
+        except asyncio.CancelledError:
+            unknown_reason = "CANCEL"
+            raise
         except ClientDisconnect:
+            unknown_reason = "CANCEL"
             return _error("CLIENT_DISCONNECTED", 400)
         finally:
             if not handed_off:
                 await close()
 
-    return Starlette(routes=[Route("/health", health, methods=["GET"]),
+    @contextlib.asynccontextmanager
+    async def lifespan(app: Starlette) -> Any:
+        try:
+            yield
+        finally:
+            if control_client is not None:
+                await control_client.aclose()
+
+    return Starlette(lifespan=lifespan, routes=[Route("/health", health, methods=["GET"]),
                              Route("/{path:path}", dispatch, methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "CONNECT", "HEAD"])])
 
 
-def read_secret_file(path: Path) -> str:
-    """Compose secret mounts may be 0444; reject writable-by-other, symlink, nonregular and excessive files. Never echo values."""
+def _mounted_bytes(path: Path) -> bytes:
+    """Read a bounded regular, non-writable-by-others mounted file, never echo it."""
     try:
-        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK)
         with os.fdopen(fd, "rb") as stream:
             info = os.fstat(stream.fileno())
             if not stat.S_ISREG(info.st_mode) or info.st_mode & 0o022 or info.st_size > 4096:
                 raise ValueError("unsafe secret file")
-            value = stream.read(4097).decode("ascii").strip()
+            return stream.read(4097)
+    except OSError:
+        raise ValueError("cannot load mounted file") from None
+
+
+def read_secret_file(path: Path) -> str:
+    """Compose secrets may be 0444; credential values are never printed."""
+    try:
+        value = _mounted_bytes(path).decode("ascii").strip()
         if not _SECRET.fullmatch(value):
             raise ValueError("invalid secret file")
         return value
     except (OSError, UnicodeError) as exc:
         raise ValueError("cannot load secret file") from exc
+
+
+def control_from_env(env: dict[str, str]) -> CandidateControlClient:
+    """Explicit host composition only; does not establish tariff freshness/approval."""
+    try:
+        allowed = {"AI_RES_CANDIDATE_SERVICE_KEY_FILE", "AI_RES_CANDIDATE_CA_FILE", "AI_RES_CANDIDATE_CONTROL_URL"}
+        if any(key.startswith("AI_RES_CANDIDATE_") and key not in allowed for key in env):
+            raise ValueError("unknown candidate client host configuration")
+        key_file = Path(env["AI_RES_CANDIDATE_SERVICE_KEY_FILE"])
+        ca_file = Path(env["AI_RES_CANDIDATE_CA_FILE"])
+        _mounted_bytes(key_file)
+        _mounted_bytes(ca_file)
+        maximum = Settings().service_token_max_ttl_seconds
+        seconds = int(env.get("AI_RES_SERVICE_TOKEN_MAX_TTL_SECONDS", str(maximum)))
+        if not 0 < seconds <= maximum:
+            raise ValueError("invalid service identity lifetime")
+        lifetime = timedelta(seconds=seconds)
+        issuer = ServiceTokenIssuer(ServiceName.LLM_GATEWAY, load_private_key(key_file), max_ttl=lifetime)
+        return CandidateControlClient(env.get("AI_RES_CANDIDATE_CONTROL_URL", "https://llm-poc-control:8443"), ca_file=ca_file,
+                                      token_supplier=lambda: issuer.issue(ServiceName.API, lifetime))
+    except Exception:
+        raise ValueError("candidate control host configuration unavailable") from None
 
 
 def main() -> None:
@@ -359,11 +477,13 @@ def main() -> None:
         config = RelayConfig(auth_token=read_secret_file(Path(os.environ["AI_RES_LLM_RELAY_AUTH_FILE"])),
                              provider_key=read_secret_file(Path(provider_file)) if provider_file else None,
                              allow_provider_calls=args.allow_provider_calls)
+        control = control_from_env(dict(os.environ)) if args.allow_provider_calls else None
     except (KeyError, ValueError):
         raise SystemExit("invalid relay configuration; mounted credentials required") from None
     # No access logs or request exception repr; downstream errors are normalized in dispatch/chunks.
     # Isolated opt-in Compose network, never a host-published listener.
-    uvicorn.run(create_app(config), host="0.0.0.0", port=8081, access_log=False, log_level="critical", server_header=False)  # noqa: S104
+    uvicorn.run(create_app(config, control_client=control), host="0.0.0.0", port=8081,  # noqa: S104 - isolated container bind
+                access_log=False, log_level="critical", server_header=False, proxy_headers=False)
 
 
 if __name__ == "__main__":

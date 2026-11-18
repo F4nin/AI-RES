@@ -1,0 +1,52 @@
+{
+  "version": "slice01-live-evidence/3",
+  "status": "DETERMINISTIC_CHECKS_PASSED_OWNER_REVIEW_REQUIRED",
+  "manifestSha256": "a2405a10d99713de146d79bca50b8a615cf00b07763d8713319ceebfbdef0b5a",
+  "parentManifestSha256": "31e6af75a207d1c84826d81789f510a991e1803407cfeaea2ffe0fab64e415c6",
+  "managedVersions": {
+    "codeRevision": "5bc8324e967713a607c93f20d54cb3fc57e76fcb",
+    "configSha256": "9d16b0131d6945707a80c0986622ea90e82197883092747a665f126f3325ba2b",
+    "profileId": "01a1ef1f-5182-70f8-8dda-603e33876b8b",
+    "profileVersion": 1,
+    "promptSha256": "c3e48598b8645c551ee67858a2a504fbc0ad701eaf384cc187cbab75a3095e51",
+    "toolsSha256": null
+  },
+  "bootstrap": {
+    "latencyMs": 1427,
+    "observationSha256": "33f6e14289d0af2c93b7932da6521c25f289b45b7ed609126614eeada033ad0f",
+    "profileId": "01a1ef1f-5182-70f8-8dda-603e33876b8b",
+    "remainingUSD": "9.9977923",
+    "requestRef": "slice01-probe-a09eed1637884707b7908844869ef65c",
+    "status": "CONFIGURATION_OBSERVED_IDENTITY_REVIEW_REQUIRED",
+    "usage": {
+      "inputTokens": 36,
+      "outputTokens": 1
+    },
+    "usedOrReservedUSD": "0.0022077"
+  },
+  "providerCallsAllVersions": 6,
+  "usedOrReservedUSDAllVersions": "0.0032058",
+  "remainingUSD": "9.9967942",
+  "oneOriginalWallet": true,
+  "initialCeilingUSD": "10",
+  "historyReset": false,
+  "automaticRetries": 0,
+  "fallbacks": 0,
+  "decisionId": "d4f79e9e-b8ef-4cbd-a8fc-fbc0c7b5f1ee",
+  "approvalAction": "ACCEPT_IDENTITY",
+  "requestedGeneration": 3,
+  "identityAccepted": true,
+  "acceptanceSha256": "6c1bb4422cc676427a5f31d2dab2ccf6a8b94790cea8d5c2bb0ab353cc228f29",
+  "requirementsV3Performed": true,
+  "providerBillingVerified": false,
+  "profileVersion": 1,
+  "originalProfileApprovalUnchanged": true,
+  "requirementsResultAccepted": true,
+  "usage": {
+    "inputTokens": 1763,
+    "outputTokens": 391
+  },
+  "receivedAt": "2026-11-18T17:19:17.460761+00:00",
+  "resultArtifactSha256": "89956541d89a5d1e5a95c85b42e151b645b06a98b856b543a1e0c33ef20afbe8",
+  "runtimeStopped": true
+}

@@ -1,0 +1,11 @@
+{
+  "baseBuildToolSha256": "f75552059311308f70c7f2597eb6fed421fd3154661bfb9f79b09a14ea4eb7d0",
+  "baseManifestSha256": "4efa22236ae1960d8b2497ec6bdb87a1b67f3eb266f6f4745199fd8ae51c05c8",
+  "buildToolSha256": "bbd48ba7c822a4aebad1db369eba5c3631c798529cc127c0b51d55e251bc8155",
+  "dockerfileSha256": "e813c0828885bf1f37cd7440c5cf443c7beee02bb5194a35fbb9bfa4f10580b8",
+  "launcherSha256": "7765d0178af310d8467f2be356f9973e3e3fc7fe7712bdc858657d828b592447",
+  "patchSha256": "28de6abb97d2416fa4ab71038f47381e7e8466a8dc2848705dc14a3d243b711e",
+  "status": "LOCAL_CANDIDATE_NOT_ADMITTED",
+  "templateSha256": "0f32a762803448713ffd37f8133fc908525b16924f8e127040a0ade089c08dcd",
+  "version": "bifrost-candidate-integrity-build/0.1"
+}

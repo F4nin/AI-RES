@@ -1,5 +1,43 @@
 # CONTRACT_TRACEABILITY_MAP
 
+**G156 / ADR141,2026-11-18:** unchanged internal identity0.2 → product
+TransportCall/ModelIdentity observation (immutable mode сохранён), backend admission
+port+existing0020–26 → governed result после durable finalize. Human offline CLI
+связывает exact profile/evidence/Bifrost artifact и использует existing owner DML
++ existing audit_events; public API/events/schema/mirror/compatibility baseline
+не меняются, migrations/grants отсутствуют. PG31PASS/pure82PASS; два independent
+source APPROVE. [Отчёт](increments/G02_identity_admission_operator_REPORT.md).
+
+**G156 / ADR140,2026-11-18:** unchanged identity0.2 → independently authorized
+human command/recomputed review →0026operatorbinding+append-only globaldecisions,
+2exact restricted SQLroutines. No public endpoint/wire/event/compatibility baseline
+changes. Existing privateTLS candidate app/HostFactory соединены CLI launcher;
+22purewiringcases не realprovider proof. PG306jointPASS/два independent APPROVE;
+[report](increments/G02_identity_admission_operator_REPORT.md).
+
+**G156 / ADR139,2026-11-18:** прежний internal identity contract0.2 → строгий
+parser + actual canonical observation digest/evidenceSha256 → backend-only
+OwnerReviewService и in-memory binding0.1. Public/wire/events/schema/baseline
+не меняются. Exact human/session/Policy/profile/state сравнение не approval/grant;
+no DML/migration/transport. PG42new/187jointPASS, два independent APPROVE.
+[Отчёт](increments/G02_owner_review_binding_REPORT.md).
+
+**G156 / ADR138, 2026-11-18:** существующий internal observed contract0.2 → прежние
+admission versions/controls/calls/audit → новый lifecycle transaction fence0025.
+Schema/wire/public/events/factory не меняются; новые internal refusal codes и
+unsupported isolation/trigger readiness проверены actualPG111PASS. [Отчёт](increments/G02_admission_lifecycle_fence_REPORT.md).
+Это не human approval API/product observed transport или повышение допуска модели.
+
+**G156 / ADR134, 2026-11-18:** новый WORKING internal `flash-candidate-control.v0.1.schema.json` → separate private HTTPS claim/settlement app → exact-body codec/client/relay; schema12tests, ASGI32tests, realTLS/PG и relay78tests. Public/OpenAPI/AsyncAPI/mirror/baseline не меняются; control app не mounted в product API. Profileless probe/evidence и runner не создают APPROVED profile. Actual Bifrost SSE fingerprint loss остаётся blocker; positive TEXT/JSON/TOOL fake-upstream tests не закрывают live admission. [Отчёт](increments/G02_candidate_egress_preparation_REPORT.md).
+
+**G02 / ADR131 (2026-11-17):** active internal `llm-observed-identity.v0.2.schema.json` → pure observed_identity parser/expectation → backend tests. Required fingerprint VALUE enforced schema+parser+direct DTO; ABSENT/NULL candidate observations не admission. Internal incompatible pre-1.0 revision; oldschema0.1 preserved, activeparser rejects0.1, productconsumers/storage отсутствуют. Public/mirror/baseline/DB не меняются. Historical0.1 entry ниже; текущие тесты/evidence — [report](increments/G02_flash_admission_preparation_REPORT.md).
+
+**G02/G156, 2026-11-17 (ADR130):** новый WORKING internal `llm-observed-identity.v0.1.schema.json` → `llm/observed_identity.py` → offline unit/contract cases в `test_llm_observed_identity.py`. Observation/expectation + managed versions + presence-sensitive fingerprint, без public endpoint/event/Worker DTO/DB. Contract mirror/baseline не меняются этой работой. Проверки новой схемы входят в backend fast suite через явные schema/parser cases; прежний contracts CLI сам по себе не доказывает её покрытие. Expected record не approval; durable admission/integration/live evidence ещё NOT VERIFIED. [Scope](groups/G02_FLASH_ADMISSION.md), [report](increments/G02_flash_admission_preparation_REPORT.md).
+
+**OD-19, делегирование владельца 2026-11-17:** выбор технического механизма принят Implementation Lead в [ADR-129](decisions/ADR-129-runtime-transport-and-authority.md) с учётом уже реализованных узлов. Сохраняются1Temporal namespace/2queues, отдельные Manager/Worker Runtime и общий pool9специализаций. Выбраны mTLS+native RPC/resource authorizer с durable task-issuance receipts; Platform API privateTLS+Ed25519 request binding, отдельный audience, durable nonces и server-owned execution assignments, узкая DB role/RLS/audit. **Это решение и план, не реализация:** protocolPoC NOT VERIFIED, код/контракты/миграции/секреты не менялись; G104/G106/G111 остаются OPEN до evidence, G107 reconciler+allowlist обязателен до первого producer. Owner-вопрос выбора механизма закрыт делегированием; rights/BASELINED/human/model/budget/SLICE gates не расширены.
+
+**NCP-16, решение владельца 2026-11-17: ACCEPTED вариант B только для DeepSeek Flash первого среза.** Нормативная развилка закрыта; DOC-075/076/078 v1.1 и manifest v1.3 фиксируют исключение. Управляемые версии AI RES неизменяемы; наблюдаемая provider identity отделена, drift блокирует результат и дальнейшие вызовы затронутого профиля до повторной человеческой приёмки. Скрытый drift/возврат прежней модели не гарантируются. Это документационное изменение: identity/admission/drift runtime NOT IMPLEMENTED/NOT VERIFIED, профиль/Bifrost не утверждены, платные вызовы не разрешены. G-156 сохраняет технические условия допуска; SLICE-01 и G02 не разблокированы автоматически. Доступ к кабинету DeepSeek есть, владелец может создать ключ в любой момент; значение ключа не получено/не подключено. Последующим прямым решением владельца установлен общий потолок 10 USD на технический прогон допуска Flash/Bifrost, включая retries/ошибки с возможным списанием. Это не целевой расход и не лимит на каждый запуск; SLICE-01 автоматически не включён. До вызовов подготовить минимальный план с актуальными тарифами/верхней оценкой и контролем остатка; ключ ещё не подключён. [ADR-128](decisions/ADR-128-flash-observed-identity-exception.md).
+
 **S18, 2026-11-17:** internal schema1.0 typed rule/fact/result snapshots, owned registry→pure engine→immutable evaluation/audit, expand0019. Public API/events/Worker contracts и `contracts/` не менялись. Internal mechanism VERIFIED: finaltargeted186,localpre-pr+exactsourceLinux SUCCESS; PR33 включает closing evidence. Production management grants/catalogue/Manager transport не подключены (G158); PASS/replay не является permission. [Report](increments/S18_rules_registry_rules_engine_REPORT.md).
 
 **S19 VERIFIED/DONE (2026-11-17):** internal ContextApplicationService и manifest schema1.0/explicit-refs-v1 → context package/version/items; typed VersionMetadataPort → module-owned exact version readers. Public API/events/mirror/baseline не меняются; нет нового endpoint или invented event. Strict parsing/hash/current ACL/replay/legacy guards покрыты targeted107passed; full pre-pr и exact-head/post-merge Linux CI PASS, PR31 MERGED99e5ec1. [ADR125](decisions/ADR-125-context-manifest.md), [отчёт](increments/S19_context_package_versioning_REPORT.md).
@@ -90,3 +128,15 @@
 | beginMfaEnrollment | POST /auth/mfa/enrollment | MFA factor | `iam.mfa_factors` | Origin, X-CSRF-Token | — | S07 — `test_iam_mfa` |
 | confirmMfaEnrollment | POST /auth/mfa/enrollment/confirm | MFA factor | `iam.mfa_factors`, `iam.mfa_recovery_codes` | Origin, X-CSRF-Token | — | S07 |
 | verifyMfa | POST /auth/mfa/verify | Session | `iam.sessions`, `iam.mfa_factors` | Origin, X-CSRF-Token | — | S07 |
+
+## G156 / ADR136 — development host checkpoint2026-11-18
+
+ADR136 local host config0.1/tariff descriptor0.1 → protected explicit development inputs; public API/events/schema mirrors unchanged. Private control wire0.1 unchanged, env-only factory accounting-only; trusted context claim revalidation. Source/PG evidence и restrictions — [отчёт](increments/G02_candidate_development_host_REPORT.md).
+
+## G156 / ADR136 — native configuration audit2026-11-18
+
+Public/product API/events/schema mirrors и private control wire неизменны. Upstream GET live/from_db/provider/VK shapes проверены фактическим pinned Bifrost; это selected evidence, не full SQLite/hidden-state proof. Нормализован только порядок validated Mounts при local runtime hashing, descriptor comparison остаётся exact. [Audit6PASS/remaining integrity gate](increments/G02_bifrost_effective_isolation_REPORT.md); admission/profile approval не получены.
+
+## G156 / ADR137 — private host0.2 и marker0.1
+
+Public API/events/schema mirrors/private control wire неизменны. Host0.2 обязательный expectedIntegritySha256 → exact actual namespace+guardedhealth+sameboot;0.1не принимается. File marker0.1strict3fields/duplicate/version/hash/mode refusals → Go/Python tests; hardroute denial только в отдельном candidate binary, старые APIs/fixtures сохранены. [Evidence](increments/G02_candidate_configuration_integrity_REPORT.md). Human/profile/realprovider approval не получены.

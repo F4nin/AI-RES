@@ -11,6 +11,7 @@ from typing import Any, Protocol
 from uuid import UUID
 
 from ai_res.llm.errors import InvalidRequest
+from ai_res.llm.observed_identity import IdentityObservation
 
 _ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 _LABEL = re.compile(r"^[A-Z][A-Z0-9_]{0,31}$")
@@ -140,7 +141,18 @@ class ModelIdentity:
     profile_version: int
     provider: str
     provider_model_id: str
-    pinned_model_version: str
+    pinned_model_version: str | None
+    observation: IdentityObservation | None = field(default=None, kw_only=True)
+
+    def __post_init__(self) -> None:
+        if self.pinned_model_version is None:
+            o = self.observation
+            if (not isinstance(o, IdentityObservation) or o.managed_versions.profile_id != self.model_profile_id
+                    or o.managed_versions.profile_version != self.profile_version or self.provider != o.identity.provider
+                    or self.provider_model_id != o.identity.request_model_id):
+                raise InvalidRequest("observed identity requires exact profile-bound metadata")
+        elif self.observation is not None:
+            raise InvalidRequest("immutable identity cannot carry observed-mode metadata")
 
 
 @dataclass(frozen=True, slots=True)

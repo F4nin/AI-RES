@@ -1,0 +1,14 @@
+{
+  "version": "g156-candidate-launch-review/0.1",
+  "head": "db8d4af34b0933aa2562adcf072b717eb0e3e3e9",
+  "files": {
+    "backend/src/ai_res/cli/candidate_launch.py": {
+      "sha256": "47678795ae375ba5e3b55b6cb0c4ac8c4feb0221ae7fb1ce46433400bc3d954f",
+      "bytes": 6467
+    },
+    "backend/tests/unit/test_candidate_launch.py": {
+      "sha256": "2458e84df7c78b61b4ff6a31441778334d051659ab4bc7c17fc1a45cc4076fd9",
+      "bytes": 8310
+    }
+  }
+}

@@ -5,7 +5,9 @@ docs/openapi/schemas/inference/{chat,common}.yaml and core/schemas/{chatcompleti
 
 An evidence record is a trusted composition input backed by independently verified provider documentation,
 NOT proof manufactured from a model/version string. There are no built-in records. In particular the
-documented DeepSeek aliases cannot meet the current immutable-version requirement (NCP-16 unresolved).
+documented DeepSeek aliases cannot meet the immutable-version requirement. The separate, explicitly
+configured NCP-16 Flash path returns actual observation metadata with a NULL pin, for durable admission
+by the injected gateway authority; it never manufactures immutable evidence.
 Gateway authorization/budget/redaction happen before this seam. This module adds no approval bypass,
 provider credentials, retries, fallback, tool execution or public configuration endpoint.
 """
@@ -17,6 +19,7 @@ import time
 from collections.abc import AsyncIterator, Mapping, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from types import TracebackType
 from typing import Any, NoReturn, Self
 
@@ -25,6 +28,7 @@ import jsonschema
 from referencing import Registry
 from referencing.exceptions import Unresolvable
 
+from ai_res.llm.admission import ObservedIdentityInvalid
 from ai_res.llm.errors import (
     CapabilityNotSupported,
     GatewayUnconfigured,
@@ -37,7 +41,8 @@ from ai_res.llm.errors import (
     ProviderTimeout,
     ProviderUnavailable,
 )
-from ai_res.llm.registry import ProfileStatus
+from ai_res.llm.observed_identity import IdentityObservation, InvalidIdentityEvidence, ManagedVersions, extract_bifrost_observation
+from ai_res.llm.registry import ProfileIdentityMode, ProfileStatus
 from ai_res.llm.transport import TransportCall, TransportEmbeddingCall, TransportEmbeddingResult, TransportResult
 from ai_res.llm.types import FinishReason, ModelIdentity, StreamChunk, StreamEnd, TextDelta, ToolCall, ToolCallChunk, Usage
 
@@ -94,6 +99,14 @@ class ImmutableModelEvidence:
             raise ValueError("immutable evidence needs exact identifiers and an evidence reference")
         if self.expected_fingerprint is not None and (not isinstance(self.expected_fingerprint, str) or not _NAME.fullmatch(self.expected_fingerprint)):
             raise ValueError("invalid expected fingerprint")
+
+
+@dataclass(frozen=True, slots=True)
+class _ObservedRoute:
+    managed_versions: ManagedVersions
+    request_ref: str
+    provider: str = "deepseek"
+    request_model_id: str = "deepseek-flash"
 
 
 def _invalid() -> InvalidProviderOutput:
@@ -195,12 +208,14 @@ class BifrostTransport:
     conservative_usage_on_error = True  # real dispatch may have billed even when no response/chunk was received
 
     def __init__(self, settings: BifrostSettings | None = None, *, virtual_key: str | None = None,
-                 immutable_evidence: Sequence[ImmutableModelEvidence] = (), http_transport: httpx.AsyncBaseTransport | None = None) -> None:
+                 immutable_evidence: Sequence[ImmutableModelEvidence] = (), allow_observed: bool = False,
+                 http_transport: httpx.AsyncBaseTransport | None = None) -> None:
         self._settings = settings or BifrostSettings()
         if virtual_key is not None and (not isinstance(virtual_key, str) or not virtual_key or len(virtual_key) > 512
                                         or any(ord(c) < 33 or ord(c) > 126 for c in virtual_key)):
             raise ValueError("invalid Bifrost virtual-key credential")
         self._credential = virtual_key
+        self._allow_observed = allow_observed is True
         self._bindings = tuple(immutable_evidence)
         keys = [(e.provider, e.request_model_id, e.pinned_model_version) for e in self._bindings]
         if len(set(keys)) != len(keys):
@@ -217,10 +232,21 @@ class BifrostTransport:
     async def aclose(self) -> None:
         await self._client.aclose()
 
-    def _binding(self, call: TransportCall) -> ImmutableModelEvidence:
+    @property
+    def max_stream_bytes(self) -> int:
+        """Existing transport bound also limits observed output buffered by the gateway."""
+        return self._settings.max_stream_bytes
+
+    def _binding(self, call: TransportCall) -> ImmutableModelEvidence | _ObservedRoute:
         p = call.profile
         if p.status is not ProfileStatus.APPROVED:
             raise ModelProfileNotApproved("Bifrost transport requires an approved profile")
+        if p.identity_mode is ProfileIdentityMode.FLASH_OBSERVED:
+            v = call.managed_versions
+            if (not self._allow_observed or not self._credential or not isinstance(v, ManagedVersions)
+                    or v.profile_id != p.id or v.profile_version != p.profile_version):
+                raise GatewayUnconfigured("no admitted observed Bifrost route is configured")
+            return _ObservedRoute(v, call.request_id)
         if not self._credential or (p.provider.lower() == "deepseek" and p.provider_model_id.lower() in _ROLLING_DEEPSEEK):
             raise GatewayUnconfigured("no verified immutable Bifrost route is configured")
         for binding in self._bindings:
@@ -229,7 +255,7 @@ class BifrostTransport:
                 return binding
         raise GatewayUnconfigured("no verified immutable Bifrost route is configured")
 
-    def _request(self, call: TransportCall, stream: bool) -> tuple[ImmutableModelEvidence, dict[str, str], bytes]:
+    def _request(self, call: TransportCall, stream: bool) -> tuple[ImmutableModelEvidence | _ObservedRoute, dict[str, str], bytes]:
         binding = self._binding(call)
         if (type(call.max_output_tokens) is not int or not 1 <= call.max_output_tokens <= call.profile.max_output_tokens
                 or not isinstance(call.timeout_seconds, int | float) or isinstance(call.timeout_seconds, bool)
@@ -265,7 +291,13 @@ class BifrostTransport:
         return binding, headers, encoded
 
     @staticmethod
-    def _identity(data: dict[str, Any], binding: ImmutableModelEvidence) -> None:
+    def _identity(data: dict[str, Any], binding: ImmutableModelEvidence | _ObservedRoute) -> IdentityObservation | None:
+        if isinstance(binding, _ObservedRoute):
+            try:
+                return extract_bifrost_observation(data, managed_versions=binding.managed_versions, observed_at=datetime.now(UTC),
+                                                   request_ref=binding.request_ref, request_model_id=binding.request_model_id)
+            except InvalidIdentityEvidence:
+                raise ObservedIdentityInvalid() from None
         routing = _object(_object(data.get("extra_fields")).get("routing_info"))
         if (data.get("model") != binding.response_model_id or routing.get("provider") != binding.provider
                 or routing.get("model") != binding.request_model_id or routing.get("is_fallback", False) is not False
@@ -275,6 +307,7 @@ class BifrostTransport:
             raise _invalid()
         if binding.expected_fingerprint is not None and data.get("system_fingerprint") != binding.expected_fingerprint:
             raise _invalid()
+        return None
 
     @staticmethod
     def _http_status(status: int, retry_after: Any = None) -> None:
@@ -335,7 +368,8 @@ class BifrostTransport:
             error.possibly_billed = True
             raise
 
-    async def _complete_wire(self, call: TransportCall, binding: ImmutableModelEvidence, headers: dict[str, str], body: bytes) -> TransportResult:
+    async def _complete_wire(self, call: TransportCall, binding: ImmutableModelEvidence | _ObservedRoute,
+                             headers: dict[str, str], body: bytes) -> TransportResult:
         try:
             async with asyncio.timeout(call.timeout_seconds):
                 async with self._response(body, headers, call.timeout_seconds) as response:
@@ -347,7 +381,7 @@ class BifrostTransport:
         except httpx.TransportError:
             raise ProviderUnavailable("Bifrost connection failed") from None
         self._error_frame(data)
-        self._identity(data, binding)
+        observation = self._identity(data, binding)
         choice = self._choice(data)
         reason = _reason(choice.get("finish_reason"))
         message = _object(choice.get("message"))
@@ -364,7 +398,7 @@ class BifrostTransport:
             output = _json(content)
             _validate_schema(call.response_schema, output)
         return TransportResult(output=output, finish_reason=reason, usage=_usage(data.get("usage"), call),
-                               tool_calls=tools, provider_request_ref=_identifier(data.get("id")))
+                               tool_calls=tools, provider_request_ref=_identifier(data.get("id")), observation=observation)
 
     @asynccontextmanager
     async def _response(self, body: bytes, headers: dict[str, str], timeout: float) -> AsyncIterator[httpx.Response]:
@@ -455,6 +489,7 @@ class BifrostTransport:
         usage: Usage | None = None
         request_ref: str | None = None
         pending_tools: dict[int, dict[str, Any]] = {}
+        observation: IdentityObservation | None = None
         try:
             async with self._response(body, headers, call.timeout_seconds) as response:
                 self._http_status(response.status_code, response.headers.get("retry-after"))
@@ -468,12 +503,20 @@ class BifrostTransport:
                         for tool in tools:
                             yield ToolCallChunk(tool)
                         p = call.profile
-                        identity = ModelIdentity(p.id, p.profile_key, p.profile_version, p.provider, p.provider_model_id, p.pinned_model_version)
+                        identity = ModelIdentity(p.id, p.profile_key, p.profile_version, p.provider, p.provider_model_id,
+                                                 p.pinned_model_version, observation=observation)
                         yield StreamEnd(identity, finished, usage, request_ref)
                         return
                     data = _json(raw)
                     self._error_frame(data)
-                    self._identity(data, binding)
+                    current = self._identity(data, binding)
+                    if current is not None:
+                        if observation is not None and (current.identity != observation.identity
+                                                        or current.provider_request_ref != observation.provider_request_ref):
+                            # Neither endpoint represents the inconsistent stream.
+                            # A later approved value must not erase earlier drift.
+                            raise ObservedIdentityInvalid()
+                        observation = current
                     ref = _identifier(data.get("id"))
                     if request_ref is not None and ref != request_ref:
                         raise _invalid()

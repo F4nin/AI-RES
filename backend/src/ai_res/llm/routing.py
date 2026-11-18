@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from ai_res.llm.errors import RouteNotFound
-from ai_res.llm.registry import ModelProfile, ModelRegistry
+from ai_res.llm.registry import ModelProfile, ModelRegistry, ProfileIdentityMode
 from ai_res.llm.types import Capability
 
 
@@ -57,10 +57,11 @@ def is_equal_or_stricter(candidate: ModelProfile, primary: ModelProfile) -> bool
 def fallback_candidates(registry: ModelRegistry, primary: ModelProfile, *, now: datetime, data_classification: str,
                         required: frozenset[Capability], context_tokens: int, max_output_tokens: int = 1) -> tuple[ModelProfile, ...]:
     """Approved, compatible, equal-or-stricter profiles of the primary's fallback group, in a fixed order (profile_key, newest version first)."""
-    if primary.fallback_group is None:
+    if primary.fallback_group is None or primary.identity_mode is ProfileIdentityMode.FLASH_OBSERVED:
         return ()
     return tuple(p for p in registry.all()
-                 if p.id != primary.id and p.fallback_group == primary.fallback_group and is_equal_or_stricter(p, primary)
+                 if p.identity_mode is ProfileIdentityMode.IMMUTABLE
+                 and p.id != primary.id and p.fallback_group == primary.fallback_group and is_equal_or_stricter(p, primary)
                  and can_serve(p, now=now, data_classification=data_classification, required=required, context_tokens=context_tokens,
                                max_output_tokens=max_output_tokens))
 

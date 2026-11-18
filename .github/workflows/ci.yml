@@ -16,7 +16,8 @@ env:
 jobs:
   backend:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    # Includes cold native candidate builds as well as PostgreSQL integration.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with: { persist-credentials: false }
@@ -26,6 +27,9 @@ jobs:
       - run: make backend-check   # ruff, mypy --strict, import-linter
       # PostgreSQL 16 integration tests (Testcontainers, same image digest as Compose): migrations, roles/grants audit, RLS, tenant context, drift
       - run: make backend-test
+        env:
+          # Identify the running test/build if a runner stalls; retain every test.
+          PYTEST_ADDOPTS: "-vv --durations=15 -o faulthandler_timeout=180"
       - name: dependency audit (locked runtime set)
         run: make backend-audit
 

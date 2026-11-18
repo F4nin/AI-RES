@@ -24,20 +24,24 @@ from typing import Any, TypeVar
 import jsonschema
 from opentelemetry import metrics, trace
 
+from ai_res.llm.admission import ObservedAdmissionCall, ObservedAdmissionPort, ObservedIdentityInvalid
 from ai_res.llm.budget import BudgetLedgerPort, Reservation, worst_case_cost
 from ai_res.llm.errors import (
     CapabilityNotSupported,
     CircuitOpen,
     DataClassificationNotAllowed,
+    GatewayUnconfigured,
     InputExceedsContextWindow,
     InvalidProviderOutput,
     InvalidRequest,
     LLMError,
+    ModelProfileNotApproved,
     ProviderTimeout,
     ProviderUnavailable,
 )
 from ai_res.llm.guard import guard_inputs, guard_messages
-from ai_res.llm.registry import ModelProfile, ModelRegistry, RetryClass
+from ai_res.llm.observed_identity import IdentityObservation
+from ai_res.llm.registry import ModelProfile, ModelRegistry, ProfileIdentityMode, RetryClass
 from ai_res.llm.routing import fallback_candidates
 from ai_res.llm.transport import ProviderTransport, TransportCall, TransportEmbeddingCall
 from ai_res.llm.types import (
@@ -136,16 +140,18 @@ class _Prepared:
     tokens: int
 
 
-def _identity(p: ModelProfile) -> ModelIdentity:
-    return ModelIdentity(p.id, p.profile_key, p.profile_version, p.provider, p.provider_model_id, p.pinned_model_version)
+def _identity(p: ModelProfile, observation: IdentityObservation | None = None) -> ModelIdentity:
+    return ModelIdentity(p.id, p.profile_key, p.profile_version, p.provider, p.provider_model_id, p.pinned_model_version, observation=observation)
 
 
 class GovernedLLMGateway:
     def __init__(self, *, registry: Callable[[], ModelRegistry], transport: ProviderTransport, ledger: BudgetLedgerPort,
                  catalog: ContractCatalogPort | None = None, policy: GatewayPolicy | None = None,
+                 admission: ObservedAdmissionPort | None = None,
                  clock: Callable[[], datetime] = lambda: datetime.now(UTC), monotonic: Callable[[], float] = time.monotonic,
                  sleep: Callable[[float], Awaitable[None]] = asyncio.sleep, rng: random.Random | None = None) -> None:
         self._registry, self._transport, self._ledger = registry, transport, ledger
+        self._admission = admission
         self._catalog = catalog or EmptyCatalog()
         self._policy = policy or GatewayPolicy()
         self._clock, self._monotonic, self._sleep = clock, monotonic, sleep
@@ -210,6 +216,8 @@ class GovernedLLMGateway:
         now = self._clock()
         registry = self._registry()
         primary = registry.resolve(request.model_profile_id, now)
+        if primary.identity_mode is ProfileIdentityMode.FLASH_OBSERVED and self._admission is None:
+            raise GatewayUnconfigured("observed model admission is not configured")
         need = request.required_capabilities()
         self._require(primary, need, request.data_classification)
         if request.limits.max_output_tokens > primary.max_output_tokens:
@@ -237,6 +245,37 @@ class GovernedLLMGateway:
         profiles = [primary, *self._fallbacks(registry, primary, request.data_classification, need, tokens, now, request.limits.max_output_tokens)]
         return _Prepared(messages, redactions, profiles, schema, tools, tokens)
 
+    async def _begin_observed(self, profile: ModelProfile, request: LLMRequest) -> ObservedAdmissionCall | None:
+        if profile.identity_mode is not ProfileIdentityMode.FLASH_OBSERVED:
+            return None
+        if self._admission is None:
+            raise GatewayUnconfigured("observed model admission is not configured")
+        try:
+            call = await self._admission.begin(profile, request)
+            if (call.managed_versions.profile_id != profile.id or call.managed_versions.profile_version != profile.profile_version):
+                raise ModelProfileNotApproved("observed managed versions do not match the profile")
+            return call
+        except LLMError:
+            raise
+        except Exception:
+            raise ModelProfileNotApproved("observed admission refused or is unavailable") from None
+
+    async def _finalize_observed(self, call: ObservedAdmissionCall, observation: IdentityObservation | None,
+                                 request: LLMRequest) -> None:
+        if self._admission is None:
+            raise GatewayUnconfigured("observed model admission is not configured", possibly_billed=True)
+        valid = (observation is not None and observation.managed_versions == call.managed_versions
+                 and observation.request_ref == request.request_id)
+        try:
+            await self._admission.finalize(call, observation if valid and observation is not None else b"")
+        except LLMError as error:
+            error.possibly_billed = True
+            raise
+        except Exception:
+            raise ModelProfileNotApproved("observed result admission refused or is unavailable", possibly_billed=True) from None
+        if not valid:
+            raise ObservedIdentityInvalid()
+
     async def _complete(self, request: LLMRequest) -> LLMResponse:
         prep = self._prepare(request)
         messages, redactions, profiles, schema, tools, tokens = prep.messages, prep.redactions, prep.profiles, prep.schema, prep.tools, prep.tokens
@@ -244,10 +283,23 @@ class GovernedLLMGateway:
         async def attempt(p: ModelProfile) -> tuple[LLMResponse, Usage]:
             started = self._monotonic()
             timeout = min(request.limits.timeout_seconds, p.timeout_seconds)
+            admitted = await self._begin_observed(p, request)
             call = TransportCall(request_id=request.request_id, profile=p, messages=messages, max_output_tokens=request.limits.max_output_tokens,
-                                 timeout_seconds=timeout, response_schema=schema, tool_definitions=tools, traceparent=request.traceparent)
-            r = await asyncio.wait_for(self._transport.complete(call), timeout=timeout)
-            resp = LLMResponse(identity=_identity(p), output=r.output, finish_reason=r.finish_reason, usage=r.usage,
+                                 timeout_seconds=timeout, response_schema=schema, tool_definitions=tools, traceparent=request.traceparent,
+                                 managed_versions=admitted.managed_versions if admitted is not None else None)
+            try:
+                r = await asyncio.wait_for(self._transport.complete(call), timeout=timeout)
+            except InvalidProviderOutput as error:
+                if admitted is not None:
+                    await self._finalize_observed(admitted, getattr(error, "observation", None), request)
+                raise
+            if admitted is not None:
+                if r.observation is not None and r.provider_request_ref != r.observation.provider_request_ref:
+                    await self._finalize_observed(admitted, None, request)
+                await self._finalize_observed(admitted, r.observation, request)
+            elif r.observation is not None:
+                raise InvalidProviderOutput("immutable transport returned observed-mode metadata", possibly_billed=True)
+            resp = LLMResponse(identity=_identity(p, r.observation), output=r.output, finish_reason=r.finish_reason, usage=r.usage,
                                latency_ms=int((self._monotonic() - started) * 1000), tool_calls=r.tool_calls,
                                provider_request_ref=r.provider_request_ref, redactions=redactions)
             return resp, r.usage
@@ -416,14 +468,26 @@ class GovernedLLMGateway:
             self._breaker.release_probe(profile.id)
             raise
         timeout = min(request.limits.timeout_seconds, profile.timeout_seconds)
-        call = TransportCall(request_id=request.request_id, profile=profile, messages=prep.messages, max_output_tokens=request.limits.max_output_tokens,
-                             timeout_seconds=timeout, tool_definitions=prep.tools, traceparent=request.traceparent)
         settled, received, ended, verdict = False, False, False, False
         provider_time = 0.0
         outcome = "OK"
         possibly_billed = self._conservative_usage_on_error()
         iterator: AsyncIterator[StreamChunk] | None = None
+        admitted: ObservedAdmissionCall | None = None
+        buffered: list[StreamChunk] = []
+        buffered_bytes = 0
+        configured_limit = getattr(self._transport, "max_stream_bytes", None)
+        buffer_limit = configured_limit if type(configured_limit) is int else 0
+        finalizing = False
+        observation: IdentityObservation | None = None
         try:
+            if profile.identity_mode is ProfileIdentityMode.FLASH_OBSERVED and buffer_limit < 1:
+                raise GatewayUnconfigured("observed streaming requires a bounded transport")
+            admitted = await self._begin_observed(profile, request)
+            call = TransportCall(request_id=request.request_id, profile=profile, messages=prep.messages,
+                                 max_output_tokens=request.limits.max_output_tokens, timeout_seconds=timeout,
+                                 tool_definitions=prep.tools, traceparent=request.traceparent,
+                                 managed_versions=admitted.managed_versions if admitted is not None else None)
             iterator = self._transport.stream(call).__aiter__()
             while True:
                 remaining = timeout - provider_time
@@ -441,19 +505,46 @@ class GovernedLLMGateway:
                 received = True
                 if isinstance(chunk, StreamEnd):
                     ended = True
-                    chunk = StreamEnd(_identity(profile), chunk.finish_reason, chunk.usage, chunk.provider_request_ref)
+                    if admitted is not None:
+                        observation = chunk.identity.observation
+                        if (observation is None or chunk.identity != _identity(profile, observation)
+                                or chunk.provider_request_ref != observation.provider_request_ref):
+                            raise ObservedIdentityInvalid()
+                    else:
+                        chunk = StreamEnd(_identity(profile), chunk.finish_reason, chunk.usage, chunk.provider_request_ref)
                     settled = True  # decided before the await: a cancellation inside it must not trigger a second settlement
                     await self._settle_quietly(reservation, chunk.usage.total, self._cost(profile, chunk.usage))
                     self._breaker.success(profile.id)
                     verdict = True
-                    self._record_stream(profile, "OK", chunk.usage, started)
-                yield chunk
+                    if admitted is None:
+                        self._record_stream(profile, "OK", chunk.usage, started)
+                if admitted is None:
+                    yield chunk
+                else:
+                    # Count the retained representation against the existing native
+                    # wire bound, including empty/metadata chunks; never an unbounded list.
+                    buffered_bytes += max(1, len(repr(chunk).encode("utf-8")))
+                    if buffered_bytes > buffer_limit:
+                        raise InvalidProviderOutput("observed stream exceeds its transport buffer bound", possibly_billed=True)
+                    buffered.append(chunk)
             if not ended:
                 raise InvalidProviderOutput("provider stream ended without a final usage record",
                                             possibly_billed=self._conservative_usage_on_error())
+            if admitted is not None:
+                finalizing = True
+                await self._finalize_observed(admitted, observation, request)
+                terminal = buffered[-1]
+                if not isinstance(terminal, StreamEnd):
+                    raise ObservedIdentityInvalid()
+                self._record_stream(profile, "OK", terminal.usage, started)
+                for chunk in buffered:
+                    yield chunk
         except LLMError as exc:
-            possibly_billed = exc.possibly_billed
             outcome = exc.code.value
+            if admitted is not None and isinstance(exc, InvalidProviderOutput) and not finalizing:
+                finalizing = True
+                await self._finalize_observed(admitted, getattr(exc, "observation", None), request)
+            possibly_billed = exc.possibly_billed
             if not verdict:
                 self._breaker.failure(profile.id) if exc.fallback_eligible else self._breaker.release_probe(profile.id)
                 verdict = True
