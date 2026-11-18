@@ -25,6 +25,14 @@ CLI fixture helper asserts installed absolute Docker, no skip/PATH autodiscovery
 in product. [Final3hashes](G02_CONFIGURATION_INTEGRITY_IDLE_CODE_HASHES.json).
 
 Root built immutable new image+actualbinary/provenance, native12PASS192.11s,
-Go normal/race/vet pending. Reviewers ran no runtime/build/tests/provider calls.
+Go normal/race/vet exit0:8parent+42sub twice, vet clean. Reviewers ran no runtime/build/tests/provider calls.
 [Buildproof](G02_CONFIGURATION_INTEGRITY_IDLE_BUILD_PROVENANCE.json).
 Linux896failing backend is not accepted; exact newSHA CI required before live.
+
+Exact abe40ea Linux CI44297256856/44297247246: backend CANCELLED by20m job
+limit (GitHub annotation), not a completed PASS; contracts/infra-static/runtime PASS.
+After44% no per-test output for12m, underlying slow fixture not yet identified.
+Root workflow-only follow-up: backend wallbudget45m, step-local pytest verbose/
+durations15/faulthandler180s; all tests/checks/audit retained. launch_general
+independent read-only source review APPROVE/open0; no claim that timeout cause
+is fixed. Pinned actionlint and exact newSHA Linux run required.

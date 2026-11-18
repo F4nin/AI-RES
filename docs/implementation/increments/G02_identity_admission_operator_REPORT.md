@@ -156,3 +156,25 @@ relay disabled, original10USD/8attempts сохраняется. Current official
 [официальный источник](https://api-docs.deepseek.com/quick_start/pricing/).
 Дальше finishaffectedchecks/CI и конкретный guarded setup→oneTEXT→accounting,
 затем existingcases/humanacceptance/productintegration; G02 NOT_STARTED.
+
+### 16.1 Повторный CI и диагностика (2026-11-18)
+
+Commitabe40ea содержит concrete idle/CLI fixes; full affected native12PASS,
+Go normal/race8parent+42sub twicePASS, vet exit0. Go first attempts failed due
+noexec test tmpfs; corrected trusted builder exec tmpfs, source/guards unchanged.
+Confirmed final command exit0, logs /tmp/g156-idle-go-command.log and results.log.
+
+LinuxCI44297256856 и44297247246: contracts/static/runtimePASS; backend CANCELLED
+by explicit20m job limit, stopped at44% after12m without per-test output.
+This is not test failure evidence or PASS. Workflow-only followup increases
+wallbudget45m for combined cold-native+PG suite and adds verbose test names/
+durations/faulthandler180s, without skip/check removal. Independent general
+source review APPROVE/open0; new exact-SHA Linux run must establish actual result.
+
+Main runtime secrets equality24/24 verified, values/hashes not in report.
+Prepared helper dry-runPASS, private TLS unauthenticatedclaim401PASS after
+adding standard SKI/AKI/KeyUsage to owned candidate certificates; same keys/SAN/
+validity, SOPS archive updated first, no main credential rotation. Reviewer
+executor_normative inspected concrete owned metadata/source and found no new
+security blocker; final enabled-relay delta needs inspect before firstTEXT.
+Provider plaintext absent, account not inserted, paid calls/spend0.

@@ -6,40 +6,26 @@
 подготовки. First profileless candidate probe не требует product APPROVED/gateway;
 реальная identity предшествует humanприёмке. Текущий [план](groups/G02_FLASH_ADMISSION.md).
 
-**Git/проверки:** ветка feat/g02-manager-tools-planning; накопленная разрешённая
-подготовка173files доставлена в draft [PR34](https://github.com/F4nin/AI-RES/pull/34),
-HEAD896898983e0c4867533c5113dba77cd3bf1d8291. Root сохранил157initialfiles,
-интегрировал прежние approved NCP16/OD19/preparatory artifacts, авторство не присваивает.
-Full localpre-pr exit0: contracts22,backend2740/541warnings,infra369,runtime148,
-Poc19,Renovate10; sourcechecks/mypy200/15imports/secrets0. First localattempt
-1233PASS/1stale-tablecatalogueFAIL interrupted; fixed expectedset then cleanfullPASS.
-LinuxCI896: contracts/infra-static/infra-runtimePASS, backend8FAIL/2732PASS:
-native fixture uses Mac Docker path. Этот CI не засчитан, merge/live запрещены.
-
-**Конкретный текущий fix:** actual owned candidate boothealth200→503 after30s
-БЕЗ inference; eightinputhashes/modes+renderedmarker unchanged. Private metadata-only
-SQLite diagnostic confirmed sidekiq vk_expiry_cleanup/completed1; copies deleted.
-Candidate-only startup scheduler writes job at30s. Executor_plan изменил только
-integrity.patch/manifest/native test: omit startupcall, preserve per-request expiry/
-auth/fullSQLitehash/stickyguard; nativeidle65s+auth+2SSE/old10.2s. Root separately
-fixed native CLI portability with explicit installed absolute Docker path in fixture.
-Два independent source reviewers APPROVE/open0. Patch367d5eca…/manifest89e0c00d…/
-test2f05b550… . New imageb0e0b5f06c7e472129c9b1a2f8aee4e83d169ac5dda6b263536e8005b6b0d18c,
-binary24e887a4…/staticELF; proof /tmp/g156-idle-build-proof.json. Native12suite
-PASS192.11s/0failed/skipped, Go normal/race/vet running session99925. После PASS сохранить proof/
-hashes/review, commitfix→pushsamePR→exactnewSHA LinuxCI; не повторять весь local
-PG/pre-pr без новой причины, повторять затронутые Go/native checks.
+**Текущий Git/проверки:** ветка feat/g02-manager-tools-planning, HEADabe40ea,
+draft [PR34](https://github.com/F4nin/AI-RES/pull/34). Full localpre-pr PASS: backend2740,
+infra369/runtime148/poc19/contracts22/renovate10; no fresh fullrepeat needed.
+Concrete idle/CLI fixes: newBFimageb0e0… native12PASS192.11s; Go normal/race
+8parent+42sub twicePASS, vet0. Final proof /tmp/g156-idle-go-exit.txt=0.
+Linux896 backend8FAIL corrected; Linuxabe contracts/static/runtimePASS, backend
+CANCELLED by20m GitHub limit (44%,12m silence), not PASS. Current workflow-only
+followup45m+verbose/durations/faulthandler180s reviewed APPROVE/open0; run exact
+newSHA LinuxCI, diagnose slow fixture from output. Merge/live remain gated.
 
 **Key/setup:** владелец создал infra/secrets/candidate/deepseek.enc.json (ignored,
 SOPS/age/mode0600/shape проверены; value никогда не выводился). Providerplaintext
 не материализован/не монтирован; calls/spend0. Candidate-only fresh TLS/service/
 virtual credentials зашифрованы отдельно, main secrets не ротировались. Private
 setup-location.json в том же ignoredfolder хранит ownedruntime IDs/networks/tooling.
-Уже подняты owned BF+DISABLEDrelay без providerkey/DB/socket/hostports; BF old183
-теперь blocked ожидаемо, заменить только собственный ephemeral BF новым image после
-nativePASS. Ledgeraccount ещё не создан, никакой budget reset не выполнялся.
-Main devstack обычнымpre-pr обновлён/мигрирован20–26, volumes retained; pendingsecret
-hash comparison /tmp/g156-prepr-secret-hashes.json. Original10USD/8attempts общий.
+Уже подняты owned BF+DISABLEDrelay без providerkey/DB/socket/hostports; BF уже newb0e0 со stablehealth, actual host descriptor + trusted helper
+TLS listener prepared; probe dryrunPASS/privateTLS unauthorized401PASS. Owned
+certificates SKI/AKI/KeyUsage corrected preserving keys/SAN/lifetime, archive first. Ledgeraccount ещё не создан, никакой budget reset не выполнялся.
+Main devstack обычнымpre-pr обновлён/мигрирован20–26, volumes retained; mainsecret
+equality24/24 confirmed. Original10USD/8attempts общий.
 
 **Следующие действия в этом же поручении:** finishfixgates/CI; concrete helper
 control+runner namespace (existing launcher), originalaccount/currenttariff once,
