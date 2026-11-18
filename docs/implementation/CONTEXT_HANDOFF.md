@@ -1,58 +1,51 @@
 # CONTEXT_HANDOFF — checkpoint перед обновлением контекста
 
-**Текущий этап: SLICE-01, TESTED; финальные gates/доставка IN_PROGRESS (2026-11-18).**
-Реальное извлечение версии 3 успешно: один FR о списке статей на главной странице,
-цитата буквально найдена в строке 7. Владелец увидел результат в чате.
-[Результат](reviews/SLICE-01_RESULT.json), [отчёт](increments/SLICE-01_requirements_experiment_REPORT.md).
-Это кандидат из публичного тестового RealWorld, не утверждённое требование AI RES.
+**SLICE-01 ЗАВЕРШЁН: VERIFIED, 2026-11-18. STOP по прямому указанию владельца.**
+Владелец обновит контекст и отдельно даст approval на следующую разработку.
+S17/G02 и следующий этап группы НЕ НАЧИНАТЬ; обещание будущего approval не является разрешением.
 
-Новый общий account 10 USD: 6 KNOWN calls, used0.0032058USD, remaining9.9967942,
-pendingfalse/blockedfalse. Старый technical account/runtime не менялись. Бюджет и
-allowed_regions=[cn] уже утверждены; INTERNAL только без ПДн/коммерческой тайны.
-MFA действительно активна. Один profile APPROVED/version1, identity generation3,
-три admission versions/VALIDATED calls и один MODEL_PROFILE_APPROVED audit.
-Все human approvals выполнены лично в отдельных Terminal окнах; агент их не вводил.
+Реальный V3 прошёл: один FR о списке статей главной страницы, exact source quote в
+строке7, WorkerResult1.1/provenance/type/secret checks PASS. Результат предъявлен
+владельцу. [Result](reviews/SLICE-01_RESULT.json), [report](increments/SLICE-01_requirements_experiment_REPORT.md).
+Это кандидат из публичного MIT RealWorld, не утверждённое требование AI RES.
 
-Standalone tool только backend/scripts/slice01; product/src, canonical, contracts,
-Compose/schema/roles/grants без diff. Source MIT RealWorld commit25588846c314b15a5e427ffe816e6b4af7be68c7,
-sourceSHA65fbd975…, metadata/лицензия в backend/tests/fixtures/slice01.
-Все 45 startup canonical файлов прочитаны до live; ранний порядок чтения до первой
-реализации был нарушен и отражён в отчёте. Не объявлять его соблюдённым задним числом.
+Общий SLICE account10USD: 6KNOWNcalls, used0.0032058USD, remaining9.9967942,
+UNKNOWN/pending/blocked0. Бюджет/регионcn уже утверждены, обычные INTERNAL без ПДн/тайны.
+Старый technicalaccount/runtime сохранён. Личная MFA/profile/identity acceptance
+фактические: APPROVEDprofile1/version1, currentgeneration3, один profile approval audit.
+Actor approvals выполнены человеком в Terminal; агент не вводил OTP/ПРИНИМАЮ.
 
-V1 ответ не сохранялся, причина отказа утрачена. V2 quarantine сработал: два JSON
-документа вместо outer object и locator12 вместо actual15. V3 добавил явную форму
-JSON и derived numberedLines; validator не ослаблялся, ответы не исправлялись.
-[Диагностика V2](reviews/SLICE-01_V2_FAILURE_DIAGNOSIS.json).
+V1 diagnostic cause утрачен; V2 quarantine выявил два JSON-docs вместо outer object
+и locator12 вместо actual15. V3 prompt даёт явную структуру/numberedLines, validator
+не исправляет/не ослабляет ответ. Private source-v1/v2, планы/история сохранены.
+V3manifest a2405a10…, prompt71a2791d…, source hashes в TOOLING_EVIDENCE_V3.json.
+Один wallet с append AUTHORIZE_VERSION; oldrefs retired. Private current artifacts
+infra/secrets/slice01/authorization-2026-11-18/versions/3/results; wallet в корне.
+НЕ reset/init/replay. Все три owned SLICE runtime остановлены, volumes/основной стек
+не удалялись. Новых model calls не нужно. Product/src/canonical/contracts/schema не менялись.
 
-V3manifest a2405a10d99713de146d79bca50b8a615cf00b07763d8713319ceebfbdef0b5a,
-prompt71a2791d4295333800184d1b540fe09859e867cf93d19f2486c3ed4bf29c1d26;
-source hashes в TOOLING_EVIDENCE_V3.json. Wallet один, append AUTHORIZE_VERSION,
-oldrefs retired. Private location infra/secrets/slice01/authorization-2026-11-18;
-актуальные артефакты в versions/3/results, общий wallet в корне. НЕ reset/init;
-новая версия требует старый stopped runtime, no IN_FLIGHT/blocked, fresh refs/price,
-новый probe и личное identity-only approval. Старые source-v1/v2 архивы сохранены.
-Все три owned runtime остановлены, volumes/основной стек не удалялись.
+Полный localpre-pr exit0: contracts22/Renovate10/backend3228(541warnings)/infra369/
+runtime148/PoC19; audit0vulns,21imagepins/0mismatch,secrets0. Fast1896PASS/4warnings,
+V3affected87PASS, explicitmypy10PASS; MFAcompat28PASS и independent APPROVE/open0.
+45startupfiles прочитаны доlive; ранний порядок чтения до первой реализации нарушен,
+это явно записано. Все final source reviews APPROVE/open0, evidence не подменяет semantic QA.
 
-Проверки: V2 scope371PASS/35.52s, V3 affected87PASS/22.35s,
-fast1896PASS/4warnings/15.12s, explicitmypy10modulesPASS, secrets0. MFA helper
-compatibility исправлена: stablecode/status, один ручной OTP/запуск, без detail
-parsing/retry; root28PASS/0.12s и independent APPROVE/open0. Tool source не менялся.
-Independent general/architecture/Python/security/database reviews всех final sources
-APPROVE/open0; source review не runtime. Evidence V1/V2/V3 и реальные model факты раздельны.
+Код commit54730eb1d19b2f2443fe4ba53888bbb32938ab4f pushed и MERGED PR34:
+https://github.com/F4nin/AI-RES/pull/34. Mergef5b3211b4496cfa9fb10934af3023129923cbd0f,
+дерево dba5f6a4808f80abdf3b6254f59a1e740231143b идентично проверенному source.
+PrimaryLinuxCI44363805060 SUCCESS: backend3228/541warnings/908.55s, infra-static221,
+runtime148/152.84s,PoC19,audit/secrets/digests/hadolint/actionlint/own-imageSCM PASS.
+Contracts44363804982 SUCCESS. DuplicatepushCI44363791071 CANCELLED, неPASS.
+Postmerge44367265491 был RUNNING при проверке; не приписывать ему SUCCESS;
+postmergecontracts44367265219 SUCCESS. При новой команде проверить его актуальное состояние.
+[CI evidence](reviews/SLICE-01_CI_EVIDENCE.json) фиксирует разные SHA/run IDs честно.
 
-**Полный локальный pre-pr завершён exit0:** contracts22/Renovate10/backend3228
-(541warnings,755.90s)/infra369/runtime148/PoC19, errors/skips0. Runtimeaudit0vulns,
-21imagepins/0mismatch. Permanent FINAL_LOCAL_GATES.json сохранён; source hashesV3.
-Новый Linux CI ещё не запускался, VERIFIED не заявлять. Ветка
-feat/g02-manager-tools-planning, HEAD5bc8324e967713a607c93f20d54cb3fc57e76fcb + diff;
-новых commits/push пока нет.
-Исходный чужой diff: G02_WORK/report/hash evidence и старые префиксы HANDOFF/STATUS/
-KNOWN_GAPS; сохранить отдельно и не включать в SLICE commit. candidate_tariff.json не stage.
-
-Дальше: exact review/evidence →
-commit/push/PR/обязательный Linux CI → merge только зелёный → итоговый контекст и STOP.
-Не повторять платные запросы: эксперимент уже прошёл. S17/G02 не начинать без новой команды.
-Ниже — сохранённая история до поручения SLICE; её STOP/MFA0 больше не актуальны.
+Финальные implementation docs оформляются отдельным docs-only closeout без новой
+разработки/повтора runtime tests; source54730eb неизменен. Рабочая ветка
+feat/g02-manager-tools-planning, main fetched в origin/main; ветка не переключалась.
+Исходный user diff сохранён отдельно: старые префиксы HANDOFF/STATUS/KNOWN_GAPS,
+G02_WORK/report/hash evidence. candidate_tariff.json не stage. Эти изменения не
+включены в SLICE source commit. Ниже сохранённая история прежнего STOP, не текущий статус.
 
 
 **Final local gates:** contracts22/Renovate10/backend2853/fast1538/PG31/infra369/

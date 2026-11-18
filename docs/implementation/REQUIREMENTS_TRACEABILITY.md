@@ -11,7 +11,7 @@
 | Secrets/observability boundaries | Prewrite bounded secret screening, private quarantine, machine diagnostics | producer/capture negative tests; logs без source/results |
 | TEST_DATA_SOURCES TD-06 | MIT RealWorld immutablecommit, text/checksum не изменялись | fixtures/slice01/source.json, V3line7 |
 
-Статус TESTED, финальные pre-pr/CI/доставка pending. Это development experiment;
+Статус VERIFIED, local pre-pr/exact Linux CI PASS; PR34 merged. Это development experiment;
 не WorkerRun/ReadinessGate и не подтверждение semantic completeness/requirement approval.
 [Отчёт](increments/SLICE-01_requirements_experiment_REPORT.md). История ниже.
 

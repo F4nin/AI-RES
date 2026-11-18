@@ -1,8 +1,7 @@
 # SLICE-01 — эксперимент извлечения требований реальной моделью
 
 **Основание:** ADR-115; прямое поручение владельца2026-11-18 начать реализацию,
-затем сразу тестировать готовый код. **Статус:** TESTED, финальные gates/доставка
-IN_PROGRESS; [отчёт](../SLICE-01_requirements_experiment_REPORT.md).
+затем сразу тестировать готовый код. **Статус:** DONE / VERIFIED; [отчёт](../SLICE-01_requirements_experiment_REPORT.md).
 
 ## 1. Границы
 
@@ -32,7 +31,7 @@ observed identity с NULL pin, без retry/fallback и автоматическ
 Реальный V3 прошёл: WorkerResult1.1, source/quote/line7, typeFR и secret checks.
 Профиль и identity приняты лично, generation3, profileVersion1. Общий SLICE
 account10USD: sixknowncalls/0.0032058USD/remaining9.9967942, oldaccount не сброшен.
-[Результат](../../reviews/SLICE-01_RESULT.json). Полный приёмочный цикл/доставка ещё IN_PROGRESS.
+[Результат](../../reviews/SLICE-01_RESULT.json). Local pre-pr/exact Linux CI PASS, PR34 merged; остановка до нового approval владельца.
 
 ## 4. Scope и критерии
 
