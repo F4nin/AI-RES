@@ -1,0 +1,32 @@
+{
+  "baseSource": {
+    "archiveBytes": 37386240,
+    "archiveSha256": "becb11aff118386888f4977c429e23f9e78ce1e9aaa5d2846d96671acee54d9c",
+    "commit": "7cb75fb2f8276ca48d0792c857fecb67b8879e2f",
+    "fileCount": 1452,
+    "origin": "https://github.com/maximhq/bifrost.git",
+    "selection": [
+      "LICENSE",
+      "core/**",
+      "transports/**"
+    ],
+    "sourceKind": "verified-git-sparse",
+    "tree": "fe862c3b2236a41ae4f3bc969f992500e2cb22d0"
+  },
+  "binarySha256": "d280f39e88a38711bffd6dfacf96118a1464161ca2d846fdc1f416d861f4ab73",
+  "buildManifestSha256": "53f677ebac41678086d180a446638ba54569d27207ae49dea6d1d787f8aefaa6",
+  "elfWithoutInterpreter": true,
+  "fingerprintPatchSha256": "ec45313c57bb94c75fbec20725b5b41205159012ed131547ccadb4ba7355b025",
+  "goBuildInfoSha256": "0c019a49ff340c956a1a9c47c08dbb4267ac5b08c1703d37163c888a2667ab88",
+  "imageId": "sha256:183fc5ac5b1c5b73ea31ae93a24de0cee7c344e1622a92a6233680d49d76681b",
+  "integrityPatchSha256": "7a69b6e13e721ba722aadb2ffa1f75986e6780b9f9ed74da655cd31ef836331b",
+  "licenseSha256": "9108c6efb701f19614cf2ac8d644f1459b7d67bc570ffa15547e4dc2e734b4d1",
+  "localCore": {
+    "Dir": "/src/core",
+    "GoMod": "/src/core/go.mod",
+    "GoVersion": "1.27.3",
+    "Main": true,
+    "Path": "github.com/maximhq/bifrost/core"
+  },
+  "version": "bifrost-candidate-integrity-build/0.1"
+}

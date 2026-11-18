@@ -1,0 +1,247 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ai-res:internal:llm-observed-identity:0.2",
+  "title": "WORKING Flash observed identity evidence v0.2; required expected fingerprint",
+  "description": "Implementation-owned contract under ADR-128/131. Neither record type proves approval or permits dispatch. Human acceptance, durable admission/block/audit enforcement and live compatibility remain required before enablement. No model pin is manufactured. This JSON Schema checks structural shape only; parse_evidence semantic validation is also required. It additionally enforces strict integer JSON representation (rejecting 1.0), UTF-8 and input-size bounds, duplicate-key rejection and secret-shaped reference checks. Version 0.2 requires a nonempty fingerprint VALUE in every EXPECTATION. ABSENT and NULL remain candidate OBSERVATION facts only. Previous 0.1 evidence is rejected by the active parser; no automatic conversion or approval.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/observation"
+    },
+    {
+      "$ref": "#/$defs/expectation"
+    }
+  ],
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}(?![\\s\\S])",
+      "maxLength": 128
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}(?![\\s\\S])",
+      "maxLength": 64
+    },
+    "managedVersions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "codeRevision",
+        "profileId",
+        "profileVersion",
+        "configSha256",
+        "promptSha256",
+        "toolsSha256"
+      ],
+      "properties": {
+        "codeRevision": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}(?![\\s\\S])",
+          "maxLength": 40
+        },
+        "profileId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?![\\s\\S])"
+        },
+        "profileVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "configSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "promptSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "toolsSha256": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/sha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "fingerprint": {
+      "description": "ABSENT, explicit wire NULL and VALUE are distinct; every presence/value change is a mismatch.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "presence",
+            "value"
+          ],
+          "properties": {
+            "presence": {
+              "enum": [
+                "ABSENT",
+                "NULL"
+              ]
+            },
+            "value": {
+              "type": "null"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "presence",
+            "value"
+          ],
+          "properties": {
+            "presence": {
+              "const": "VALUE"
+            },
+            "value": {
+              "$ref": "#/$defs/identifier"
+            }
+          }
+        }
+      ]
+    },
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider",
+        "requestModelId",
+        "routingModelId",
+        "responseModelId",
+        "fingerprint"
+      ],
+      "properties": {
+        "provider": {
+          "const": "deepseek"
+        },
+        "requestModelId": {
+          "const": "deepseek-flash"
+        },
+        "routingModelId": {
+          "const": "deepseek-flash"
+        },
+        "responseModelId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "fingerprint": {
+          "$ref": "#/$defs/fingerprint"
+        }
+      }
+    },
+    "observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "kind",
+        "managedVersions",
+        "identity",
+        "observedAt",
+        "requestRef",
+        "providerRequestRef"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": "0.2"
+        },
+        "kind": {
+          "const": "OBSERVATION"
+        },
+        "managedVersions": {
+          "$ref": "#/$defs/managedVersions"
+        },
+        "identity": {
+          "$ref": "#/$defs/identity"
+        },
+        "observedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?Z(?![\\s\\S])",
+          "maxLength": 27
+        },
+        "requestRef": {
+          "$ref": "#/$defs/identifier"
+        },
+        "providerRequestRef": {
+          "$ref": "#/$defs/identifier"
+        }
+      }
+    },
+    "expectation": {
+      "description": "An expectation is comparison input, never proof of human approval. The future trusted admission service must supply and revalidate its generation.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "kind",
+        "managedVersions",
+        "identity",
+        "admissionGeneration",
+        "evidenceSha256"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": "0.2"
+        },
+        "kind": {
+          "const": "EXPECTATION"
+        },
+        "managedVersions": {
+          "$ref": "#/$defs/managedVersions"
+        },
+        "identity": {
+          "$ref": "#/$defs/expectedIdentity"
+        },
+        "admissionGeneration": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "evidenceSha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "expectedIdentity": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/identity"
+        },
+        {
+          "properties": {
+            "responseModelId": {
+              "pattern": "^(deepseek-flash|deepseek-v[0-9]+([.][0-9]+)*-flash(-[A-Za-z0-9._-]+)?|DeepSeek-V[0-9]+([.][0-9]+)*-Flash(-[A-Za-z0-9._-]+)?)(?![\\s\\S])"
+            },
+            "fingerprint": {
+              "$ref": "#/$defs/requiredFingerprint"
+            }
+          }
+        }
+      ]
+    },
+    "requiredFingerprint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "presence",
+        "value"
+      ],
+      "properties": {
+        "presence": {
+          "const": "VALUE"
+        },
+        "value": {
+          "$ref": "#/$defs/identifier"
+        }
+      },
+      "description": "Required safe observed value for Flash expectation; never an immutable model selector or an approval credential."
+    }
+  }
+}

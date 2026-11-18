@@ -20,9 +20,9 @@
 
 ## 3. Нормативные источники (обязательно прочитать перед планом)
 
-- `docs/architecture/AI_RES_Model_Gateway_and_Model_Registry_v1.0.md` — §1–§6, §8
+- `docs/architecture/AI_RES_Model_Gateway_and_Model_Registry_v1.1.md` — §1–§6, §8
 - `docs/architecture/AI_RES_API_and_Interaction_Contracts_v1.10.md` — §11 LLM Gateway Adapter contract
-- `docs/architecture/AI_RES_Architecture_Completion_and_Baseline_Decisions_v1.0.md` — §3
+- `docs/architecture/AI_RES_Architecture_Completion_and_Baseline_Decisions_v1.1.md` — §3
 - `.claude/rules/architecture-constraints.md` — «LLM доступ»
 - `docs/architecture/AI_RES_Claude_Code_Implementation_Spec_v1.22.md` — §3 Non-negotiable constraints, §8 Test matrix/DoD, §9 Prohibited shortcuts, §10 Delivery report; Addendum v1.22 (приоритет Registry v4.1).
 - `docs/architecture/AI_RES_Document_Registry_v4.1.md` — §2 (canonical версии и статусы); BASELINED ≠ реализовано, WORKING ≠ утверждено.

@@ -172,7 +172,7 @@ flowchart LR
 | S14 | D. Agent execution | Worker contracts: Envelope/Result/Notice | Spec Inc. 6 | S12 | API-MVP (internal contracts); PROC-MVP | DONE | [S14_worker_contracts_runtime_validation.md](increments/prompts/S14_worker_contracts_runtime_validation.md) |
 | S15 | D. Agent execution | LLMGatewayPort и Model Registry (провайдер-нейтрально) | Spec Add. v1.20 Inc. 20 (часть) | S11 | API-MVP (LLM adapter); SEC (LLM) | DONE | [S15_llm_gateway_port_model_registry.md](increments/prompts/S15_llm_gateway_port_model_registry.md) |
 | S16 | D. Agent execution | LLM Gateway: технический механизм подключения провайдеров; live-profile приёмка отложена | Spec Add. v1.20 Inc. 20 (часть) | S15, S13 | Технический срез TESTED; DOC-076 §7 live/approval gates остаются перед включением | DONE по решению владельца2026-11-17, ADR-123 | [S16_bifrost_poc_provider_profile.md](increments/prompts/S16_bifrost_poc_provider_profile.md) |
-| S17 | D. Agent execution | Tool Registry и Tool Gateway | Spec Add. v1.20 Inc. 23 | S07, S12 | TR MVP §9; SEC (tools) | PENDING_DEPS (ARCH-01; очередь SLICE-01 — ADR-115) | [S17_tool_registry_tool_gateway.md](increments/prompts/S17_tool_registry_tool_gateway.md) |
+| S17 | D. Agent execution | Tool Registry и Tool Gateway | Spec Add. v1.20 Inc. 23 | S07, S12 | TR MVP §9; SEC (tools) | PENDING_DEPS: SLICE-01 (ADR115); ARCH-01 DONE. G02 готовит G156 | [S17_tool_registry_tool_gateway.md](increments/prompts/S17_tool_registry_tool_gateway.md) |
 | S18 | D. Agent execution | Rules Registry и Rules Engine | — (RULE-MVP; ADR-018) | S07, S06 | RULE-MVP-01..14 | READY | [S18_rules_registry_rules_engine.md](increments/prompts/S18_rules_registry_rules_engine.md) |
 | S19 | D. Agent execution | ContextPackageVersion (минимальный Context Builder) | Spec Add. v1.20 Inc. 22 (часть) | S06, S07 | PROC-MVP (immutable context); Context Builder критерии DOC-009 v0.4 | READY | [S19_context_package_versioning.md](increments/prompts/S19_context_package_versioning.md) |
 | S20 | D. Agent execution | Project/Epic intake и Manager interaction | Spec Add. v1.1 Inc. 11 | S12, S15, S19 | PROC-MVP; UX-START-*; UX-MVP-* | PENDING_DEPS | [S20_project_epic_intake_manager.md](increments/prompts/S20_project_epic_intake_manager.md) |
@@ -211,7 +211,7 @@ flowchart LR
 
 - **Spec:** Spec Inc. 1 · **Зависимости:** S00 · **Блокеры владельца:** —
 - **Цель:** Воспроизводимая в репозитории валидация OpenAPI/AsyncAPI/JSON Schema, lint, breaking-change detection и SHA-256 контроль зеркала контрактов; минимальный CI.
-- **Нормативные источники:** `AI_RES_Claude_Code_Implementation_Spec_v1.22.md` — §4 Increment 1; §7; §8 (Contracts); `AI_RES_API_and_Interaction_Contracts_v1.10.md` — §15 Contract compatibility and versioning; §17 Contract testing and quality gates; §18; `AI_RES_Document_Registry_v4.1.md` — §2 (DOC-006/007/008/050/056/057), §5; `AI_RES_Architecture_Baseline_Manifest_v1.2.json` — files[].sha256; `.claude/rules/api-and-contracts.md` — «OpenAPI/AsyncAPI toolchain»
+- **Нормативные источники:** `AI_RES_Claude_Code_Implementation_Spec_v1.22.md` — §4 Increment 1; §7; §8 (Contracts); `AI_RES_API_and_Interaction_Contracts_v1.10.md` — §15 Contract compatibility and versioning; §17 Contract testing and quality gates; §18; `AI_RES_Document_Registry_v4.1.md` — §2 (DOC-006/007/008/050/056/057), §5; `AI_RES_Architecture_Baseline_Manifest_v1.3.json` — files[].sha256; `.claude/rules/api-and-contracts.md` — «OpenAPI/AsyncAPI toolchain»
 - **Обязательные тесты:** Каждый валидатор падает на соответствующей негативной фикстуре (broken $ref, неверный тип, неизвестное поле, отсутствующий required). verify-mirror падает при изменении одного байта зеркала. breaking-change: удаление обязательного поля/endpoint детектируется; additive optional поле — нет. Spectral AI RES rules: offset-пагинация и не-RFC9457 error в фикстуре → error. Полный `make contracts-check` на текущих контрактах — зелёный.
 - **DoD (этап-специфичный):** `make contracts-check` воспроизводимо проходит из чистого клона. Все негативные фикстуры падают ожидаемо. Lock-файлы (uv.lock, package-lock.json) закоммичены в рабочее дерево (commit — только по разрешению). Воспроизводимость проверяется на чистой копии рабочего дерева (commit — только по OD-06). + общий DoD (QUALITY_GATES.md G1–G9).
 - **Применяемые ADR:** ADR-004, ADR-005, ADR-009
@@ -337,7 +337,7 @@ flowchart LR
 
 - **Spec:** Spec Add. v1.20 Inc. 20 (часть) · **Зависимости:** S11 · **Блокеры владельца:** —
 - **Цель:** Единственный путь к LLM: port, Model Registry, routing policy, budgets, failure semantics, deterministic test double.
-- **Нормативные источники:** `AI_RES_Model_Gateway_and_Model_Registry_v1.0.md` — §1–§6, §8; `AI_RES_API_and_Interaction_Contracts_v1.10.md` — §11 LLM Gateway Adapter contract; `AI_RES_Architecture_Completion_and_Baseline_Decisions_v1.0.md` — §3; `.claude/rules/architecture-constraints.md` — «LLM доступ»
+- **Нормативные источники:** `AI_RES_Model_Gateway_and_Model_Registry_v1.1.md` — §1–§6, §8; `AI_RES_API_and_Interaction_Contracts_v1.10.md` — §11 LLM Gateway Adapter contract; `AI_RES_Architecture_Completion_and_Baseline_Decisions_v1.1.md` — §3; `.claude/rules/architecture-constraints.md` — «LLM доступ»
 - **Обязательные тесты:** Неутверждённый профиль → отказ. Budget exhausted → typed error, без retry. Test double в local профиле → ошибка запуска. Секрет в prompt input → блок/redaction.
 - **DoD (этап-специфичный):** Нет прямых provider вызовов (architecture test). + общий DoD (QUALITY_GATES.md G1–G9).
 - **Применяемые ADR:** ADR-022, ADR-031
@@ -348,7 +348,7 @@ flowchart LR
 
 - **Spec:** Spec Add. v1.20 Inc. 20 (часть) · **Зависимости:** S15, S13 · **Блокеры владельца:** OD-01 (провайдер/модель и разрешение на передачу данных проекта внешнему провайдеру)
 - **Цель:** PoC Bifrost за `LLMGatewayPort` по DOC-076 §7, security review, один утверждённый model profile для первого vertical slice.
-- **Нормативные источники:** `AI_RES_Model_Gateway_and_Model_Registry_v1.0.md` — §2, §5, §6, §7 Bifrost acceptance PoC, §8; `AI_RES_Infrastructure_Deployment_Operations_v1.7.md` — §8 LLM Gateway; `AI_RES_Security_Architecture_v1.2.md` — egress; `AI_RES_Threat_Model_v1.1.md` — §5 (LLM/egress сценарии)
+- **Нормативные источники:** `AI_RES_Model_Gateway_and_Model_Registry_v1.1.md` — §2, §5, §6, §7 Bifrost acceptance PoC, §8; `AI_RES_Infrastructure_Deployment_Operations_v1.7.md` — §8 LLM Gateway; `AI_RES_Security_Architecture_v1.2.md` — egress; `AI_RES_Threat_Model_v1.1.md` — §5 (LLM/egress сценарии)
 - **Обязательные тесты:** PoC критерии DOC-076 §7. Egress к неразрешённому хосту блокируется. Admin Bifrost не доступен из ingress. Нет fallback на неразрешённого провайдера/регион (THR-009). Provider key только у host-side адаптера (THR-018). Bifrost не логирует prompts/payload (THR-019). Бюджет и таймауты (THR-016); egress deny-by-default для всех, не только «неразрешённый хост» (THR-004).
 - **DoD (этап-специфичный):** PoC критерии подтверждены; security review без открытых HIGH; решение владельца зафиксировано. + общий DoD (QUALITY_GATES.md G1–G9).
 - **Применяемые ADR:** ADR-031
@@ -357,7 +357,7 @@ flowchart LR
 
 - **Spec:** Spec Add. v1.20 Inc. 23 · **Зависимости:** S07, S12 · **Блокеры владельца:** —
 - **Цель:** Typed tool contracts, версии, per-call Policy authorization, side-effect классификация, MCP allowlist adapter (выключен по умолчанию).
-- **Нормативные источники:** `AI_RES_Tool_Registry_and_Tool_Management_MVP_v1.0.md` — §3, §4 Обязательный поток вызова, §5, §6, §7, §9, §13, §16; `AI_RES_Architecture_Completion_and_Baseline_Decisions_v1.0.md` — §5; `AI_RES_Identity_Access_Control_v1.5.md` — §6 Worker Run grants
+- **Нормативные источники:** `AI_RES_Tool_Registry_and_Tool_Management_MVP_v1.0.md` — §3, §4 Обязательный поток вызова, §5, §6, §7, §9, §13, §16; `AI_RES_Architecture_Completion_and_Baseline_Decisions_v1.1.md` — §5; `AI_RES_Identity_Access_Control_v1.5.md` — §6 Worker Run grants
 - **Обязательные тесты:** Tool без grant → deny. Схема входа нарушена → reject до вызова. Revoked grant между вызовами → deny. Неаллоулистный MCP сервер → отказ.
 - **DoD (этап-специфичный):** Per-call authorization доказана. + общий DoD (QUALITY_GATES.md G1–G9).
 - **Применяемые ADR:** ADR-017
@@ -384,7 +384,7 @@ flowchart LR
 
 - **Spec:** Spec Add. v1.1 Inc. 11 · **Зависимости:** S12, S15, S19 · **Блокеры владельца:** —
 - **Цель:** sendManagerMessage (202 + Operation `MANAGER_MESSAGE`), Manager intake workflow, adaptive question state, proposal persistence, human decision boundary.
-- **Нормативные источники:** `AI_RES_Process_Design_and_Algorithms_v1.9.md` — §4, §5, §17, §20; `AI_RES_UX_Concept_v1.2.md` — «Создание проекта и первое взаимодействие с Manager»; §5, §8; `AI_RES_Requirements_Lifecycle_v2.7.md` — §4; `AI_RES_Agent_Architecture_Concept_v4.6.md` — Manager (роль и полномочия); `AI_RES_Public_API_v1.3.yaml` — sendManagerMessage; `AI_RES_Architecture_Completion_and_Baseline_Decisions_v1.0.md` — §6, §9
+- **Нормативные источники:** `AI_RES_Process_Design_and_Algorithms_v1.9.md` — §4, §5, §17, §20; `AI_RES_UX_Concept_v1.2.md` — «Создание проекта и первое взаимодействие с Manager»; §5, §8; `AI_RES_Requirements_Lifecycle_v2.7.md` — §4; `AI_RES_Agent_Architecture_Concept_v4.6.md` — Manager (роль и полномочия); `AI_RES_Public_API_v1.3.yaml` — sendManagerMessage; `AI_RES_Architecture_Completion_and_Baseline_Decisions_v1.1.md` — §6, §9
 - **Обязательные тесты:** Manager не утверждает требования/решения. Prompt injection в сообщении/вложении не исполняется как инструкция. Projection rebuild из событий совпадает. Idempotency sendManagerMessage.
 - **DoD (этап-специфичный):** Тесты механики зелёные; качество вывода модели помечено как не проверенное до S16. + общий DoD (QUALITY_GATES.md G1–G9).
 - **Применяемые ADR:** ADR-022, ADR-029
@@ -447,7 +447,7 @@ flowchart LR
 
 - **Spec:** Spec Add. v1.20 Inc. 21 · **Зависимости:** S12, S15 · **Блокеры владельца:** —
 - **Цель:** Ingestion pipeline для SourceVersion: проверка файла, извлечение, chunking, FTS (tsvector/GIN) + pgvector embeddings, provenance, ACL.
-- **Нормативные источники:** `AI_RES_Knowledge_Memory_Retrieval_Architecture_v1.0.md` — §2, §3, §6, §7; `AI_RES_Source_and_Context_Lifecycle_v1.3.md` — §4, §5, §6, §13, §15; `AI_RES_Architecture_Completion_and_Baseline_Decisions_v1.0.md` — §4
+- **Нормативные источники:** `AI_RES_Knowledge_Memory_Retrieval_Architecture_v1.0.md` — §2, §3, §6, §7; `AI_RES_Source_and_Context_Lifecycle_v1.3.md` — §4, §5, §6, §13, §15; `AI_RES_Architecture_Completion_and_Baseline_Decisions_v1.1.md` — §4
 - **Обязательные тесты:** Duplicate ingestion → нет дубля SourceVersion. Parser version change → новый ExtractionRecord. Partial index failure. Вредоносный файл/zip bomb отклоняется.
 - **DoD (этап-специфичный):** Тесты Source Add. v1.1 §4 зелёные. + общий DoD (QUALITY_GATES.md G1–G9).
 - **Применяемые ADR:** —
@@ -501,7 +501,7 @@ flowchart LR
 
 - **Spec:** Spec Add. v1.20 Inc. 25; Add. v1.1 Inc. 18 (evaluation) · **Зависимости:** S32, S16 · **Блокеры владельца:** OD-01 (через S16); OD-02 (пороги, размеры выборок, human calibration)
 - **Цель:** Task-class evaluation sets (deterministic + rubric + adversarial), regression manifest, release gates; LLM judge не единственный gate.
-- **Нормативные источники:** `AI_RES_Evaluation_and_Release_Gates_v1.0.md` — §1–§7; `AI_RES_Agent_Observability_and_Evaluation_v1.2.md` — §5–§7, §13; `AI_RES_Architecture_Completion_and_Baseline_Decisions_v1.0.md` — §7
+- **Нормативные источники:** `AI_RES_Evaluation_and_Release_Gates_v1.1.md` — §1–§7; `AI_RES_Agent_Observability_and_Evaluation_v1.2.md` — §5–§7, §13; `AI_RES_Architecture_Completion_and_Baseline_Decisions_v1.1.md` — §7
 - **Обязательные тесты:** Gate блокирует релиз при провале deterministic/security. Воспроизводимость manifest.
 - **DoD (этап-специфичный):** Harness работает; пороги утверждены владельцем. + общий DoD (QUALITY_GATES.md G1–G9).
 - **Применяемые ADR:** —

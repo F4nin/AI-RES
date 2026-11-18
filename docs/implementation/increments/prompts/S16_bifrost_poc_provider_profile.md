@@ -20,7 +20,7 @@ PoC Bifrost за `LLMGatewayPort` по DOC-076 §7, security review, один у
 
 ## 3. Нормативные источники (обязательно прочитать перед планом)
 
-- `docs/architecture/AI_RES_Model_Gateway_and_Model_Registry_v1.0.md` — §2, §5, §6, §7 Bifrost acceptance PoC, §8
+- `docs/architecture/AI_RES_Model_Gateway_and_Model_Registry_v1.1.md` — §2, §5, §6, §7 Bifrost acceptance PoC, §8
 - `docs/architecture/AI_RES_Infrastructure_Deployment_Operations_v1.7.md` — §8 LLM Gateway
 - `docs/architecture/AI_RES_Security_Architecture_v1.2.md` — egress
 - `docs/architecture/AI_RES_Threat_Model_v1.1.md` — §5 (LLM/egress сценарии)

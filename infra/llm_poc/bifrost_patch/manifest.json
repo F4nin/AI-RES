@@ -1,0 +1,59 @@
+{
+  "buildToolSha256": "f75552059311308f70c7f2597eb6fed421fd3154661bfb9f79b09a14ea4eb7d0",
+  "builder": "golang:1.27.4-bookworm@sha256:4fa7c968ba93f1635670522dbb01a2c78150443e1385746924566079f36570ea",
+  "dockerfileSha256": "465186a5fd2b56c92c2bc411d33f76e7c62a471613e9eede295f1398bef67d31",
+  "goVersion": "go1.27.4",
+  "license": {
+    "path": "LICENSE",
+    "sha256": "9108c6efb701f19614cf2ac8d644f1459b7d67bc570ffa15547e4dc2e734b4d1",
+    "spdx": "Apache-2.0"
+  },
+  "limitations": [
+    "No product deployment/model admission/security acceptance.",
+    "Official-image fingerprint-loss negative remains unchanged.",
+    "No published ports or real provider/account/credential calls."
+  ],
+  "moduleLocks": {
+    "core/go.mod": "f5492df8d5ad1b560477bbf6fbc0a29340ade6f76c420692f43acefcd12eee8c",
+    "core/go.sum": "1f0480731a3d4ba55971576c155dd947891848d5b475d0c837ad43610c69506c",
+    "transports/go.mod": "1525ac4255b3a2e24bd7e85b8246d17d6d8f663a6ab60a571a491f6fbcb89be3",
+    "transports/go.sum": "f1e6ebc9e6ae23abee096615e7ad75008ced219f7c89a18a6b8b67b7bcc8b8a0"
+  },
+  "patch": {
+    "allowedPaths": [
+      "core/providers/openai/chat_stream_metadata.go",
+      "core/providers/openai/chat_stream_metadata_scope_test.go",
+      "core/providers/openai/chat_stream_metadata_test.go",
+      "core/providers/openai/openai.go",
+      "core/schemas/bifrost.go",
+      "core/schemas/chat_stream_metadata.go",
+      "core/schemas/chat_stream_metadata_test.go",
+      "core/schemas/chatcompletions.go"
+    ],
+    "path": "fingerprint.patch",
+    "sha256": "ec45313c57bb94c75fbec20725b5b41205159012ed131547ccadb4ba7355b025"
+  },
+  "runtime": "maximhq/bifrost:v2.5.1@sha256:5ec9873acaf1687556b6e4dd854b92b539d9debf87a5a683b66338648b84d3c8",
+  "source": {
+    "archiveBytes": 37386240,
+    "archiveSha256": "becb11aff118386888f4977c429e23f9e78ce1e9aaa5d2846d96671acee54d9c",
+    "commit": "7cb75fb2f8276ca48d0792c857fecb67b8879e2f",
+    "fileCount": 1452,
+    "origin": "https://github.com/maximhq/bifrost.git",
+    "selection": [
+      "LICENSE",
+      "core/**",
+      "transports/**"
+    ],
+    "sourceKind": "verified-git-sparse",
+    "tree": "fe862c3b2236a41ae4f3bc969f992500e2cb22d0"
+  },
+  "status": "WORKING_LOCAL_CANDIDATE_NOT_ADMITTED",
+  "ui": {
+    "mode": "HEADLESS_INFERENCE_ONLY",
+    "path": "headless-index.html",
+    "sha256": "72a8bf520eb0ab9d7e7c398b2656130c84b4d3aa1f48898a1f78b7e3849324af"
+  },
+  "version": "bifrost-candidate-build/0.1",
+  "workspace": "go 1.27.3\n\nuse (\n\t./core\n\t./transports\n)\n"
+}

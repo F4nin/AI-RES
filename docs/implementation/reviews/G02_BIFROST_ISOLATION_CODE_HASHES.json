@@ -1,0 +1,13 @@
+{
+  "date": "2026-11-18",
+  "effectiveConfigIntegrityGate": "OPEN",
+  "files": {
+    "backend/src/ai_res/modules/model_registry/candidate_host.py": "686e95f74b92b16439f9ee15cd0acfdf779059799cc4853508148a0cf6801b2f",
+    "backend/tests/fixtures/bifrost_effective_audit.py": "b0145d1de5628936c4e3999ff63d086e5e821eac7f1da83cfd3274794d684ac4",
+    "backend/tests/integration/test_bifrost_effective_isolation.py": "9a1eda073bbe582d389a653b7bcaf0e543ef9bba7b3909ff1c172e87a72e144c",
+    "backend/tests/unit/test_candidate_host.py": "bdbac976f0e5085471d418d94b388eb82e649399b359cf5f2bd46e96ddeda08d"
+  },
+  "head": "db8d4af34b0933aa2562adcf072b717eb0e3e3e9",
+  "scope": "G156 native Bifrost isolation audit and ADR136 Mounts-order correction",
+  "workingDiff": true
+}

@@ -128,7 +128,12 @@
 | ADR-122 | S16: отключённая по умолчанию интеграция Bifrost, отдельный HTTPS relay, временный auth store и консервативный учёт неизвестного расхода | ACCEPTED (технический срез; приёмка модели/Bifrost не предоставлена) |
 | ADR-124 | Группы G01–G08 как уровень поручения с сохранением S00–S39 | ACCEPTED; порядок приёмки уточнён ADR127 |
 | ADR-127 | Группа: реализация всех Sxx → общая отладка/проверки/review → один PR | ACCEPTED, прямое решение владельца |
+| ADR-128 | Ограниченное исключение наблюдаемой identity DeepSeek Flash первого среза (NCP-16 B) | ACCEPTED владельцем; runtime NOT IMPLEMENTED |
+| ADR-129 | OD-19: runtime transport/auth и backend-owned authority с task issuance receipts | ACCEPTED по делегированию; PoC/implementation NOT VERIFIED |
+| ADR-130 | G-156: отдельный versioned Flash observation/expectation contract и отключённый validator | ACCEPTED offline0.1; состав и activeversion уточнены ADR131, full admission NOT VERIFIED |
+| ADR-131 | Flash: обязательный fingerprint VALUE для expectation, candidate facts отдельно; internal contract0.2 | ACCEPTED по делегированию владельца; actual values/profile approval остаются перед включением |
 | ADR-125 | S19: ref-only immutable manifest, module-owned metadata ports, internal builder, current ACL, xid8 sealing | ACCEPTED |
+| ADR-139 | G156: authenticated owner identity-review binding, без approval DML; [решение](decisions/ADR-139-authenticated-owner-review.md) | ACCEPTED technical scope; локально TESTED, fullG156 NOT VERIFIED |
 
 ---
 
@@ -2290,3 +2295,76 @@
 | Контекст / основание | В ходе G01 владелец поручил записать: не повторять проверки каждого этапа многоэтапной группы, сначала реализовать задачу, затем отлаживать все этапы совместно |
 | Решение / альтернативы / покрытие / риски | [Полный ADR127](decisions/ADR-127-group-implementation-and-verification.md). Вместо обязательного полного цикла/PR каждого Sxx — общая реализация состава, отладка/review/gates и один PR, с per-stage traceability и точным final SHA. Внешние DONE и product gates сохраняются |
 | Совместимость | Уточняет организационные барьеры ADR010/124 и применение ADR032; не меняет DAG/scope/DoD/canonical/permissions. S19 не переоткрывается. Одиночный режим §10 прежний |
+
+## ADR-128 — DeepSeek Flash: ограниченное исключение наблюдаемой identity
+
+**ACCEPTED, 2026-11-17, прямое подтверждение владельца.** Полные основания, scope, альтернативы, гарантии, риски, совместимость и проверки — [ADR-128](decisions/ADR-128-flash-observed-identity-exception.md). Нормативная развилка NCP-16 закрыта вариантом B; DOC-075/076/078 v1.1, Registry v4.1 редакция NCP-16, manifest v1.3. Только документы, без runtime/профиля/Bifrost approval, расходов или запуска SLICE/G02.
+
+## ADR-129 — OD-19: runtime transport и backend-owned authority
+
+**ACCEPTED, 2026-11-17, Implementation Lead по прямому делегированию владельца.** [Полный ADR-129](decisions/ADR-129-runtime-transport-and-authority.md): существующие один Temporal/две очереди/activity-only Worker; mTLS/custom native authorization+durable task issuance receipts вместо token wire modification; Platform API privateTLS/Ed25519 versioned request binding, replay receipts и server-owned execution assignment, least-privilege DB/RLS/audit. Только решение+план, без runtime/secret/DB/API changes. Custom extension/receipt integration требует реального protocolPoC, security/general/database review и gates; G104/106/111 не закрыты, G107 отдельно обязателен до первого producer.
+
+## ADR-130 — Flash observation contract до product admission
+
+**ACCEPTED технически, исходный checkpoint0.1 2026-11-17.** [Полный ADR-130](decisions/ADR-130-flash-observation-contract.md): отдельные observed provider facts и managed versions, строгий внутренний контракт/validator/exact comparison без подключения к product transport/factory. Последующее делегирование ADR131 закрывает выбор состава и вводит active0.2; точные live values/evidence/Bifrost/profile ещё не утверждены. Expected record не grant/approval. G156 остаётся OPEN до durable block/audit/generation, live evidence и owner approvals. [План и бюджет](groups/G02_FLASH_ADMISSION.md), [паспорт G02](groups/G02_WORK.md).
+
+## ADR-131 — Flash: обязательный fingerprint ожидаемой identity
+
+**ACCEPTED, 2026-11-17, Implementation Lead по прямому делегированию владельца «прими решение ... на основе ... агента и его концепции ... реализуй».** [ADR131](decisions/ADR-131-flash-required-fingerprint.md): fingerprint VALUE обязателен для Flash expectation, отсутствие/null допустимы только как candidate facts. Выбор состава metadata закрыт; точные live values/evidence/Bifrost/profile не утверждены. Новый WORKING internal contract0.2; историческая schema0.1 не изменена, активный parser её отвергает. Никакого product wiring/DB/secret/model call. Уточняет ADR130 в части состава и версии; durable G156/SLICE01/ADR129/G107 сохраняются.
+
+## ADR-132 — Durable model admission до product wiring
+
+**ACCEPTED technical scope, 2026-11-17.** [ADR132](decisions/ADR-132-model-admission-persistence.md): immutable admission generations, control state, profile-wide durable call receipts и append-only technical security audit в ai_res_db. Begin коммитит pending до внешнего I/O; audit/finalize failure сохраняет barrier после рестарта. Forward0021 требует новую generation при owner unblock;0022 исправляет session-dependent CHECK без расширения runtime grants. Targeted PG32passed и два independent APPROVE не являются real-provider/human approval. Новая граница владельца: G02/S17/S20/S21 не стартуют без нового согласия после завершения подготовки.
+
+## ADR-133 — Durable ledger технического допуска Flash
+
+**ACCEPTED technical scope,2026-11-17; ledger локально TESTED, полная подготовка IN_PROGRESS.** [ADR133](decisions/ADR-133-flash-paid-ledger.md): один originalauthorization scope/общий10USD envelope,≤8attempts, immutable plan/tariff/body binding, durable reserve/onceclaim, full UNKNOWN hold и metadata audit. Runtime не создаёт новый кошелёк/не снимаетblock; future sole-egress enforcement обязателен до livecalls. Не меняет product BudgetLedgerPort, не включает candidate runner/ключ/model approval/G02.
+
+## ADR-134 — Candidate egress с backend onceclaim
+
+**ACCEPTED technical scope,2026-11-17; implementation IN_PROGRESS.** [ADR134](decisions/ADR-134-candidate-egress-claim.md): только для разрешённого candidate PoC выбран narrow private-TLS LLM_GATEWAY→API claim непосредственно из relay, exact canonical post-Bifrost bodyhash и server-owned reserved case, onceclaim/audit before send и conservative settlement. Новая crypto wire не вводится, product Runtime ADR129/G107 не закрываются. No real accounts/keys/calls/approvals/G02 start.
+
+## ADR-135 — Candidate Bifrost: исправление SSE fingerprint
+
+**ACCEPTED technical local-PoC scope,2026-11-18; SDK/build/fake-upstream locally TESTED, full G156 NOT VERIFIED.** [ADR135](decisions/ADR-135-bifrost-candidate-fingerprint-patch.md): узкая patch pinned Bifrost2.5.1/source commit с request-local tri-state каждого raw frame и сохранением фактического fingerprint terminal chunk, fail-closed drift до suppression. Отдельные pinned build/provenance/Go+security review/actual patched-image tests; original official-image negative сохраняется. Не меняет strict adapter/metadata/product factory/main stack/approvals/бюджет и не начинает G02.
+
+## ADR-136 — Candidate development host и fresh tariff gate
+
+**ACCEPTED technical scope,2026-11-18; локально TESTED, fullG156 NOT VERIFIED.** [ADR136](decisions/ADR-136-candidate-development-host.md): protected fixed-account manifest, actual source/config/image/launch-runtime bindings, fresh fixed official document observer безTTL, final local recheck, guarded claim/settlement separation и resource-safe explicit local/test contexts. Default env listener accounting-only. Реальные accounts/tariffs/keys/approvals не создаются; mutable rendered/SQLite/admin config и actual topology требуют отдельного evidence доlive. [Отчёт](increments/G02_candidate_development_host_REPORT.md).
+
+### ADR136: native audit и canonical Mounts,2026-11-18
+
+[Уточнение ADR136](decisions/ADR-136-candidate-development-host.md): порядок уникальных Mounts не является runtime config изменением; сортировка перед hashing сохраняет все значения и exact reviewed binding. RED1→host78PASS/fast1390PASS, native6PASS и два independent APPROVE/open0. Admin mutation effective client/SQLite при unchanged rendered file/image/inspect воспроизведена; integrity enforcement OPEN. [Отчёт](increments/G02_bifrost_effective_isolation_REPORT.md). Нормативная архитектура, approvals, queue и G02 NOT_STARTED сохраняются.
+
+## ADR-137 — Candidate configuration integrity
+
+**ACCEPTED technical scope,2026-11-18; локально TESTED, полный G156 NOT VERIFIED.** [Решение](decisions/ADR-137-candidate-configuration-integrity.md): отдельный pinned hardened build, fresh exact bootstrap до LoadConfig, raw-URI outer deny, sticky file/live/full logical SQLite snapshot безexceptions, crypto bootmarker, host0.2namespace/env-ihealth/StartedAtbinding доreserve/claim, settlement отдельно. Source-only reviewers APPROVE/open0, Go/race8+42PASS,vet0,fast1419PASS,newnative12PASS,legacy65PASS(точныеruns в[отчёте](increments/G02_candidate_configuration_integrity_REPORT.md)). Public/contracts/canonical/mainstack/frozen unchanged; realcalls0. По команде владельца после документов остановиться до новой задачи; G02 NOT_STARTED.
+
+## ADR-138 — Admission lifecycle transaction fence
+
+**ACCEPTED technical scope, 2026-11-18; локально TESTED, полный G156 NOT VERIFIED.**
+[Решение](decisions/ADR-138-admission-lifecycle-fence.md): per-profile transaction
+advisory lock у guard до control/read и новый invoker lifecycle trigger0025;
+READ COMMITTED/active exact trigger/origin readiness, без UPDATE grants API.
+PG111PASS/fast1419PASS/contracts22PASS, два independent source APPROVE/open0.
+Human owner lifecycle/product wiring/dispatch revalidation и финальные gates ещё
+нужны. [Отчёт](increments/G02_admission_lifecycle_fence_REPORT.md). G02 NOT_STARTED.
+
+## ADR-139 — Authenticated owner identity-review material
+
+[Решение](decisions/ADR-139-authenticated-owner-review.md): exact provisioned human/profile
++ live session/MFA/Policy и actual observation/expectation/full profile/state hashes,
+повторное сравнение после ожиданий. Defaults deny; нет approval DML/grants/migrations.
+PG42new/187jointPASS, два independent APPROVE/open0;
+[отчёт](increments/G02_owner_review_binding_REPORT.md). Lifecycle executor/global
+decision audit и observed gateway отдельно OPEN; полный G156 NOT VERIFIED.
+
+## ADR-140 — Isolated human identity operator and final candidate composition
+
+[Решение](decisions/ADR-140-identity-admission-operator.md): dormant EXECUTE-only
+operator/empty exact login binding, final live auth/Policy/review, generation or
+block + atomic append-only global decision audit. No profile activation. Additive0026;
+306jointPGPASS,1434fastPASS,два independent APPROVE, [отчёт](increments/G02_identity_admission_operator_REPORT.md).
+Minimal launcher соединяет existing guarded contexts/TLS/CLI,22purePASS/два reviews.
+Текущее поручение — закончить весь допуск в MVP, не новый отдельный preparatory stage;
+fullpre-pr/LinuxCI/actualsetup/live/human/SLICE пока сохраняют G156 OPEN/G02 NOT_STARTED.

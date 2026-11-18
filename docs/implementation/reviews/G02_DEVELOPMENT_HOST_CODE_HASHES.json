@@ -1,0 +1,20 @@
+{
+  "version": "g156-development-host-code-evidence/0.1",
+  "date": "2026-11-18",
+  "head": "db8d4af34b0933aa2562adcf072b717eb0e3e3e9",
+  "branch": "feat/g02-manager-tools-planning",
+  "scope": "Offline trusted development host and affected tests. No live/provider/model approval or actual topology verification.",
+  "aggregateSha256": "dcc23afdaa5e55fc7ac89153bebd2d455f374357feb5b6b62ff42e5567638e60",
+  "fileSha256": {
+    "backend/src/ai_res/modules/model_registry/candidate_host.py": "5b73797bed7a3a982cafea2dc17b20e7e0c89355f2a0a1376507885be3732516",
+    "backend/src/ai_res/modules/model_registry/candidate_host_account.py": "698e723ce8944cc52aea323af9a858331c72c5278036eb980dda808733a3ace1",
+    "backend/src/ai_res/cli/candidate_composition.py": "5cd3b2828423076988f31afa782a8ec560b1835b4ea667121a5b58be476a056d",
+    "backend/src/ai_res/api/serve_candidate.py": "02bcbafb5c97d475cf4d50a3aefd7016edc1be75eb1ba7274bc902b4931e6657",
+    "backend/src/ai_res/cli/flash_candidate.py": "d513582e232b1d2f4fb13dc8a4db550dc6639c18101261bd9c700bab9555cc71",
+    "backend/tests/unit/test_candidate_host.py": "bfd9a5612e82feee7107d5c91bc6c24c832bcf8d0b2033a409d0c380f8ded873",
+    "backend/tests/unit/test_candidate_composition.py": "0d0fc27a96c9da8fd4f8a336ad3af0ca6f06eef1e644bda7c1f8dffb6050358f",
+    "backend/tests/unit/test_serve_candidate.py": "8cffcec3a8ed331dbb967a93e7bf4f967d6b572b9190c495bc4c261eb1fb035c",
+    "backend/tests/unit/test_flash_candidate_cli.py": "e3bc472f49d3783ce7eb3a4dc606931010b2106206c15a4ad83a882d28dff52c",
+    "backend/tests/integration/postgres/test_candidate_host_account.py": "936d2b5480569c9d7125ee58574d8c5508147623fcbb9eb3088f8568f8bd6933"
+  }
+}

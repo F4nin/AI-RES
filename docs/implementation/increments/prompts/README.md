@@ -25,7 +25,7 @@
 | S14 | Worker contracts: Envelope/Result/Notice | [`S14_worker_contracts_runtime_validation.md`](S14_worker_contracts_runtime_validation.md) | S12 | DONE | — |
 | S15 | LLMGatewayPort и Model Registry (провайдер-нейтрально) | [`S15_llm_gateway_port_model_registry.md`](S15_llm_gateway_port_model_registry.md) | S11 | DONE | — |
 | S16 | LLM Gateway: технический механизм подключения провайдеров | [`S16_bifrost_poc_provider_profile.md`](S16_bifrost_poc_provider_profile.md) | S15, S13 | DONE по решению владельца2026-11-17, ADR-123; технический срез TESTED local+Linux, PR #28 MERGED | Real-provider admission NOT VERIFIED/BLOCKED; исходные live/approval gates отложены, report§17. Не повторять закрытый milestone |
-| S17 | Tool Registry и Tool Gateway | [`S17_tool_registry_tool_gateway.md`](S17_tool_registry_tool_gateway.md) | S07, S12 | PENDING_DEPS (ARCH-01; очередь SLICE-01 — ADR-115) | Нет; условия в §4 промпта |
+| S17 | Tool Registry и Tool Gateway | [`S17_tool_registry_tool_gateway.md`](S17_tool_registry_tool_gateway.md) | S07, S12 | PENDING_DEPS: SLICE-01 (ADR115); ARCH-01 DONE | Нет; G02 готовит G156, см. [паспорт](../../groups/G02_WORK.md) |
 | S18 | Rules Registry и Rules Engine | [`S18_rules_registry_rules_engine.md`](S18_rules_registry_rules_engine.md) | S07, S06 | DONE | — (PR33, отчёт S18) |
 | S19 | ContextPackageVersion (минимальный Context Builder) | [`S19_context_package_versioning.md`](S19_context_package_versioning.md) | S06, S07 | DONE | VERIFIED; PR31 MERGED99e5ec1, local/Linux/post-merge PASS; G01 далее S18 |
 | S20 | Project/Epic intake и Manager interaction | [`S20_project_epic_intake_manager.md`](S20_project_epic_intake_manager.md) | S12, S15, S19 | PENDING_DEPS | Нет (после DONE зависимостей) |
@@ -59,3 +59,33 @@
 | DEP-01 | [Renovate dependency updates](DEP-01_renovate_dependency_updates.md) | CI-01 DONE, выбран владельцем 2026-11-17; ADR-113/121 | DONE по решению владельца; config VERIFIED (PR #25); App evidence NOT VERIFIED вынесено в follow-up G-31; см. STATUS |
 
 Перечень остальных принятых мини-этапов и их текущие статусы — в STATUS и ADR-112…116. Эта запись не устанавливает новый порядок между ними.
+
+### G156: продолжение подготовки2026-11-18
+
+[Admission lifecycle fence](G02_admission_lifecycle_fence.md), ADR138: локально
+TESTED, PG111PASS/fast1419PASS/contracts22PASS, два independent APPROVE.
+[Отчёт](../G02_admission_lifecycle_fence_REPORT.md). Новая команда сняла прежнюю
+остановку только для подготовки; owner lifecycle/product wiring и общие
+final/live/human/SLICE gates остаются, G02 NOT_STARTED.
+
+[Development host](G02_candidate_development_host.md), ADR136: локально TESTED offline host/claim/resource slice; [отчёт](../G02_candidate_development_host_REPORT.md). Actual effective config/topology и прочие G156/live/human/SLICE gates незавершены; S17/S20/S21 и G02 NOT_STARTED до нового явного согласия после завершения подготовки.
+
+[Изолированный запуск и effective config audit](G02_bifrost_effective_isolation_audit.md): native6PASS, отдельный Mounts-order fix локально TESTED; воспроизведена admin mutation live/SQLite при unchanged file/inspect. [Отчёт](../G02_bifrost_effective_isolation_REPORT.md). Effective-integrity enforcement остаётся следующим preparatory seam до key/live; не старт G02.
+
+[Candidate configuration integrity](G02_candidate_configuration_integrity.md), ADR137: локально TESTED, newnative12PASS/legacy65PASS/Go8+42normal+race/fast1419; [отчёт](../G02_candidate_configuration_integrity_REPORT.md). После документирования — остановка по команде владельца до новойзадачи; G02 NOT_STARTED, остальные G156/live/human/SLICE gates не сняты.
+
+### G156: authenticated owner-review preparation2026-11-18
+
+[Scope](G02_owner_review_binding.md), [ADR139](../../decisions/ADR-139-authenticated-owner-review.md):
+локально TESTED material prepare/revalidate, без human approval/lifecycle DML.
+Следующий preparatory seam — narrowly privileged operator executor/global audit,
+затем observed gateway. G156 IN_PROGRESS, G02/S17/S20/S21 NOT_STARTED.
+
+### G156: завершение MVP-допуска2026-11-18
+
+[ADR140 operator scope](G02_identity_admission_operator.md),
+[report](../G02_identity_admission_operator_REPORT.md): локально TESTED operator,
+minimal existing candidate launch готов. По уточнению владельца закончить конечный
+MVP-допуск с необходимыми проверками, затем вернуться к группам; текущий report
+не новая остановка. Finalchecks/CI/guardedsetup→realcandidatecases→humanacceptance,
+productintegration/SLICE со своими gates. G02/S17/S20/S21 NOT_STARTED.

@@ -1,0 +1,12 @@
+{
+  "checkpoint": "G156 ADR139 2026-11-18",
+  "branch": "feat/g02-manager-tools-planning",
+  "head": "db8d4af34b0933aa2562adcf072b717eb0e3e3e9",
+  "scope": "Authenticated identity-review preparation only; working diff, not human approval or full G156 verification",
+  "files": {
+    "backend/src/ai_res/modules/model_registry/owner_review.py": "809fe749e07496ace91935411fc531b1715ed057c25bb18fd59d0f19de036650",
+    "backend/src/ai_res/modules/model_registry/admission.py": "488cca6c01c95890f9ed94fe193a3934668e2fe07f0f9997bbd7d24f99ae0843",
+    "backend/tests/unit/test_model_owner_review.py": "007c8bdc6c6162439a33fde41c0d49b23cfb83be09040e1c9ebd7cb05451ab61",
+    "backend/tests/integration/postgres/test_model_owner_review.py": "d688cb80c397f6a7744101699a61c8090ad0dec0941488b058c97b71171d2e45"
+  }
+}

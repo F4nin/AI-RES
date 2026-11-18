@@ -1,0 +1,46 @@
+{
+  "version": "g156-identity-operator-review/0.1",
+  "head": "db8d4af34b0933aa2562adcf072b717eb0e3e3e9",
+  "files": {
+    "backend/src/ai_res/db/migrations/versions/0026_identity_admission_operator.py": {
+      "sha256": "d71b85583b1954e148aa62095aef3f05987019341488f6d9130b623e38bae626",
+      "bytes": 13654
+    },
+    "backend/src/ai_res/modules/model_registry/identity_operator.py": {
+      "sha256": "ce4b7372ed901514d3fec2a28a0fa28ce7104e1f178e16ca03b8cd8f97b85932",
+      "bytes": 7373
+    },
+    "backend/src/ai_res/modules/model_registry/owner_review.py": {
+      "sha256": "215e3bb48de09a4c222259b1a3a9cd6d43d166c0aac5b97529681318258da1ba",
+      "bytes": 12923
+    },
+    "backend/ops/postgres/grants_audit.sql": {
+      "sha256": "6d0397170455179d39902e5a6e6c1a6ab721770b1d3a5f0cd617fa79919d984e",
+      "bytes": 10492
+    },
+    "infra/config/postgres/provision_roles.sql": {
+      "sha256": "1f6bfe1d867e3534bf9405131892c6833e0c88b1068278e36d008b49cda0383e",
+      "bytes": 8821
+    },
+    "backend/tests/integration/postgres/snapshot.py": {
+      "sha256": "a02cc45f7f7d1c7775db02d2a17057d3272bb7020be1441ba2ddc018ace86612",
+      "bytes": 3038
+    },
+    "backend/tests/unit/test_identity_admission_operator.py": {
+      "sha256": "75e009c9b69f46186bbf6f7a02eea398ecbab4c09d10099a815305984dd6a246",
+      "bytes": 1079
+    },
+    "backend/tests/integration/postgres/test_identity_admission_operator.py": {
+      "sha256": "757785e165a653b106b282b1fbcc7bb9576ec288d601c2ba77a1e41d39eb4aa9",
+      "bytes": 28529
+    },
+    "backend/ops/postgres/schema_snapshot.sql": {
+      "sha256": "e0d94ca15f21f1199e2bb171651efaed7a72ea2bee3778d1fa43cd8beea00d6d",
+      "bytes": 378473
+    },
+    "backend/tests/integration/postgres/test_audit_platform_schema.py": {
+      "sha256": "833390fcbd1bd84ecffa51f1889cb78b99dced8defa10acd18394d7824583e7f",
+      "bytes": 26035
+    }
+  }
+}

@@ -4,9 +4,13 @@ import importlib.util
 import json
 import sys
 from pathlib import Path
+from uuid import uuid4
 
 import httpx
 import pytest
+
+from ai_res.llm.adapters.candidate_control import CandidateClaimReceipt, CandidateControlUnavailable
+from ai_res.llm.candidate_payload import build_candidate_body
 
 SCRIPT = Path(__file__).resolve().parents[3] / "infra" / "llm_poc" / "relay.py"
 SPEC = importlib.util.spec_from_file_location("s16_egress_relay", SCRIPT)
@@ -21,15 +25,48 @@ PUBLIC = "93.184.216.34"
 
 
 def body(**changes):
-    return {"model": "deepseek-flash", "messages": [{"role": "user", "content": "synthetic question"}], "max_tokens": 32, **changes}
+    template = "SSE" if changes.get("stream") is True else "TEXT"
+    return json.loads(build_candidate_body(template, uuid4()).content) | changes
+
+
+class FakeControl:
+    """Test-only accounting port; real private HTTPS is exercised separately."""
+    def __init__(self):
+        self.claims = []
+        self.settlements = []
+        self.fail_claim = False
+        self.fail_settlement = False
+        self.closed = False
+
+    async def claim(self, candidate):
+        if self.fail_claim or candidate.body_sha256 in [item.body_sha256 for item in self.claims]:
+            raise CandidateControlUnavailable()
+        self.claims.append(candidate)
+        return CandidateClaimReceipt(uuid4(), "synthetic-probe", candidate.body_sha256, candidate.payload_bytes,
+                                     candidate.stream, candidate.max_output_tokens)
+
+    async def settle_known(self, receipt, *, input_tokens, output_tokens, provider_request_ref):
+        self.settlements.append(("KNOWN", input_tokens, output_tokens, provider_request_ref))
+        if (self.fail_settlement or type(input_tokens) is not int or type(output_tokens) is not int
+                or min(input_tokens, output_tokens) < 0 or not isinstance(provider_request_ref, str)):
+            raise CandidateControlUnavailable()
+
+    async def aclose(self):
+        self.closed = True
+
+    async def settle_unknown(self, receipt, *, reason):
+        self.settlements.append(("UNKNOWN", reason))
+        if self.fail_settlement:
+            raise CandidateControlUnavailable()
 
 
 class Rig:
-    def __init__(self, *, ips=(PUBLIC,), handler=None, enabled=True, **changes):
+    def __init__(self, *, ips=(PUBLIC,), handler=None, enabled=True, controlled=True, **changes):
         self.requests = []
         self.client_options = []
         self.resolved = []
         self.handler = handler
+        self.control = FakeControl()
 
         async def resolver(host, port):
             self.resolved.append((host, port))
@@ -39,14 +76,15 @@ class Rig:
             self.requests.append(request)
             if self.handler:
                 return await self.handler(request)
-            return httpx.Response(200, json={"choices": [], "usage": {"prompt_tokens": 3, "completion_tokens": 2}})
+            return httpx.Response(200, json={"id": "synthetic-provider-ref", "choices": [], "usage": {"prompt_tokens": 3, "completion_tokens": 2}})
 
         def client_factory(**options):
             self.client_options.append(options)
             return httpx.AsyncClient(transport=httpx.MockTransport(handle), **options)
 
         self.config = relay.RelayConfig(auth_token=AUTH, provider_key=PROVIDER, allow_provider_calls=enabled, **changes)
-        self.app = relay.create_app(self.config, resolver=resolver, client_factory=client_factory)
+        self.app = relay.create_app(self.config, resolver=resolver, client_factory=client_factory,
+                                    control_client=self.control if controlled else None)
 
     async def send(self, *, method="POST", path="/chat/completions", payload=None, headers=None, content=None):
         h = [("authorization", "Bearer " + AUTH), *(headers or [])]
@@ -139,7 +177,8 @@ async def test_absolute_raw_target_not_normalized_into_allowed_route(raw_path):
 
 @pytest.mark.parametrize("headers", [[("host", "evil.example")], [("host", "relay"), ("host", "relay")],
     [("content-length", "1"), ("content-length", "2")], [("transfer-encoding", "chunked")],
-    [("content-encoding", "gzip")], [("x-bf-eh-host", "evil.example")], [("x-forwarded-host", "evil.example")]])
+    [("content-encoding", "gzip")], [("x-bf-eh-host", "evil.example")], [("x-forwarded-host", "evil.example")],
+    [("cache-control", "public")], [("cache-control", "no-cache"), ("cache-control", "no-cache")]])
 async def test_header_smuggling_and_override_refused(headers):
     r = Rig()
     response = await r.send(headers=headers)
@@ -174,12 +213,14 @@ async def test_missing_cap_duplicate_json_keys_and_oversized_body_refused():
     assert not r.resolved and not r.requests
 
 
-async def test_function_tools_and_json_output_allowed_without_execution():
+async def test_fixed_function_and_json_templates_are_allowed_without_execution():
     r = Rig()
-    tools = [{"type": "function", "function": {"name": "lookup", "description": "synthetic", "parameters": {"type": "object", "properties": {}}}}]
-    response = await r.send(payload=body(tools=tools, tool_choice="required", response_format={"type": "json_object"}))
-    assert response.status_code == 200
-    assert json.loads(r.requests[0].content)["tools"] == tools
+    tool_body = json.loads(build_candidate_body("TOOL", uuid4()).content)
+    json_body = json.loads(build_candidate_body("JSON", uuid4()).content)
+    assert (await r.send(payload=tool_body)).status_code == 200
+    assert json.loads(r.requests[0].content)["tools"] == tool_body["tools"]
+    assert (await r.send(payload=json_body)).status_code == 200
+    assert json.loads(r.requests[1].content)["response_format"] == {"type": "json_object"}
 
 
 @pytest.mark.parametrize("ips", [(), ("127.0.0.1",), ("10.0.0.1",), ("169.254.169.254",), ("::1",), ("fd00::1",),
@@ -228,21 +269,22 @@ class ControlledStream(httpx.AsyncByteStream):
         self.started.set()
         if self.wait:
             await asyncio.Event().wait()
-        yield b'data: {"choices":[]}\n\n'
+        yield b'data: {"id":"synthetic-stream-ref","choices":[]}\n\n'
         if self.fail:
             raise httpx.ReadError(PROVIDER + AUTH)
+        yield b'data: {"id":"synthetic-stream-ref","choices":[],"usage":{"prompt_tokens":3,"completion_tokens":2}}\n\n'
         yield b"data: [DONE]\n\n"
 
     async def aclose(self):
         self.closed = True
 
 
-async def test_stream_copied_without_buffering_and_closed():
+async def test_stream_events_forwarded_and_done_accounted_before_close():
     stream = ControlledStream()
     async def handle(request):
         return httpx.Response(200, headers={"content-type": "text/event-stream"}, stream=stream)
     r = Rig(handler=handle)
-    response = await r.send(payload=body(stream=True))
+    response = await r.send(payload=body(stream=True), headers=[("cache-control", "no-cache")])
     assert response.status_code == 200 and "[DONE]" in response.text
     assert stream.closed
     assert json.loads(r.requests[0].content)["stream_options"] == {"include_usage": True}
@@ -269,6 +311,7 @@ async def test_stream_total_deadline_and_concurrency_slot_released():
     assert (await r.send()).status_code == 429
     response = await asyncio.wait_for(first, 1)
     assert "UPSTREAM_STREAM_FAILED" in response.text and stream.closed
+    assert r.control.settlements == [("UNKNOWN", "TIMEOUT")]
     r.handler = None
     assert (await r.send()).status_code == 200
 
@@ -284,6 +327,7 @@ async def test_cancellation_closes_upstream_and_releases_concurrency():
     with pytest.raises(asyncio.CancelledError):
         await first
     assert stream.closed
+    assert r.control.settlements == [("UNKNOWN", "CANCEL")]
     r.handler = None
     assert (await r.send()).status_code == 200
 
@@ -313,3 +357,95 @@ def test_disabled_config_needs_no_provider_key_and_live_requires_one():
     assert config.provider_key is None
     with pytest.raises(ValueError):
         relay.RelayConfig(auth_token=AUTH, allow_provider_calls=True)
+
+
+async def test_allow_flag_and_static_bearer_without_control_cannot_dispatch():
+    r = Rig(controlled=False)
+    reply = await r.send()
+    assert reply.status_code == 503 and reply.json()["error"]["code"] == "CANDIDATE_CONTROL_REQUIRED"
+    assert not r.requests and not r.resolved
+
+
+async def test_control_failure_before_dispatch_and_lost_settlement_ack_never_retry():
+    r = Rig()
+    r.control.fail_claim = True
+    assert (await r.send()).status_code == 503 and not r.requests
+    r.control.fail_claim = False
+    r.control.fail_settlement = True
+    assert (await r.send()).status_code == 503
+    assert len(r.requests) == 1 and len(r.control.settlements) == 1
+    assert r.control.settlements[0][0] == "KNOWN"  # No conflicting UNKNOWN after a possibly committed settlement.
+
+
+async def test_stream_done_is_withheld_when_settlement_ack_is_lost():
+    stream = ControlledStream()
+    async def handle(request):
+        return httpx.Response(200, headers={"content-type": "text/event-stream"}, stream=stream)
+    r = Rig(handler=handle)
+    r.control.fail_settlement = True
+    reply = await r.send(payload=body(stream=True))
+    assert "UPSTREAM_STREAM_FAILED" in reply.text and "[DONE]" not in reply.text
+    assert len(r.requests) == len(r.control.settlements) == 1 and stream.closed
+
+
+async def test_outbound_bytes_equal_claimed_canonical_bytes_and_replay_cannot_dispatch_twice():
+    r = Rig()
+    payload = body()
+    assert (await r.send(payload=payload)).status_code == 200
+    assert r.requests[0].content == r.control.claims[0].content
+    assert (await r.send(payload=payload)).status_code == 503 and len(r.requests) == 1
+
+
+@pytest.mark.parametrize("kind", ["content", "tool-arguments"])
+async def test_secret_split_between_sse_events_is_blocked_before_completing_fragment(kind, caplog):
+    prefix, suffix = PROVIDER[:35], PROVIDER[35:]
+    def delta(part):
+        return {"content": part} if kind == "content" else {"tool_calls": [{"function": {"arguments": part}}]}
+    events = [json.dumps({"id": "split-fixture", "choices": [{"index": 0, "delta": delta(part)}]}).encode() for part in (prefix, suffix)]
+    raw = b"".join(b"data: "+event+b"\n\n" for event in events)+b"data: [DONE]\n\n"
+    async def handler(request):
+        return httpx.Response(200, headers={"content-type": "text/event-stream"}, content=raw)
+    r = Rig(handler=handler)
+    response = await r.send(payload=body(stream=True))
+    assert "UPSTREAM_STREAM_FAILED" in response.text and "[DONE]" not in response.text
+    assert PROVIDER not in response.text+caplog.text
+    assert len(r.control.settlements) == 1 and r.control.settlements[0][0] == "UNKNOWN"
+    # The completing event is never exported. Reconstructing forwarded fragments
+    # therefore cannot recover the credential even though an earlier prefix left.
+    assert events[1].decode() not in response.text
+
+
+@pytest.mark.parametrize("events", [
+    [{"id": "fixture", "choices": []}],
+    [{"id": "first", "choices": []}, {"id": "different", "usage": {"prompt_tokens": 1, "completion_tokens": 1}}],
+    [{"id": "fixture", "usage": {"prompt_tokens": 1, "completion_tokens": 1}},
+     {"id": "fixture", "usage": {"prompt_tokens": 2, "completion_tokens": 1}}],
+])
+async def test_missing_usage_or_conflicting_sse_facts_never_complete(events):
+    raw = b"".join(b"data: "+json.dumps(event).encode()+b"\n\n" for event in events)+b"data: [DONE]\n\n"
+    async def handler(request):
+        return httpx.Response(200, headers={"content-type": "text/event-stream"}, content=raw)
+    r = Rig(handler=handler)
+    response = await r.send(payload=body(stream=True))
+    assert "UPSTREAM_STREAM_FAILED" in response.text and "[DONE]" not in response.text
+    assert len(r.requests) == 1 and r.control.settlements == [("UNKNOWN", "UNTRUSTED_RESPONSE")]
+
+
+async def test_interleaved_choices_cannot_clear_a_secret_prefix():
+    first = {"id": "interleaved", "choices": [{"index": 0, "delta": {"content": PROVIDER[:35]}},
+                                               {"index": 1, "delta": {"content": "x" * 256}}]}
+    second = {"id": "interleaved", "choices": [{"index": 0, "delta": {"content": PROVIDER[35:]}}]}
+    raw = b"".join(b"data: "+json.dumps(event).encode()+b"\n\n" for event in (first, second))+b"data: [DONE]\n\n"
+    async def handler(request):
+        return httpx.Response(200, headers={"content-type": "text/event-stream"}, content=raw)
+    r = Rig(handler=handler)
+    response = await r.send(payload=body(stream=True))
+    assert "UPSTREAM_STREAM_FAILED" in response.text and "[DONE]" not in response.text
+    assert "interleaved" not in response.text and r.control.settlements == [("UNKNOWN", "UNTRUSTED_RESPONSE")]
+
+
+async def test_relay_lifespan_closes_its_private_control_client():
+    r = Rig()
+    async with r.app.router.lifespan_context(r.app):
+        assert not r.control.closed
+    assert r.control.closed

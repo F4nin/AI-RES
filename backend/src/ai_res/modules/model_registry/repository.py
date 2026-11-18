@@ -13,9 +13,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ai_res.llm.registry import CostRates, Egress, ModelProfile, ModelRegistry, ProfileStatus, RetryClass
 from ai_res.llm.types import Capability
+from ai_res.modules.model_registry.observed_profiles import ProfileIdentityMode
 
 _log = logging.getLogger("ai_res.llm")
-_COLUMNS = ("id, profile_key, profile_version, provider, provider_model_id, pinned_model_version, capabilities, context_window_tokens, max_output_tokens, "
+_COLUMNS = ("id, profile_key, profile_version, identity_mode, provider, provider_model_id, pinned_model_version, capabilities, context_window_tokens, max_output_tokens, "
             "data_classifications, allowed_regions, egress, cost_currency, cost_input_per_million, cost_output_per_million, rate_limit_rpm, rate_limit_tpm, "
             "timeout_seconds, retry_class, fallback_group, evaluation_manifest_ref, status, approved_at, deprecated_at")
 
@@ -33,6 +34,10 @@ async def load_model_registry(session: AsyncSession) -> ModelRegistry:
     profiles: list[ModelProfile] = []
     for r in rows:
         try:
+            if r.identity_mode != ProfileIdentityMode.IMMUTABLE.value:
+                # This loader supplies the legacy pinned-only ModelRegistry. An
+                # observed row is never coerced into a pin or silently routed.
+                raise ValueError("unsupported identity mode for pinned registry")
             rates = None if r.cost_currency is None else CostRates(currency=r.cost_currency, input_per_million=Decimal(r.cost_input_per_million),
                                                                    output_per_million=Decimal(r.cost_output_per_million))
             profiles.append(ModelProfile(

@@ -22,7 +22,7 @@ Ingestion pipeline для SourceVersion: проверка файла, извле
 
 - `docs/architecture/AI_RES_Knowledge_Memory_Retrieval_Architecture_v1.0.md` — §2, §3, §6, §7
 - `docs/architecture/AI_RES_Source_and_Context_Lifecycle_v1.3.md` — §4, §5, §6, §13, §15
-- `docs/architecture/AI_RES_Architecture_Completion_and_Baseline_Decisions_v1.0.md` — §4
+- `docs/architecture/AI_RES_Architecture_Completion_and_Baseline_Decisions_v1.1.md` — §4
 - `docs/architecture/AI_RES_Claude_Code_Implementation_Spec_v1.22.md` — §3 Non-negotiable constraints, §8 Test matrix/DoD, §9 Prohibited shortcuts, §10 Delivery report; Addendum v1.22 (приоритет Registry v4.1).
 - `docs/architecture/AI_RES_Document_Registry_v4.1.md` — §2 (canonical версии и статусы); BASELINED ≠ реализовано, WORKING ≠ утверждено.
 

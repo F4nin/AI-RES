@@ -1,0 +1,970 @@
+diff --git a/core/providers/openai/chat_stream_metadata.go b/core/providers/openai/chat_stream_metadata.go
+new file mode 100644
+--- /dev/null
++++ b/core/providers/openai/chat_stream_metadata.go
+@@ -0,0 +1,58 @@
++package openai
++
++import (
++	"context"
++	providerUtils "github.com/maximhq/bifrost/core/providers/utils"
++	"github.com/maximhq/bifrost/core/schemas"
++)
++
++func guardFlashNativeChatMetadata(ctx *schemas.BifrostContext, provider schemas.ModelProvider, request *schemas.BifrostChatRequest, responsesFallback bool) bool {
++	return !responsesFallback && ctx.Value(schemas.BifrostContextKeyIntegrationType) == nil && provider == schemas.DeepSeek && request.Provider == schemas.DeepSeek && request.Model == "deepseek-flash"
++}
++
++func newFlashMetadataFailure(ctx *schemas.BifrostContext) *schemas.BifrostError {
++	failure := providerUtils.NewBifrostOperationError("chat stream metadata validation failed", nil)
++	failure.AllowFallbacks = schemas.Ptr(false)
++	ctx.SetValue(schemas.BifrostContextKeyStreamEndIndicator, true)
++	// Rejecting an upstream must abandon it, not drain an unbounded remainder or
++	// return a half-read connection to the pool. Reuse the existing no-drain path.
++	ctx.SetValue(schemas.BifrostContextKeyStreamParkedAfterFinish, true)
++	return failure
++}
++
++func rejectFlashChatMetadata(ctx *schemas.BifrostContext, hooks schemas.PostHookRunner, output chan *schemas.BifrostStreamChunk, logger schemas.Logger, finalizer func(context.Context)) {
++	// Notify normal hooks, but they cannot rewrite/drop this integrity refusal or
++	// attach raw metadata. Return a fresh error even if a hook mutates its input.
++	refusalHooks := func(c *schemas.BifrostContext, _ *schemas.BifrostResponse, _ *schemas.BifrostError) (*schemas.BifrostResponse, *schemas.BifrostError) {
++		hooks(c, nil, newFlashMetadataFailure(c))
++		return nil, newFlashMetadataFailure(c)
++	}
++	providerUtils.ProcessAndSendBifrostError(ctx, refusalHooks, newFlashMetadataFailure(ctx), output, logger, finalizer)
++}
++
++func checkedFlashChatPostHooks(hooks schemas.PostHookRunner, rejected *bool) schemas.PostHookRunner {
++	return func(ctx *schemas.BifrostContext, input *schemas.BifrostResponse, incoming *schemas.BifrostError) (*schemas.BifrostResponse, *schemas.BifrostError) {
++		if *rejected || incoming != nil || !exclusiveFlashChatResponse(input) {
++			*rejected = true
++			return nil, newFlashMetadataFailure(ctx)
++		}
++		expected, seen := input.ChatResponse.ObservedChatStreamMetadata()
++		if !seen || !input.ChatResponse.MatchesObservedChatStreamMetadata(expected) {
++			*rejected = true
++			return nil, newFlashMetadataFailure(ctx)
++		}
++		output, failure := hooks(ctx, input, nil)
++		if failure != nil || !exclusiveFlashChatResponse(output) || !output.ChatResponse.MatchesObservedChatStreamMetadata(expected) {
++			*rejected = true
++			return nil, newFlashMetadataFailure(ctx)
++		}
++		return output, nil
++	}
++}
++
++// Every pinned response field is a pointer. Exact equality excludes all other
++// families without reflection; a future non-comparable schema fails to compile
++// rather than silently broadening the guarded wire variant.
++func exclusiveFlashChatResponse(response *schemas.BifrostResponse) bool {
++	return response != nil && response.ChatResponse != nil && *response == (schemas.BifrostResponse{ChatResponse: response.ChatResponse})
++}
+diff --git a/core/providers/openai/chat_stream_metadata_scope_test.go b/core/providers/openai/chat_stream_metadata_scope_test.go
+new file mode 100644
+--- /dev/null
++++ b/core/providers/openai/chat_stream_metadata_scope_test.go
+@@ -0,0 +1,166 @@
++package openai
++
++import (
++	"context"
++	"reflect"
++	"testing"
++
++	"github.com/maximhq/bifrost/core/schemas"
++)
++
++func TestFlashMetadataGuardScope(t *testing.T) {
++	request := &schemas.BifrostChatRequest{Provider: schemas.DeepSeek, Model: "deepseek-flash"}
++	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
++	if !guardFlashNativeChatMetadata(ctx, schemas.DeepSeek, request, false) {
++		t.Fatal("native Flash not guarded")
++	}
++	if guardFlashNativeChatMetadata(ctx, schemas.DeepSeek, request, true) {
++		t.Fatal("responses fallback changed")
++	}
++	ctx.SetValue(schemas.BifrostContextKeyIntegrationType, "openai")
++	if guardFlashNativeChatMetadata(ctx, schemas.DeepSeek, request, false) {
++		t.Fatal("compat integration changed")
++	}
++	for _, request := range []*schemas.BifrostChatRequest{{Provider: schemas.DeepSeek, Model: "deepseek-v4-pro"}, {Provider: schemas.OpenAI, Model: "deepseek-flash"}} {
++		own := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
++		if guardFlashNativeChatMetadata(own, request.Provider, request, false) {
++			t.Fatal("unrelated profile changed")
++		}
++	}
++}
++
++func assertFlashIntegrityRefusal(t *testing.T, chunks []*schemas.BifrostStreamChunk, hits int32, abandoned bool) {
++	t.Helper()
++	if hits != 1 || !abandoned {
++		t.Fatal("integrity refusal did not stop upstream")
++	}
++	failed := false
++	for _, chunk := range chunks {
++		value := reflect.ValueOf(chunk).Elem()
++		for i := 0; i < value.NumField(); i++ {
++			name := value.Type().Field(i).Name
++			if name != "BifrostChatResponse" && name != "BifrostError" && !value.Field(i).IsNil() {
++				t.Fatal("forged mixed family exported")
++			}
++		}
++		if chunk.BifrostChatResponse != nil && chunk.BifrostChatResponse.Usage != nil {
++			t.Fatal("successful terminal after integrity refusal")
++		}
++		if chunk.BifrostError != nil {
++			failed = true
++			e := chunk.BifrostError
++			if e.AllowFallbacks == nil || *e.AllowFallbacks || !e.IsBifrostError || e.Error.Message != "chat stream metadata validation failed" || e.Error.Error != nil || e.StreamControl != nil {
++				t.Fatal("metadata refusal changed or dropped")
++			}
++		}
++	}
++	if !failed {
++		t.Fatal("missing controlled refusal")
++	}
++}
++
++func TestFlashMetadataHooksAndConvertersCannotReplaceObservedFacts(t *testing.T) {
++	meta := `,"system_fingerprint":"fp-A"`
++	frames := []string{flashFrame(meta, flashContent, ""), flashFrame(meta, flashFinish, ""), flashFrame(meta, "[]", flashUsage)}
++	for _, mode := range []string{"id", "model", "fingerprint", "replacement", "new-observation", "drop", "skip", "mixed-text"} {
++		t.Run("hook-"+mode, func(t *testing.T) {
++			hooks := func(_ *schemas.BifrostContext, r *schemas.BifrostResponse, e *schemas.BifrostError) (*schemas.BifrostResponse, *schemas.BifrostError) {
++				if e != nil {
++					return r, e
++				}
++				switch mode {
++				case "id":
++					r.ChatResponse.ID = "changed"
++				case "model":
++					r.ChatResponse.Model = "changed"
++				case "fingerprint":
++					r.ChatResponse.SystemFingerprint = "changed"
++				case "replacement":
++					r = &schemas.BifrostResponse{ChatResponse: &schemas.BifrostChatResponse{ID: "c", Model: "deepseek-flash", SystemFingerprint: "fp-A"}}
++				case "new-observation":
++					var own schemas.ChatStreamMetadataTracker
++					fact, _ := own.Observe([]byte(`{"id":"changed","model":"deepseek-flash","system_fingerprint":"fp-A"}`))
++					r.ChatResponse.SetObservedChatStreamMetadata(fact)
++				case "drop":
++					return nil, nil
++				case "mixed-text":
++					r.TextCompletionResponse = &schemas.BifrostTextCompletionResponse{ID: "forged", Model: "forged", Object: "chat.completion.chunk", Choices: r.ChatResponse.Choices}
++				case "skip":
++					return nil, &schemas.BifrostError{StreamControl: &schemas.StreamControl{SkipStream: schemas.Ptr(true)}}
++				}
++				return r, nil
++			}
++			chunks, hits, closed := runFlashMetadataStreamWithHooks(t, frames, true, hooks, nil)
++			assertFlashIntegrityRefusal(t, chunks, hits, closed)
++		})
++	}
++	for _, mode := range []string{"mutation", "replacement", "nil", "terminal-replacement"} {
++		t.Run("converter-"+mode, func(t *testing.T) {
++			converter := func(r *schemas.BifrostChatResponse) *schemas.BifrostChatResponse {
++				switch mode {
++				case "mutation":
++					r.Model = "changed"
++					return r
++				case "replacement":
++					return &schemas.BifrostChatResponse{ID: r.ID, Model: r.Model, SystemFingerprint: r.SystemFingerprint}
++				case "nil":
++					return nil
++				case "terminal-replacement":
++					if r.Usage != nil && len(r.Choices) > 0 {
++						return &schemas.BifrostChatResponse{ID: r.ID, Model: r.Model, SystemFingerprint: r.SystemFingerprint, Usage: r.Usage, Choices: r.Choices}
++					}
++				}
++				return r
++			}
++			chunks, hits, closed := runFlashMetadataStreamWithHooks(t, frames, true, nil, converter)
++			assertFlashIntegrityRefusal(t, chunks, hits, closed)
++		})
++	}
++}
++
++func TestFlashMetadataRefusalCannotBeRewrittenOrSkippedByHooks(t *testing.T) {
++	for _, mode := range []string{"success", "drop", "skip", "mutate-error"} {
++		t.Run(mode, func(t *testing.T) {
++			hooks := func(_ *schemas.BifrostContext, r *schemas.BifrostResponse, e *schemas.BifrostError) (*schemas.BifrostResponse, *schemas.BifrostError) {
++				if e == nil {
++					return r, nil
++				}
++				switch mode {
++				case "success":
++					return &schemas.BifrostResponse{ChatResponse: &schemas.BifrostChatResponse{ID: "c", Model: "deepseek-flash"}}, nil
++				case "drop":
++					return nil, nil
++				case "skip":
++					return nil, &schemas.BifrostError{StreamControl: &schemas.StreamControl{SkipStream: schemas.Ptr(true)}}
++				case "mutate-error":
++					e.Error.Message = "private metadata"
++					e.AllowFallbacks = schemas.Ptr(true)
++					return nil, e
++				}
++				return r, e
++			}
++			chunks, hits, closed := runFlashMetadataStreamWithHooks(t, []string{`{"id":"c"`}, true, hooks, nil)
++			assertFlashIntegrityRefusal(t, chunks, hits, closed)
++		})
++	}
++}
++
++func TestFlashMetadataRejectsEveryMixedResponseFamily(t *testing.T) {
++	kind := reflect.TypeOf(schemas.BifrostResponse{})
++	for i := 0; i < kind.NumField(); i++ {
++		field := kind.Field(i)
++		if field.Name == "ChatResponse" {
++			continue
++		}
++		t.Run(field.Name, func(t *testing.T) {
++			hooks := func(_ *schemas.BifrostContext, r *schemas.BifrostResponse, e *schemas.BifrostError) (*schemas.BifrostResponse, *schemas.BifrostError) {
++				if e == nil {
++					reflect.ValueOf(r).Elem().FieldByName(field.Name).Set(reflect.New(field.Type.Elem()))
++				}
++				return r, e
++			}
++			chunks, hits, closed := runFlashMetadataStreamWithHooks(t, []string{flashFrame(`,"system_fingerprint":"fp-A"`, flashContent, "")}, true, hooks, nil)
++			assertFlashIntegrityRefusal(t, chunks, hits, closed)
++		})
++	}
++}
+diff --git a/core/providers/openai/chat_stream_metadata_test.go b/core/providers/openai/chat_stream_metadata_test.go
+new file mode 100644
+--- /dev/null
++++ b/core/providers/openai/chat_stream_metadata_test.go
+@@ -0,0 +1,199 @@
++package openai
++
++import (
++	"context"
++	"encoding/json"
++	"fmt"
++	"net/http"
++	"net/http/httptest"
++	"strings"
++	"sync/atomic"
++	"testing"
++	"time"
++
++	"github.com/maximhq/bifrost/core/schemas"
++	"github.com/valyala/fasthttp"
++)
++
++type flashMetadataLogger struct{}
++
++func (flashMetadataLogger) Debug(string, ...any)                   {}
++func (flashMetadataLogger) Info(string, ...any)                    {}
++func (flashMetadataLogger) Warn(string, ...any)                    {}
++func (flashMetadataLogger) Error(string, ...any)                   {}
++func (flashMetadataLogger) Fatal(string, ...any)                   {}
++func (flashMetadataLogger) SetLevel(schemas.LogLevel)              {}
++func (flashMetadataLogger) SetOutputType(schemas.LoggerOutputType) {}
++func (flashMetadataLogger) LogHTTPRequest(schemas.LogLevel, string) schemas.LogEventBuilder {
++	return schemas.NoopLogEvent
++}
++
++func flashFrame(meta, choices, usage string) string {
++	if usage == "" {
++		usage = "null"
++	}
++	return `{"id":"c","model":"deepseek-flash","object":"chat.completion.chunk","created":1` + meta + `,"choices":` + choices + `,"usage":` + usage + `}`
++}
++
++const flashContent = `[{"index":0,"delta":{"content":"OK"},"finish_reason":null}]`
++const flashFinish = `[{"index":0,"delta":{},"finish_reason":"stop"}]`
++const flashUsage = `{"prompt_tokens":0,"completion_tokens":0,"total_tokens":0}`
++
++func runFlashMetadataStream(t *testing.T, frames []string, park bool) ([]*schemas.BifrostStreamChunk, int32, bool) {
++	t.Helper()
++	return runFlashMetadataStreamWithHooks(t, frames, park, nil, nil)
++}
++
++func runFlashMetadataStreamWithHooks(t *testing.T, frames []string, park bool, customHooks schemas.PostHookRunner, converter func(*schemas.BifrostChatResponse) *schemas.BifrostChatResponse) ([]*schemas.BifrostStreamChunk, int32, bool) {
++	t.Helper()
++	var hits atomic.Int32
++	closed := make(chan struct{}, 1)
++	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
++		hits.Add(1)
++		w.Header().Set("Content-Type", "text/event-stream")
++		for _, frame := range frames {
++			if _, err := fmt.Fprintf(w, "data: %s\n\n", frame); err != nil {
++				return
++			}
++			w.(http.Flusher).Flush()
++		}
++		if park {
++			select {
++			case <-r.Context().Done():
++				closed <- struct{}{}
++			case <-time.After(2 * time.Second):
++			}
++			return
++		}
++		_, _ = fmt.Fprint(w, "data: [DONE]\n\n")
++	}))
++	defer server.Close()
++	ctx, cancel := schemas.NewBifrostContextWithTimeout(context.Background(), 3*time.Second)
++	defer cancel()
++	request := &schemas.BifrostChatRequest{Provider: schemas.DeepSeek, Model: "deepseek-flash", Input: []schemas.ChatMessage{{Role: schemas.ChatMessageRoleUser, Content: &schemas.ChatMessageContent{ContentStr: schemas.Ptr("synthetic")}}}}
++	hook := func(_ *schemas.BifrostContext, r *schemas.BifrostResponse, e *schemas.BifrostError) (*schemas.BifrostResponse, *schemas.BifrostError) {
++		return r, e
++	}
++	if customHooks != nil {
++		hook = customHooks
++	}
++	output, failure := HandleOpenAIChatCompletionStreaming(ctx, &fasthttp.Client{}, server.URL, request, nil, nil, 1, false, false, schemas.DeepSeek, hook, nil, nil, nil, nil, converter, nil, flashMetadataLogger{}, nil)
++	if failure != nil {
++		t.Fatalf("stream creation failed: %s", failure.Error.Message)
++	}
++	var chunks []*schemas.BifrostStreamChunk
++	for chunk := range output {
++		chunks = append(chunks, chunk)
++	}
++	abandoned := false
++	if park {
++		select {
++		case <-closed:
++			abandoned = true
++		case <-time.After(100 * time.Millisecond):
++		}
++	}
++	return chunks, hits.Load(), abandoned
++}
++
++func TestFlashNativeStreamPreservesEveryPresenceAndZeroUsage(t *testing.T) {
++	for _, meta := range []string{"", `,"system_fingerprint":null`, `,"system_fingerprint":"fp-A"`} {
++		t.Run(meta, func(t *testing.T) {
++			chunks, hits, _ := runFlashMetadataStream(t, []string{flashFrame(meta, flashContent, ""), flashFrame(meta, flashFinish, ""), flashFrame(meta, "[]", flashUsage)}, false)
++			if hits != 1 || len(chunks) < 2 {
++				t.Fatal("missing chunks or repeated request")
++			}
++			terminal := false
++			for _, chunk := range chunks {
++				if chunk.BifrostError != nil {
++					t.Fatal("stable metadata refused")
++				}
++				wire, err := json.Marshal(chunk)
++				if err != nil {
++					t.Fatal(err)
++				}
++				var obj map[string]json.RawMessage
++				if json.Unmarshal(wire, &obj) != nil {
++					t.Fatal("invalid wire")
++				}
++				want := map[string]string{"": "", `,"system_fingerprint":null`: "null", `,"system_fingerprint":"fp-A"`: `"fp-A"`}[meta]
++				if string(obj["system_fingerprint"]) != want {
++					t.Fatalf("fingerprint state changed: %s", wire)
++				}
++				if chunk.BifrostChatResponse != nil && chunk.BifrostChatResponse.Usage != nil {
++					terminal = true
++					if !strings.Contains(string(obj["usage"]), `"prompt_tokens":0`) || !strings.Contains(string(obj["usage"]), `"completion_tokens":0`) {
++						t.Fatal("zero usage lost")
++					}
++				}
++			}
++			if !terminal {
++				t.Fatal("missing terminal usage")
++			}
++		})
++	}
++}
++
++func TestFlashNativeStreamRejectsSuppressedDriftAndMalformedMetadata(t *testing.T) {
++	a := `,"system_fingerprint":"fp-A"`
++	b := `,"system_fingerprint":"fp-B"`
++	stableFinish := flashFrame(a, flashFinish, "")
++	stableUsage := flashFrame(a, "[]", flashUsage)
++	tests := map[string][]string{
++		"content":                 {flashFrame(a, flashContent, ""), flashFrame(b, flashContent, "")},
++		"suppressed-finish-A-B-A": {flashFrame(a, flashContent, ""), flashFrame(b, flashFinish, ""), stableUsage},
++		"suppressed-usage-A-B-A":  {flashFrame(a, flashContent, ""), stableFinish, flashFrame(b, "[]", flashUsage), stableUsage},
++		"absent":                  {flashFrame(a, flashContent, ""), flashFrame("", flashFinish, "")},
++		"null":                    {flashFrame(a, flashContent, ""), flashFrame(`,"system_fingerprint":null`, flashFinish, "")},
++	}
++	for _, field := range []string{"id", "model"} {
++
++		for _, raw := range []string{`"different"`, `null`} {
++			changedUsage := strings.Replace(stableUsage, `"`+field+`":"`+map[string]string{"id": "c", "model": "deepseek-flash"}[field]+`"`, `"`+field+`":`+raw, 1)
++			tests[field+"-usage-A-B-A-"+raw] = []string{flashFrame(a, flashContent, ""), stableFinish, changedUsage, stableUsage}
++		}
++		missingUsage := strings.Replace(stableUsage, `"`+field+`":"`+map[string]string{"id": "c", "model": "deepseek-flash"}[field]+`",`, "", 1)
++		tests[field+"-usage-missing"] = []string{flashFrame(a, flashContent, ""), stableFinish, missingUsage, stableUsage}
++		for _, raw := range []string{`null`, `1`, `false`, `[]`, `{}`, `""`, `"different"`} {
++			changed := strings.Replace(stableFinish, `"`+field+`":"`+map[string]string{"id": "c", "model": "deepseek-flash"}[field]+`"`, `"`+field+`":`+raw, 1)
++			tests[field+raw] = []string{flashFrame(a, flashContent, ""), changed, stableUsage}
++		}
++		removed := strings.Replace(stableFinish, `"`+field+`":"`+map[string]string{"id": "c", "model": "deepseek-flash"}[field]+`",`, "", 1)
++		tests[field+"-missing"] = []string{flashFrame(a, flashContent, ""), removed, stableUsage}
++		duplicate := strings.Replace(stableUsage, `"`+field+`":`, `"`+field+`":"duplicate","`+field+`":`, 1)
++		tests[field+"-duplicate"] = []string{flashFrame(a, flashContent, ""), stableFinish, duplicate}
++	}
++	for _, raw := range []string{`false`, `1`, `[]`, `{}`, `"\ud800"`} {
++		tests["fingerprint-type"+raw] = []string{flashFrame(a, flashContent, ""), flashFrame(`,"system_fingerprint":`+raw, flashFinish, "")}
++	}
++	tests["fingerprint-duplicate"] = []string{flashFrame(a, flashContent, ""), flashFrame(a+a, flashFinish, "")}
++	tests["malformed-hidden"] = []string{flashFrame(a, flashContent, ""), `{"id":"c"`, stableUsage}
++	tests["typed-decode-failure-hidden"] = []string{flashFrame(a, flashContent, ""), flashFrame(a, `false`, ""), stableUsage}
++	for name, frames := range tests {
++		t.Run(name, func(t *testing.T) {
++			chunks, hits, abandoned := runFlashMetadataStream(t, frames, true)
++			if hits != 1 || !abandoned {
++				t.Fatal("rejected upstream not abandoned or request retried")
++			}
++			failed := false
++			for _, chunk := range chunks {
++				if chunk.BifrostChatResponse != nil && chunk.BifrostChatResponse.Usage != nil {
++					t.Fatal("success terminal after drift")
++				}
++				if chunk.BifrostError != nil {
++					failed = true
++					e := chunk.BifrostError
++					if e.AllowFallbacks == nil || *e.AllowFallbacks || !e.IsBifrostError {
++						t.Fatal("error permits fallback/retry")
++					}
++					if e.Error.Message != "chat stream metadata validation failed" || e.Error.Error != nil || e.ExtraFields.RawResponse != nil || e.ExtraFields.RawRequest != nil {
++						t.Fatal("unsafe metadata error")
++					}
++				}
++			}
++			if !failed {
++				t.Fatal("drift silently suppressed")
++			}
++		})
++	}
++}
+diff --git a/core/providers/openai/openai.go b/core/providers/openai/openai.go
+--- a/core/providers/openai/openai.go
++++ b/core/providers/openai/openai.go
+@@ -1495,6 +1495,13 @@
+ 		// service_tier is echoed on chunks; propagate to the final chunk for priority/flex billing
+ 		var serviceTier *schemas.BifrostServiceTier
+ 		forwardedTerminalFinishReason := false
++		guardChatMetadata := guardFlashNativeChatMetadata(ctx, providerName, request, isResponsesToChatCompletionsFallback)
++		var chatMetadata schemas.ChatStreamMetadataTracker
++		metadataRejected := false
++		checkedPostHookRunner := postHookRunner
++		if guardChatMetadata {
++			checkedPostHookRunner = checkedFlashChatPostHooks(postHookRunner, &metadataRejected)
++		}
+ 		// Upstream frames read but not yet handed to a chunk. Raw capture must not
+ 		// depend on whether a frame becomes a forwarded chunk: finish-only and
+ 		// usage-only frames are documented parts of an OpenAI stream - and the usage
+@@ -1591,6 +1598,15 @@
+ 				break
+ 			}
+ 			jsonData := string(data)
++			var observedChatMetadata schemas.ChatStreamMetadataFact
++			if guardChatMetadata {
++				var metadataErr error
++				observedChatMetadata, metadataErr = chatMetadata.Observe(data)
++				if metadataErr != nil {
++					rejectFlashChatMetadata(ctx, postHookRunner, responseChan, logger, postHookSpanFinalizer)
++					return
++				}
++			}
+ 
+ 			// Quick check for error field (allocation-free using sonic.GetFromString)
+ 			if errorNode, _ := sonic.GetFromString(jsonData, "error"); errorNode.Exists() {
+@@ -1630,11 +1646,18 @@
+ 				umErr := sonic.UnmarshalString(jsonData, &response)
+ 				schemas.AddStreamParse(ctx, time.Since(parseStart))
+ 				if umErr != nil {
++					if guardChatMetadata {
++						rejectFlashChatMetadata(ctx, postHookRunner, responseChan, logger, postHookSpanFinalizer)
++						return
++					}
+ 					logger.Warn("Failed to parse stream response: %v", umErr)
+ 					continue
+ 				}
+ 			}
+ 
++			if guardChatMetadata {
++				response.SetObservedChatStreamMetadata(observedChatMetadata)
++			}
+ 			response.Usage.PreserveTokenCountZeros(data, "usage.prompt_tokens", "usage.completion_tokens")
+ 
+ 			// choices be array if nil
+@@ -1768,6 +1791,10 @@
+ 					convStart := time.Now()
+ 					converted := postResponseConverter(&response)
+ 					schemas.AddStreamConvert(ctx, time.Since(convStart))
++					if guardChatMetadata && (converted == nil || !converted.MatchesObservedChatStreamMetadata(observedChatMetadata)) {
++						rejectFlashChatMetadata(ctx, postHookRunner, responseChan, logger, postHookSpanFinalizer)
++						return
++					}
+ 					if converted != nil {
+ 						response = *converted
+ 					} else {
+@@ -1901,7 +1928,10 @@
+ 						response.ExtraFields.RawResponseFormat = schemas.RawResponseFormatOpenAIChatCompletionChunk
+ 					}
+ 
+-					providerUtils.ProcessAndSendResponse(ctx, postHookRunner, providerUtils.GetBifrostResponseForStreamResponse(nil, &response, nil, nil, nil, nil), responseChan, postHookSpanFinalizer)
++					providerUtils.ProcessAndSendResponse(ctx, checkedPostHookRunner, providerUtils.GetBifrostResponseForStreamResponse(nil, &response, nil, nil, nil, nil), responseChan, postHookSpanFinalizer)
++					if metadataRejected {
++						return
++					}
+ 				}
+ 
+ 				// For providers that don't send [DONE] marker break on finish_reason.
+@@ -1967,8 +1997,23 @@
+ 				finalFinishReason = nil
+ 			}
+ 			response := providerUtils.CreateBifrostChatCompletionChunkResponse(messageID, usage, finalFinishReason, chunkIndex, modelName, created)
++			if guardChatMetadata {
++				latest, observed := chatMetadata.Latest()
++				if !observed {
++					rejectFlashChatMetadata(ctx, postHookRunner, responseChan, logger, postHookSpanFinalizer)
++					return
++				}
++				response.SetObservedChatStreamMetadata(latest)
++			}
+ 			if postResponseConverter != nil {
+ 				response = postResponseConverter(response)
++			}
++			if guardChatMetadata {
++				latest, _ := chatMetadata.Latest()
++				if response == nil || !response.MatchesObservedChatStreamMetadata(latest) {
++					rejectFlashChatMetadata(ctx, postHookRunner, responseChan, logger, postHookSpanFinalizer)
++					return
++				}
+ 			}
+ 			// Preserve captured tier so priority/flex billing applies to the streamed response
+ 			if serviceTier != nil {
+@@ -1987,7 +2032,10 @@
+ 			}
+ 			response.ExtraFields.Latency = time.Since(startTime).Milliseconds()
+ 			ctx.SetValue(schemas.BifrostContextKeyStreamEndIndicator, true)
+-			providerUtils.ProcessAndSendResponse(ctx, postHookRunner, providerUtils.GetBifrostResponseForStreamResponse(nil, response, nil, nil, nil, nil), responseChan, postHookSpanFinalizer)
++			providerUtils.ProcessAndSendResponse(ctx, checkedPostHookRunner, providerUtils.GetBifrostResponseForStreamResponse(nil, response, nil, nil, nil, nil), responseChan, postHookSpanFinalizer)
++			if metadataRejected {
++				return
++			}
+ 		}
+ 	}()
+ 
+diff --git a/core/schemas/bifrost.go b/core/schemas/bifrost.go
+--- a/core/schemas/bifrost.go
++++ b/core/schemas/bifrost.go
+@@ -2259,10 +2259,17 @@
+ // MarshalJSON implements custom JSON marshaling for BifrostStreamChunk.
+ // This ensures that only the non-nil embedded struct is marshaled,
+ func (bs BifrostStreamChunk) MarshalJSON() ([]byte, error) {
++	if bs.BifrostChatResponse != nil && bs.BifrostChatResponse.observedStreamFact != nil && bs != (BifrostStreamChunk{BifrostChatResponse: bs.BifrostChatResponse}) {
++		return nil, errChatStreamMetadata
++	}
+ 	if bs.BifrostTextCompletionResponse != nil {
+ 		return MarshalSorted(bs.BifrostTextCompletionResponse.WithPreservedUsage())
+ 	} else if bs.BifrostChatResponse != nil {
+-		return MarshalSorted(bs.BifrostChatResponse.WithPreservedUsage())
++		wire, err := MarshalSorted(bs.BifrostChatResponse.WithPreservedUsage())
++		if err != nil {
++			return nil, err
++		}
++		return bs.BifrostChatResponse.preserveObservedChatStreamMetadata(wire)
+ 	} else if bs.BifrostResponsesStreamResponse != nil {
+ 		return MarshalSorted(bs.BifrostResponsesStreamResponse)
+ 	} else if bs.BifrostSpeechStreamResponse != nil {
+diff --git a/core/schemas/chat_stream_metadata.go b/core/schemas/chat_stream_metadata.go
+new file mode 100644
+--- /dev/null
++++ b/core/schemas/chat_stream_metadata.go
+@@ -0,0 +1,194 @@
++package schemas
++
++import (
++	"bytes"
++	"encoding/json"
++	"errors"
++	"io"
++	"strconv"
++	"unicode/utf8"
++
++	"github.com/tidwall/sjson"
++)
++
++var errChatStreamMetadata = errors.New("invalid or changed chat stream metadata")
++
++// ChatStreamMetadataFact holds only observed scalar facts, never an upstream frame.
++// Its zero fingerprint state is ABSENT; NULL and VALUE remain distinct, including
++// a VALUE containing an empty string. Nothing here establishes model approval.
++type ChatStreamMetadataFact struct {
++	id                  string
++	model               string
++	fingerprintPresence uint8
++	fingerprint         string
++}
++
++// ChatStreamMetadataTracker is owned by one provider stream goroutine. Comparing
++// every raw frame before suppression prevents hidden A -> B -> A drift. A prior
++// observation is a comparison baseline, never a fill source for a missing value.
++type ChatStreamMetadataTracker struct {
++	seen   bool
++	latest ChatStreamMetadataFact
++}
++
++func (t *ChatStreamMetadataTracker) Observe(raw []byte) (ChatStreamMetadataFact, error) {
++	fact, err := parseChatStreamMetadata(raw)
++	if err != nil || (t.seen && fact != t.latest) {
++		return ChatStreamMetadataFact{}, errChatStreamMetadata
++	}
++	t.seen, t.latest = true, fact
++	return fact, nil
++}
++
++func (t *ChatStreamMetadataTracker) Latest() (ChatStreamMetadataFact, bool) { return t.latest, t.seen }
++
++// strictMetadataString rejects invalid Unicode escapes instead of encoding/json's
++// replacement-rune normalization, while treating equivalent valid JSON escapes
++// as the same observed string value.
++func strictMetadataString(raw []byte) (string, error) {
++	raw = bytes.TrimSpace(raw)
++	if len(raw) < 2 || raw[0] != '"' || raw[len(raw)-1] != '"' {
++		return "", errChatStreamMetadata
++	}
++	for i := 1; i < len(raw)-1; i++ {
++		if raw[i] != '\\' {
++			continue
++		}
++		i++
++		if i >= len(raw)-1 {
++			return "", errChatStreamMetadata
++		}
++		if raw[i] != 'u' {
++			continue
++		}
++		if i+4 >= len(raw) {
++			return "", errChatStreamMetadata
++		}
++		code, err := strconv.ParseUint(string(raw[i+1:i+5]), 16, 16)
++		if err != nil {
++			return "", errChatStreamMetadata
++		}
++		i += 4
++		if code >= 0xDC00 && code <= 0xDFFF {
++			return "", errChatStreamMetadata
++		}
++		if code >= 0xD800 && code <= 0xDBFF {
++			if i+6 >= len(raw) || raw[i+1] != '\\' || raw[i+2] != 'u' {
++				return "", errChatStreamMetadata
++			}
++			low, e := strconv.ParseUint(string(raw[i+3:i+7]), 16, 16)
++			if e != nil || low < 0xDC00 || low > 0xDFFF {
++				return "", errChatStreamMetadata
++			}
++			i += 6
++		}
++	}
++	var value string
++	if json.Unmarshal(raw, &value) != nil {
++		return "", errChatStreamMetadata
++	}
++	return value, nil
++}
++
++func parseChatStreamMetadata(raw []byte) (ChatStreamMetadataFact, error) {
++	var fact ChatStreamMetadataFact
++	if !utf8.Valid(raw) {
++		return fact, errChatStreamMetadata
++	}
++	decoder := json.NewDecoder(bytes.NewReader(raw))
++	token, err := decoder.Token()
++	if err != nil || token != json.Delim('{') {
++		return fact, errChatStreamMetadata
++	}
++	seen := map[string]bool{}
++	for decoder.More() {
++		token, err = decoder.Token()
++		if err != nil {
++			return fact, errChatStreamMetadata
++		}
++		key, ok := token.(string)
++		if !ok {
++			return fact, errChatStreamMetadata
++		}
++		var value json.RawMessage
++		if decoder.Decode(&value) != nil {
++			return fact, errChatStreamMetadata
++		}
++		if key != "id" && key != "model" && key != "system_fingerprint" {
++			continue
++		}
++		if seen[key] {
++			return fact, errChatStreamMetadata
++		}
++		seen[key] = true
++		if key == "system_fingerprint" && bytes.Equal(bytes.TrimSpace(value), []byte("null")) {
++			fact.fingerprintPresence = 1
++			continue
++		}
++		text, e := strictMetadataString(value)
++		if e != nil {
++			return fact, errChatStreamMetadata
++		}
++		switch key {
++		case "id":
++			fact.id = text
++		case "model":
++			fact.model = text
++		case "system_fingerprint":
++			fact.fingerprintPresence = 2
++			fact.fingerprint = text
++		}
++	}
++	token, err = decoder.Token()
++	if err != nil || token != json.Delim('}') {
++		return fact, errChatStreamMetadata
++	}
++	var trailing any
++	if decoder.Decode(&trailing) != io.EOF || !seen["id"] || !seen["model"] || fact.id == "" || fact.model == "" {
++		return fact, errChatStreamMetadata
++	}
++	return fact, nil
++}
++
++// SetObservedChatStreamMetadata copies this chunk's checked fact. The public
++// legacy string field remains source-compatible; native stream serialization
++// separately preserves exact ABSENT/NULL/VALUE presence.
++func (r *BifrostChatResponse) SetObservedChatStreamMetadata(fact ChatStreamMetadataFact) {
++	copy := fact
++	r.observedStreamFact = &copy
++	r.ID, r.Model, r.SystemFingerprint = fact.id, fact.model, fact.fingerprint
++}
++
++func (r *BifrostChatResponse) preserveObservedChatStreamMetadata(wire []byte) ([]byte, error) {
++	if r.observedStreamFact == nil {
++		return wire, nil
++	}
++	fact := r.observedStreamFact
++	if !r.MatchesObservedChatStreamMetadata(*fact) {
++		return nil, errChatStreamMetadata
++	}
++	switch fact.fingerprintPresence {
++	case 0:
++		return sjson.DeleteBytes(wire, "system_fingerprint")
++	case 1:
++		return sjson.SetRawBytes(wire, "system_fingerprint", []byte("null"))
++	case 2:
++		return sjson.SetBytes(wire, "system_fingerprint", fact.fingerprint)
++	default:
++		return nil, errChatStreamMetadata
++	}
++}
++
++// ObservedChatStreamMetadata snapshots the opaque fact before a converter/hook.
++func (r *BifrostChatResponse) ObservedChatStreamMetadata() (ChatStreamMetadataFact, bool) {
++	if r == nil || r.observedStreamFact == nil {
++		return ChatStreamMetadataFact{}, false
++	}
++	return *r.observedStreamFact, true
++}
++
++// MatchesObservedChatStreamMetadata rejects mutation or dropped/replaced facts;
++// it never repairs the current response using an earlier observation.
++func (r *BifrostChatResponse) MatchesObservedChatStreamMetadata(expected ChatStreamMetadataFact) bool {
++	return r != nil && r.observedStreamFact != nil && *r.observedStreamFact == expected && r.ID == expected.id && r.Model == expected.model && r.SystemFingerprint == expected.fingerprint
++}
+diff --git a/core/schemas/chat_stream_metadata_test.go b/core/schemas/chat_stream_metadata_test.go
+new file mode 100644
+--- /dev/null
++++ b/core/schemas/chat_stream_metadata_test.go
+@@ -0,0 +1,164 @@
++package schemas
++
++import (
++	"bytes"
++	"encoding/json"
++	"github.com/bytedance/sonic"
++	"sync"
++	"testing"
++)
++
++func TestChatStreamMetadataStablePresenceAndZeroUsage(t *testing.T) {
++	for _, field := range []string{"", `,"system_fingerprint":null`, `,"system_fingerprint":"fp-A"`} {
++		t.Run(field, func(t *testing.T) {
++			raw := []byte(`{"id":"c","model":"m"` + field + `}`)
++			var tracker ChatStreamMetadataTracker
++			fact, err := tracker.Observe(raw)
++			if err != nil {
++				t.Fatal(err)
++			}
++			for i := 0; i < 3; i++ {
++				if _, err = tracker.Observe(raw); err != nil {
++					t.Fatal(err)
++				}
++			}
++			r := &BifrostChatResponse{ID: "wrong", Model: "wrong", SystemFingerprint: "wrong", Usage: &BifrostLLMUsage{}}
++			r.Usage.PreserveTokenCountZeros([]byte(`{"usage":{"prompt_tokens":0,"completion_tokens":0}}`), "usage.prompt_tokens", "usage.completion_tokens")
++			r.SetObservedChatStreamMetadata(fact)
++			wire, err := json.Marshal(BifrostStreamChunk{BifrostChatResponse: r})
++			if err != nil {
++				t.Fatal(err)
++			}
++			var obj map[string]json.RawMessage
++			if err = json.Unmarshal(wire, &obj); err != nil {
++				t.Fatal(err)
++			}
++			if string(obj["id"]) != `"c"` || string(obj["model"]) != `"m"` {
++				t.Fatal("not observed identity")
++			}
++			expected := map[string]string{"": "", `,"system_fingerprint":null`: "null", `,"system_fingerprint":"fp-A"`: `"fp-A"`}[field]
++			if string(obj["system_fingerprint"]) != expected {
++				t.Fatalf("presence not preserved: %s", wire)
++			}
++			if !bytes.Contains(obj["usage"], []byte(`"prompt_tokens":0`)) || !bytes.Contains(obj["usage"], []byte(`"completion_tokens":0`)) {
++				t.Fatalf("zero usage lost: %s", wire)
++			}
++		})
++	}
++}
++
++func TestChatStreamMetadataMalformedAndDrift(t *testing.T) {
++	first := []byte(`{"id":"c","model":"m","system_fingerprint":"fp-A"}`)
++	for _, raw := range []string{
++		`{"id":"c","model":"m","system_fingerprint":"fp-B"}`, `{"id":"c","model":"m"}`,
++		`{"id":"c","model":"m","system_fingerprint":null}`, `{"id":"c","model":"m","system_fingerprint":false}`,
++		`{"id":"c","model":"m","system_fingerprint":[]}`, `{"id":"c","model":"m","system_fingerprint":{}}`,
++		`{"id":"c","model":"m","system_fingerprint":"fp-A","system_fingerprint":"fp-A"}`,
++		`{"id":"different","model":"m","system_fingerprint":"fp-A"}`, `{"id":"c","model":"different","system_fingerprint":"fp-A"}`,
++		`{"model":"m","system_fingerprint":"fp-A"}`, `{"id":"c","system_fingerprint":"fp-A"}`,
++		`{"id":null,"model":"m"}`, `{"id":1,"model":"m"}`, `{"id":true,"model":"m"}`, `{"id":"","model":"m"}`,
++		`{"id":"c","model":null}`, `{"id":"c","model":[],"system_fingerprint":"fp-A"}`,
++		`{"id":"c","id":"c","model":"m"}`, `{"id":"c","model":"m","model":"m"}`,
++		`{"id":"c","model":"m","system_fingerprint":"\ud800"}`, `{"id":"c","model":"m"} {}`, `[]`, `null`, `{`,
++	} {
++		t.Run(raw, func(t *testing.T) {
++			var tracker ChatStreamMetadataTracker
++			if _, err := tracker.Observe(first); err != nil {
++				t.Fatal(err)
++			}
++			if _, err := tracker.Observe([]byte(raw)); err == nil {
++				t.Fatal("malformed or changed metadata accepted")
++			}
++		})
++	}
++}
++
++func TestChatStreamMetadataOwnFactLegacyAndIsolation(t *testing.T) {
++	var first ChatStreamMetadataTracker
++	fact, err := first.Observe([]byte(`{"id":"c","model":"m","system_fingerprint":"A"}`))
++	if err != nil {
++		t.Fatal(err)
++	}
++	before := &BifrostChatResponse{}
++	before.SetObservedChatStreamMetadata(fact)
++	if _, err = first.Observe([]byte(`{"id":"c","model":"m","system_fingerprint":"B"}`)); err == nil {
++		t.Fatal("drift accepted")
++	}
++	wire, err := json.Marshal(BifrostStreamChunk{BifrostChatResponse: before})
++	if err != nil || !bytes.Contains(wire, []byte(`"system_fingerprint":"A"`)) {
++		t.Fatal("prior fact mutated")
++	}
++	legacy, err := json.Marshal(BifrostStreamChunk{BifrostChatResponse: &BifrostChatResponse{SystemFingerprint: "legacy"}})
++	if err != nil || !bytes.Contains(legacy, []byte(`"system_fingerprint":"legacy"`)) {
++		t.Fatal("legacy serialization changed")
++	}
++	var wg sync.WaitGroup
++	for i := 0; i < 20; i++ {
++		wg.Add(1)
++		go func() {
++			defer wg.Done()
++			var own ChatStreamMetadataTracker
++			if _, e := own.Observe([]byte(`{"id":"own","model":"m","system_fingerprint":null}`)); e != nil {
++				t.Error(e)
++			}
++		}()
++	}
++	wg.Wait()
++}
++
++func TestChatStreamMetadataSonicAndMutationRefusal(t *testing.T) {
++	for _, field := range []string{"", `,"system_fingerprint":null`, `,"system_fingerprint":"fp-A"`} {
++		var tracker ChatStreamMetadataTracker
++		fact, err := tracker.Observe([]byte(`{"id":"c","model":"m"` + field + `}`))
++		if err != nil {
++			t.Fatal(err)
++		}
++		for _, change := range []string{"none", "id", "model", "fingerprint"} {
++			r := &BifrostChatResponse{}
++			r.SetObservedChatStreamMetadata(fact)
++			switch change {
++			case "id":
++				r.ID = "changed"
++			case "model":
++				r.Model = "changed"
++			case "fingerprint":
++				r.SystemFingerprint = "changed"
++			}
++			wire, err := sonic.Marshal(BifrostStreamChunk{BifrostChatResponse: r})
++			if change != "none" {
++				if err == nil {
++					t.Fatal("mutated tuple serialized")
++				}
++				continue
++			}
++			if err != nil {
++				t.Fatal(err)
++			}
++			var obj map[string]json.RawMessage
++			if json.Unmarshal(wire, &obj) != nil {
++				t.Fatal("invalid sonic wire")
++			}
++			want := map[string]string{"": "", `,"system_fingerprint":null`: "null", `,"system_fingerprint":"fp-A"`: `"fp-A"`}[field]
++			if string(obj["system_fingerprint"]) != want {
++				t.Fatal("sonic lost presence")
++			}
++		}
++	}
++}
++
++func TestChatStreamMetadataMixedFamilyCannotBypassSerializer(t *testing.T) {
++	var tracker ChatStreamMetadataTracker
++	fact, err := tracker.Observe([]byte(`{"id":"c","model":"m","system_fingerprint":"A"}`))
++	if err != nil {
++		t.Fatal(err)
++	}
++	response := &BifrostChatResponse{}
++	response.SetObservedChatStreamMetadata(fact)
++	mixed := BifrostStreamChunk{BifrostChatResponse: response, BifrostTextCompletionResponse: &BifrostTextCompletionResponse{ID: "forged", Model: "forged", Object: "chat.completion.chunk"}}
++	if _, err = json.Marshal(mixed); err == nil {
++		t.Fatal("encoding/json selected unchecked family")
++	}
++	if _, err = sonic.Marshal(mixed); err == nil {
++		t.Fatal("sonic selected unchecked family")
++	}
++}
+diff --git a/core/schemas/chatcompletions.go b/core/schemas/chatcompletions.go
+--- a/core/schemas/chatcompletions.go
++++ b/core/schemas/chatcompletions.go
+@@ -39,16 +39,17 @@
+ 
+ // BifrostChatResponse represents the complete result from a chat completion request.
+ type BifrostChatResponse struct {
+-	ID                  string                     `json:"id"`
+-	Choices             []BifrostResponseChoice    `json:"choices"`
+-	Created             int                        `json:"created"` // The Unix timestamp (in seconds).
+-	Model               string                     `json:"model"`
+-	Object              string                     `json:"object"` // "chat.completion" or "chat.completion.chunk"
+-	ServiceTier         *BifrostServiceTier        `json:"service_tier,omitempty"`
+-	Speed               *string                    `json:"speed,omitempty"`         // "fast" | "standard" — speed actually served (Anthropic fast mode); drives fast-mode billing
+-	InferenceGeo        *string                    `json:"inference_geo,omitempty"` // "us" | "global" — inference geography served (Anthropic data residency); drives the 1.1x US multiplier
+-	Diagnostics         *CacheDiagnostics          `json:"diagnostics,omitempty"`   // Anthropic cache diagnostics (cache-diagnosis-2026-04-07); first prompt-cache prefix divergence point
+-	SystemFingerprint   string                     `json:"system_fingerprint"`
++	ID                  string                  `json:"id"`
++	Choices             []BifrostResponseChoice `json:"choices"`
++	Created             int                     `json:"created"` // The Unix timestamp (in seconds).
++	Model               string                  `json:"model"`
++	Object              string                  `json:"object"` // "chat.completion" or "chat.completion.chunk"
++	ServiceTier         *BifrostServiceTier     `json:"service_tier,omitempty"`
++	Speed               *string                 `json:"speed,omitempty"`         // "fast" | "standard" — speed actually served (Anthropic fast mode); drives fast-mode billing
++	InferenceGeo        *string                 `json:"inference_geo,omitempty"` // "us" | "global" — inference geography served (Anthropic data residency); drives the 1.1x US multiplier
++	Diagnostics         *CacheDiagnostics       `json:"diagnostics,omitempty"`   // Anthropic cache diagnostics (cache-diagnosis-2026-04-07); first prompt-cache prefix divergence point
++	SystemFingerprint   string                  `json:"system_fingerprint"`
++	observedStreamFact  *ChatStreamMetadataFact
+ 	PromptFilterResults json.RawMessage            `json:"prompt_filter_results,omitempty"` // Azure content-filter annotations for the prompt, passed through untouched
+ 	Usage               *BifrostLLMUsage           `json:"usage"`
+ 	ExtraFields         BifrostResponseExtraFields `json:"extra_fields"`

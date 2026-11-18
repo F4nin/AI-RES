@@ -1,0 +1,15 @@
+# ADR-137 — Защищённая конфигурация candidate Bifrost
+
+**2026-11-18, ACCEPTED technical scope**, поручение владельца «Продолжай реализацию» после native audit ADR136. Подготовка G156, не старт G02 и не human Bifrost/model approval.
+
+Изолированный audit воспроизвёл admin mutation live/SQLite при неизменных template/rendered/image/inspect. Redacted admin GET не представляет весь effective state. Для технического candidate-прогона выбран отдельный hardened build поверх того же pinned source и прежнего fingerprint patch. Предыдущие SDK build/manifest и mutable audit остаются воспроизводимыми; official image и основной Compose не заменяются.
+
+До LoadConfig требуется свежий `/app/data`: только regular bounded0600 `config.json`, без DB/WAL/SHM/marker/других файлов. Exact rendered bytes проверяются по compiled template digest и трём mounted credentials. Store остаётся включённым: nil store обходит существующую inference auth. Отдельный launcher очищает inherited environment и выполняет штатный renderer без удаления существующих данных.
+
+Compile-time outer HTTP guard допускает только точные original URI/method `GET /health` и `POST /v1/chat/completions`, до normalization/CORS/router. Управляющие, UI, integration и альтернативные пути закрыты без переключателя. Перед разрешённым запросом проверяются исходные mounted/rendered bytes, full live client/provider/framework snapshot и read-only consistent logical SQLite snapshot со schema/typed rows. Несовпадение/ошибка защёлкивает отказ; восстановление bytes не снимает его. Начальный вариант не исключает таблицы/колонки; любое допустимое operational exclusion требует source+native evidence и отдельной фиксации, не ослабляет безопасность ради зелёного теста.
+
+После успешного bootstrap и capture invariants создаётся несекретный marker version/crypto-random boot nonce/config SHA. Trusted development host проверяет marker/actual namespace digests/health фиксированным bounded Docker exec, связывает с exact image, source, launch config и State.StartedAt. Descriptor0.2 требует точный expectedIntegritySha256 и новый review;0.1 не включается автоматически. Проверка встроена в общий gate до reserve/probe и непосредственно перед onceclaim. Settlement сохраняется после отзыва gate.
+
+Это проверка наблюдаемой целостности в доверенном dev host, не криптографическая attestation и не защита от произвольного исполнения кода/компрометации Docker host. Окно check→dispatch и необнаруженное изменение с возвратом между наблюдениями не объявляются исключёнными. DB read transaction завершается до HTTP/provider execution. Никакие реальные ключи/accounts/tariffs/approvals или расходы этим решением не создаются.
+
+Обязательны Go/unit/race/SQL corruption+mutation/live-state/URI tests, bounded observer failure/cancel tests, host pre-reserve/preclaim/settlement/restart/actual mount namespace tests, native hardened image с fake provider и regression прежнего mutable audit. Independent general/Go/Python/security review, source/build provenance и checkpoint evidence сохраняются. Нормативные документы, frozen0020–24 и main stack не меняются. Полный G156/pre-pr/LinuxCI/live/human/SLICE остаются отдельными gates.
