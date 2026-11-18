@@ -1,0 +1,56 @@
+{
+  "status": "FINAL_LOCAL_GATES_PASSED_CI_PENDING",
+  "headAtExecution": "5bc8324e967713a607c93f20d54cb3fc57e76fcb",
+  "workingDiff": true,
+  "environment": {
+    "system": "Darwin",
+    "machine": "arm64",
+    "python": "3.13.5",
+    "opensslForProcess": "3.6.3"
+  },
+  "prePr": {
+    "command": "env PATH=/opt/homebrew/opt/openssl@3/bin:$PATH make -j1 pre-pr",
+    "exitCode": 0,
+    "contractsPassed": 22,
+    "renovatePassed": 10,
+    "backendPassed": 3228,
+    "backendWarnings": 541,
+    "backendSeconds": 755.9,
+    "infraPassed": 369,
+    "infraSeconds": 147.21,
+    "runtimePassed": 148,
+    "runtimeSeconds": 144.96,
+    "llmPocPassed": 19,
+    "failures": 0,
+    "skipped": 0,
+    "note": "Runtime cases also execute within infra suite; counts are executions, not a unique-test sum. PoC performed no external model request."
+  },
+  "runtimeAudit": {
+    "command": "make backend-audit",
+    "exitCode": 0,
+    "knownVulnerabilities": 0
+  },
+  "imageDigests": {
+    "command": "make infra-verify-digests",
+    "exitCode": 0,
+    "pins": 21,
+    "mismatches": 0
+  },
+  "mfaCompat": {
+    "command": "explicit external helper pytest + project-config Ruff",
+    "passed": 28,
+    "exitCode": 0,
+    "seconds": 0.12
+  },
+  "logSha256": {
+    "prePr": "f15b441f347e76584f3ed766a2057474e079f359846eb6bafad70bff7b0aabc1",
+    "runtimeAudit": "5f056d32f594972ff385137aef763fba9aa13c647d008f8bbe6255d0558920cd",
+    "imageDigests": "bee7eecf2d8ab1b0d6b93951be74086962533ada9ed31b3bd9304016bdf6d27c"
+  },
+  "frozenToolEvidence": "SLICE-01_TOOLING_EVIDENCE_V3.json",
+  "liveEvidence": "SLICE-01_LIVE_EVIDENCE_V3.json",
+  "pending": [
+    "Exact new Linux CI including additional security/supply-chain jobs.",
+    "Commit/push/PR/merge delivery; no deployment authorization."
+  ]
+}

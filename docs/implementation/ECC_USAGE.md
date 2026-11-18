@@ -1,5 +1,31 @@
 # ECC_USAGE — использование Everything Claude Code
 
+## SLICE-01 — 2026-11-18
+
+| Роль | Фактическая работа | Результат и независимость |
+|---|---|---|
+| Root | Scope/интеграция/host composition/native fixture, реальные tests/model calls; прочитанные planner/python-testing/verification-loop checklists | Успешный V3; исполнял проверки, не выдавал личные approvals |
+| slice_budget_transport | Автор ledger/tests; отдельный read-only security/database review чужих host/producer/owner/requirements/MFA | 83 ledger tests; final APPROVE/open0 на чужом source |
+| slice_runtime_plan | Автор relay/tests; read-only architecture/Python/requirements/ledger/host review; полное чтение45startupfiles | 62 relay tests; final delta APPROVE, свои файлы не утверждал |
+| slice_requirements_design | Автор requirements/prompts/owner/capture/совместимости MFA и tests; read-only review чужих ledger/relay | Auth/PG/capture/JSON/grounding regressions; свои изменения проверены другими |
+
+Review исправил конкретные дефекты: missing freeze/schema/image binding, потерю
+диагностики, live-controls race window, runtime drift во время human review,
+JSON-escaped secrets до quarantine, неполную схему промпта и line offset.
+V3 validators остались строгими; actual response не нормализовался для принятия.
+MFA helper больше не читает localizeddetail и не повторяет OTP автоматически.
+
+Root final local evidence: V2scope371PASS/35.52s, V3affected87PASS/22.35s,
+fast1896PASS/4warnings/15.12s, explicitmypy10PASS, scanner0, helper28PASS/0.12s.
+Полный pre-pr выполняется, новый CI ещё pending. Реальные SLICEcalls6, известный
+консервативный расход0.0032058USD; роли/review не подменяют эти факты.
+[Отчёт](increments/SLICE-01_requirements_experiment_REPORT.md), tooling/live evidenceV1–V3.
+
+Ранний preflight147tests+19disabled-relay checks и MFA resume20tests сохранены в
+отдельных evidence, это исторические исполнения с прежними hashes. Авторы не
+подменяли независимое review. Native Claude agents/slashcommands/hooks, независимый
+продуктовый WorkerQA, semantic quality и production certification не имитировались.
+
 ## G156 / ADR141 — observed product wiring и полный human approval path
 
 Root восстановил действующее поручение/known draft, применил прочитанные локальные

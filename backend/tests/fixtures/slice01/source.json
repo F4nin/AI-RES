@@ -1,0 +1,13 @@
+{
+  "sourceId": "TD-06",
+  "repository": "https://github.com/realworld-apps/realworld",
+  "commit": "25588846c314b15a5e427ffe816e6b4af7be68c7",
+  "upstreamPath": "docs/src/content/docs/specifications/frontend/routing.md",
+  "license": "MIT",
+  "checkedAt": "2026-11-18",
+  "sourceSha256": "65fbd975a3ab2021057b1c1944cf66418aa846039e51b166d2a98eb29e7169fb",
+  "licenseSha256": "12714b2d6887e8c850f13faaf294e52a04eb485ec2ad6fa367d4431d72d0aaf5",
+  "classification": "INTERNAL",
+  "content": "public demonstration application requirements; no project private source",
+  "caveat": "May be present in model training; schema/grounding are not absolute quality evidence"
+}

@@ -1,5 +1,14 @@
 # KNOWN_GAPS
 
+**SLICE-01, 2026-11-18:** локальный реальный эксперимент TESTED: profile/MFA,
+общий лимит10USD, actual governed result и grounding доказаны. V1 diagnostic loss
+устранён; V2 JSON/line-offset нарушения стали regression tests, V3 прошёл. Это не
+оценка полноты требований или production readiness; один публичный MIT документ
+мог входить в обучение. Полный pre-pr/newLinuxCI/доставка пока pending.
+[Отчёт](increments/SLICE-01_requirements_experiment_REPORT.md). Исторические ниже
+«SLICE не начинать/MFA не завершена» относятся к прежнему STOP, не к текущему поручению.
+
+
 **Final local gates:** contracts22/Renovate10/backend2853/fast1538/PG31/infra369/
 runtime148/PoC19PASS; scanner0findings; rebuiltAPI14reviewedfiles/0hashmismatch и
 trustedTLS admin login/logout PASS. Pre-pr scanner false positives исправлены,

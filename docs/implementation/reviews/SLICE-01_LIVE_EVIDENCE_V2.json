@@ -1,0 +1,78 @@
+{
+  "version": "slice01-live-evidence/2",
+  "status": "V2_GOVERNED_RESPONSE_REJECTED_CAUSE_DIAGNOSED",
+  "manifestSha256": "31e6af75a207d1c84826d81789f510a991e1803407cfeaea2ffe0fab64e415c6",
+  "parentManifestSha256": "5252af2b7fed7a5f03c9f6d742549ab675fdecb2fc55998730577302bb993315",
+  "managedVersions": {
+    "codeRevision": "5bc8324e967713a607c93f20d54cb3fc57e76fcb",
+    "configSha256": "0799ec95782db40222e139b1eb0b33002fd8c046dae872807619cc94cb250cea",
+    "profileId": "01a1ef1f-5182-70f8-8dda-603e33876b8b",
+    "profileVersion": 1,
+    "promptSha256": "5ee34e4a8b960a1b6a9df11ea03802035f45a7220574b4ecc3e46ccc41c07651",
+    "toolsSha256": null
+  },
+  "profileStatus": "APPROVED",
+  "originalProfileApprovalUnchanged": true,
+  "requestedGeneration": 2,
+  "bootstrap": {
+    "latencyMs": 1140,
+    "observationSha256": "de08a7cbe5a6562fb8a16b54ccdba22755174470804f5ab5ff80aeaecb18f007",
+    "profileId": "01a1ef1f-5182-70f8-8dda-603e33876b8b",
+    "remainingUSD": "9.9985621",
+    "requestRef": "slice01-probe-0ab8bb4f24ed4e2ea56e97e0d8e38079",
+    "status": "CONFIGURATION_OBSERVED_IDENTITY_REVIEW_REQUIRED",
+    "usage": {
+      "inputTokens": 44,
+      "outputTokens": 1
+    },
+    "usedOrReservedUSD": "0.0014379"
+  },
+  "observation": {
+    "identity": {
+      "fingerprint": {
+        "presence": "VALUE",
+        "value": "bc19ba97cbe016479903222bb1578db6"
+      },
+      "provider": "deepseek",
+      "requestModelId": "deepseek-flash",
+      "responseModelId": "deepseek-flash",
+      "routingModelId": "deepseek-flash"
+    },
+    "kind": "OBSERVATION",
+    "managedVersions": {
+      "codeRevision": "5bc8324e967713a607c93f20d54cb3fc57e76fcb",
+      "configSha256": "0799ec95782db40222e139b1eb0b33002fd8c046dae872807619cc94cb250cea",
+      "profileId": "01a1ef1f-5182-70f8-8dda-603e33876b8b",
+      "profileVersion": 1,
+      "promptSha256": "5ee34e4a8b960a1b6a9df11ea03802035f45a7220574b4ecc3e46ccc41c07651",
+      "toolsSha256": null
+    },
+    "observedAt": "2026-11-18T17:01:43.608600Z",
+    "providerRequestRef": "54f9e953-278c-454b-b02a-2c916e08eaff",
+    "requestRef": "slice01-probe-0ab8bb4f24ed4e2ea56e97e0d8e38079",
+    "schemaVersion": "0.2"
+  },
+  "providerCallsAllVersions": 4,
+  "usedOrReservedUSDAllVersions": "0.0021957",
+  "remainingUSD": "9.9978043",
+  "oneOriginalWallet": true,
+  "initialCeilingUSD": "10",
+  "historyReset": false,
+  "automaticRetries": 0,
+  "fallbacks": 0,
+  "decisionId": "5b422414-3c59-4169-91ec-51f42df46ecf",
+  "approvalAction": "ACCEPT_IDENTITY",
+  "identityAccepted": true,
+  "acceptanceSha256": "778d8535ab296592b2784e0f9c0aedc08c5e1850166b4743baf47df9cfe3ed7c",
+  "requirementsV2Performed": true,
+  "providerBillingVerified": false,
+  "limitations": [
+    "V1 extraction call refused and original cause was not retained.",
+    "This observation is new exact-code/config/prompt evidence, not rebinding V1 facts.",
+    "Quarantine artifacts are private/untrusted until validation.",
+    "Full pre-pr/new exact Linux CI remain outstanding."
+  ],
+  "requirementsResultAccepted": false,
+  "failureDiagnosis": "SLICE-01_V2_FAILURE_DIAGNOSIS.json",
+  "runtimeStopped": true
+}

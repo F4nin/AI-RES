@@ -1,5 +1,20 @@
 # DECISIONS_PENDING — только решения владельца проекта / security owner
 
+## SLICE-01 — решения владельца 2026-11-18: CLOSED / ACCEPTED
+
+Разрешено начать SLICE и нормально тестировать готовую основу, **10 USD суммарно**
+на SLICE, ожидаемый расход существенно ниже. Старый technical10USD/8attempt account
+не обнуляется и не расширяется. Повторное budget approval не требуется.
+
+Ответ «Делаем по твоей рекомендации» утвердил allowed_regions=[cn] для первого
+DeepSeek профиля, только обычные INTERNAL-данные без ПДн/коммерческой тайны.
+Это не location pin. Первоначальный CANDIDATE создан audited maintenance job;
+затем владелец лично подключил MFA, подтвердил profile/Bifrost и три версии identity.
+Фактический итог: APPROVEDprofile1/version1, generation3; sixcalls0.0032058USD,
+remaining9.9967942, unknown0. [Результат](reviews/SLICE-01_RESULT.json).
+Нового owner-решения для завершения тестов/согласованной Git-доставки не требуется.
+Requirement/Baseline approval и production deployment этим не предоставлены.
+
 ## Завершить допуск в MVP — уточнение владельца2026-11-18
 
 Владелец потребовал закончить допуск как конечный MVP-результат, выполнить необходимые

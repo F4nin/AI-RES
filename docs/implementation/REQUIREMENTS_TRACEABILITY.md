@@ -1,5 +1,20 @@
 # REQUIREMENTS_TRACEABILITY
 
+## SLICE-01 / ADR-115 и ADR-142 — 2026-11-18
+
+| Основание | Реализация/проверка | Evidence |
+|---|---|---|
+| ADR-115: документ → LLMGatewayPort → WorkerResult → owner view | scripts/slice01/producer.py, requirements.py; строгие S14/quote/type checks | SLICE-01_RESULT.json, live evidenceV3 |
+| DOC-007 v1.1 WORKING | Две точки validation, exact IDs/sourceVersion/checksum/строки, без автоматического исправления | test_slice01_requirements.py; 84 targeted unit, реальный V3 |
+| DOC-076 v1.1 §3.1/7, IAM/Auth | Existing guarded gateway/admission/owner services; личный exact identity generation1–3 | PG slice tests, native tests, actual audited approvals |
+| Утверждённый owner budget10USD | Один ledger, append versions, reserve/ARM/claim, known/UNKNOWN fail-closed | test_slice01_ledger.py83; 6knowncalls/0.0032058USD |
+| Secrets/observability boundaries | Prewrite bounded secret screening, private quarantine, machine diagnostics | producer/capture negative tests; logs без source/results |
+| TEST_DATA_SOURCES TD-06 | MIT RealWorld immutablecommit, text/checksum не изменялись | fixtures/slice01/source.json, V3line7 |
+
+Статус TESTED, финальные pre-pr/CI/доставка pending. Это development experiment;
+не WorkerRun/ReadinessGate и не подтверждение semantic completeness/requirement approval.
+[Отчёт](increments/SLICE-01_requirements_experiment_REPORT.md). История ниже.
+
 **G156 / ADR141, 2026-11-18:** DOC076 v1.1 §3.1/7 → explicit governed Flash
 observed composition + durable begin/finalize + bounded SSE + final authorization;
 reverse identity/ref/terminal inconsistency blocks result/next call. PG10PASS и

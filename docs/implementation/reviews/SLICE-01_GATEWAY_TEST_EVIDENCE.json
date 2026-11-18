@@ -1,0 +1,95 @@
+{
+  "date": "2026-11-18",
+  "head": "5bc8324e967713a607c93f20d54cb3fc57e76fcb",
+  "branch": "feat/g02-manager-tools-planning",
+  "codeDiff": "none; existing and current changes are implementation documents/evidence only",
+  "environment": {
+    "os": "Darwin arm64",
+    "python": "3.13.5",
+    "uv": "0.11.31",
+    "dockerClient": "29.2.0",
+    "postgres": "Compose pinned PostgreSQL16; integration uses same pinned image in disposable Testcontainers"
+  },
+  "suites": [
+    {
+      "command": "uv run --locked pytest -q tests/unit/test_observed_gateway.py tests/unit/test_profile_approval.py tests/unit/test_llm_gateway.py tests/integration/postgres/test_observed_gateway.py tests/integration/postgres/test_profile_approval.py --tb=short --junitxml=/tmp/slice01-existing-gateway.xml",
+      "cwd": "backend",
+      "exitCode": 0,
+      "tests": 131,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "junitSeconds": "18.088",
+      "byClass": {
+        "tests.unit.test_observed_gateway": 27,
+        "tests.unit.test_profile_approval": 16,
+        "tests.unit.test_llm_gateway": 57,
+        "tests.integration.postgres.test_observed_gateway": 10,
+        "tests.integration.postgres.test_profile_approval": 21
+      },
+      "httpProvider": "mock transport / no paid provider",
+      "approval": "synthetic fixtures only"
+    },
+    {
+      "command": "uv run --locked pytest -q tests/unit/test_model_profile_cli.py --tb=short --junitxml=/tmp/slice01-approval-cli.xml",
+      "cwd": "backend",
+      "exitCode": 0,
+      "tests": 16,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "junitSeconds": "0.139",
+      "byClass": {
+        "tests.unit.test_model_profile_cli": 16
+      },
+      "httpProvider": "mock transport / no paid provider",
+      "approval": "synthetic fixtures only"
+    }
+  ],
+  "runtime": {
+    "command": "make llm-poc-check",
+    "exitCode": 0,
+    "passed": 19,
+    "failed": 0,
+    "providerCalls": 0,
+    "relay": "disabled",
+    "evidence": "live Docker topology/HTTP/auth/log checks; no direct external route"
+  },
+  "devDatabase": {
+    "transaction": "READ ONLY; final complete transaction exit0",
+    "migrationHead": "c97e3bf386f1",
+    "users": 1,
+    "activeMfaFactors": 0,
+    "modelProfiles": 0,
+    "ownerBindings": 0,
+    "earlierReadFailures": [
+      "psql authentication without password refused",
+      "public.alembic_version absent; correct schema is platform; failed read-only transaction rolled back"
+    ]
+  },
+  "authorization": {
+    "sliceTestingCeilingUSD": "10",
+    "basis": "explicit owner instruction in current conversation",
+    "targetSpend": false,
+    "priorTechnicalAccountReset": false,
+    "newBudgetEnforcement": "not yet composed; no real SLICE dispatch performed"
+  },
+  "thisSessionProviderCalls": 0,
+  "thisSessionSpendUSD": "0",
+  "sourceSha256": {
+    "backend/src/ai_res/llm/factory.py": "1d5ae2115d9766737bba1a4f1d9f799ec40f14f23642358c9537667f746d0fef",
+    "backend/src/ai_res/llm/gateway.py": "c73c2781e871cc07d5974b18c314c65e1322805c701fcf57b0c4f71ccde38286",
+    "backend/src/ai_res/llm/budget.py": "f14b38b7eda09e7c614e4460a7048e54a7eb42e4598505890b14d683818dabaa",
+    "backend/src/ai_res/llm/candidate_payload.py": "edf7a9c9682e6e2c0d97e5315acf374ff59146200e01c55ad6612a7c5614e37b",
+    "backend/src/ai_res/cli/model_profile.py": "f58e30f37ee43914011fc7bad78a545f526e4c497e092c7f53646903bc306f56",
+    "backend/src/ai_res/modules/model_registry/profile_approval.py": "16b6f6c82428186e134d159b03c5c262bcb7752888e6b8f674e69f84daf5a35a",
+    "infra/scripts/check_llm_poc.py": "a8e31a93ddc77c7d1ba1c5cdded155f40852a5f9ed4e30d34f2a8665b26ad423"
+  },
+  "limitations": [
+    "No live DeepSeek Requirements result",
+    "No SLICE runner implemented",
+    "No real human MFA/profile approval",
+    "Tested gateway and owner approval with synthetic HTTP/evidence, real PostgreSQL",
+    "No full pre-pr, new Linux CI, commit/push/merge"
+  ]
+}

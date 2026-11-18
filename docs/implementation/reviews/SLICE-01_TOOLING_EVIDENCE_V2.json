@@ -1,0 +1,74 @@
+{
+  "toolHashes": {
+    "__init__.py": "ca3ebaad8d821d3899cbf4da4618f2cd330758f331c186eff7bfe2af7671b2c7",
+    "cli.py": "d0d9fab4225037613889e4a255c5fb330cfcad064ad9d4d0812561dba56cda30",
+    "common.py": "8c804d22af7ab4b50e9abd8de9be2deb48fa5259fab6394f1c5888b0c6bcab99",
+    "ledger.py": "8294ab2990cdde8638ecfec05664ad7e6e989bdb0864a8c6fd6758b1aa4537ba",
+    "owner.py": "6ccd722e6c10dc5b8dfea3975e399b19bd439c7d7c8630d5fcb705a366d33410",
+    "prepare.py": "3df66df90e3a1dd5f9d30314edf42d075018c753f0dab3825d268e5e56e1de6a",
+    "producer.py": "6b6550158cfd98aef8336c7004ab9652ebe6fcfd071360a96ffcabc28f761bf1",
+    "relay.py": "a9cfc7a47162f519a39134178548d9fa7dc592cbeab512c1c77057322ffef6b1",
+    "requirements.py": "cad9edae0fc1a8b6314786887739386c039fe48592a87a9c5a3cba3b4cc2c913",
+    "runtime.py": "07df4dad39fb912f162a6a26a92efc8aaea9a3a4701f0aba32c3ca23acfd6f8b"
+  },
+  "scriptsInitializerSha256": "aa4786afbf9c1d060b725971fd4e05794428e53f07f54a906818994d38e5e29c",
+  "bifrostImage": "sha256:c52717deb74c85d4980e0710464a76942ec091daacdb1e11d266ab1e068864a9",
+  "nativeInputs": {
+    "/etc/bifrost/config.template.json": "0f32a762803448713ffd37f8133fc908525b16924f8e127040a0ade089c08dcd",
+    "/etc/bifrost/mcp-library.json": "f50554138e46027989b734d3a99517c32a88bc1a60b60b63431f12286be72929",
+    "/etc/bifrost/model-parameters.json": "a4896e1e4eb3556d2199a065cf00bc8b02d4f1f8afb09d13ee3bf2c747017d31",
+    "/etc/bifrost/pricing.json": "12540d917c48de634a5f404bd6a47ef742d05b8f4d6dff4ba0c225af18319493",
+    "/poc/start-bifrost.sh": "0376f37cd2e4facdaaa7a76fd595519027df83d14090dd12cdd2de1c50bcc325"
+  },
+  "librarySha256": "cb61ec2032c8202d0969f217f0b2a6dc93faf45734498b999e3bf23606d8b664",
+  "workerContractSha256": "b45d5f2370fa78089772db5cce7452312cc9aa23a8a01aef83ffd209d05dcef9",
+  "version": "slice01-tooling-evidence/2",
+  "status": "LOCAL_CHECKS_PASSED",
+  "head": "5bc8324e967713a607c93f20d54cb3fc57e76fcb",
+  "workingDiff": true,
+  "environment": {
+    "system": "Darwin",
+    "machine": "arm64",
+    "python": "3.13.5"
+  },
+  "tests": {
+    "command": "uv run --locked pytest tests/unit/test_slice01_*.py tests/integration/test_slice01_bifrost.py tests/integration/postgres/test_slice01_owner.py tests/integration/postgres/test_slice01_producer.py -q --tb=short --maxfail=1 --junitxml=/tmp/slice01-v2-final.xml",
+    "exitCode": 0,
+    "seconds": 35.52,
+    "reportSha256": "0008fdfa0950d4595ebd00d07906c206835e66c153aaeb9ca7578585ec947aa3",
+    "tests": 371,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "fast": {
+    "command": "make pre-push-fast",
+    "exitCode": 0,
+    "passed": 1892,
+    "warnings": 4,
+    "seconds": 14.36
+  },
+  "typeCheck": {
+    "command": "uv run --locked mypy --strict --follow-untyped-imports scripts/slice01",
+    "exitCode": 0,
+    "modules": 10
+  },
+  "secrets": {
+    "command": "make infra-scan-secrets",
+    "exitCode": 0,
+    "findings": 0
+  },
+  "review": {
+    "ledger": "independent APPROVE exact8294ab29; cap/history/parent/oldrefs preserved",
+    "host": "two independent source passes APPROVE current hashes; shared wallet, stopped parent, explicit activation/action",
+    "producerOwnerRequirements": "independent architecture+security/database APPROVE; bootstrap livecontrols and recursive capture screening findings closed"
+  },
+  "limitations": [
+    "Local tests; full pre-pr/new exact Linux CI still outstanding.",
+    "Native Bifrost/relay/capture test uses synthetic upstream and no realhuman approval.",
+    "Actual disposable PostgreSQL tests use plaintext TCP adapter; no TLS claim from these tests.",
+    "Deterministic schema/literal citation checks do not establish semantic requirement quality.",
+    "Version2 paid observation and exact human identity acceptance remain required.",
+    "V1 provider response was not retained; original refusal cause remains unknown."
+  ]
+}

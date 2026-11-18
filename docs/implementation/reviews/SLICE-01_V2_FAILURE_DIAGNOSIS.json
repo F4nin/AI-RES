@@ -1,0 +1,16 @@
+{
+  "status": "REJECTED_DIAGNOSED_NOT_ACCEPTED",
+  "requestRef": "slice01-run-3a1c522e8c094232b036e981cd42d149",
+  "quarantineSha256": "86d57cc7b652970eaae3ce609a73902d1730c0d956fafb4ca841064115977387",
+  "producerReason": "RESULT_REJECTED",
+  "outerProblem": "Two standalone JSON documents instead of workerResult/findingTypes outer object.",
+  "canonicalWorkerResultComponent": "S14 validation passed independently; no publication.",
+  "groundingProblem": {
+    "declaredLocator": "lines:12-12",
+    "actualQuotedLine": 15,
+    "frontmatterLines": 3,
+    "quote": "Delete article button (only shown to article's author)"
+  },
+  "offlineReconstruction": "Joining the two documents for diagnostic validation still failed UNGROUNDED_FINDING. No normalization was accepted or published.",
+  "remedy": "Prompt3 explicit single outer JSON example; source.numberedLines derived from unchanged source; strict validators unchanged."
+}

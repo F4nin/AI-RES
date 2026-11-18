@@ -1,5 +1,17 @@
 # IMPLEMENTATION_STATUS
 
+**SLICE-01: TESTED, финальная доставка IN_PROGRESS (2026-11-18).** Реальный governed
+прогон V3 прошёл WorkerResult1.1, provenance, quote/line7, typeFR и secret checks.
+[Результат](reviews/SLICE-01_RESULT.json), [отчёт](increments/SLICE-01_requirements_experiment_REPORT.md).
+6 calls/0.0032058USD/remaining9.9967942 из разрешённых10USD, UNKNOWN/pending0.
+MFA и личные profile/identity approvals фактические; APPROVED1/version1/generation3,
+profile approval audit1. Старый account/runtime сохранён. Product/contracts/schema без diff.
+V2scope371PASS, V3affected87PASS, fast1896PASS/4warnings, mypy10PASS,secrets0;
+MFAcompat28PASS, independent reviewsAPPROVE/open0. Fullpre-pr PASS (backend3228/infra369/runtime148/PoC19),
+newLinuxCI/Gitdelivery pending; VERIFIED пока не заявляется. S17/G02 не начаты.
+Исторические статусы ниже не отменяют этого checkpoint.
+
+
 **Final local gates:** contracts22/Renovate10/backend2853/fast1538/PG31/infra369/
 runtime148/PoC19PASS; scanner0findings; rebuiltAPI14reviewedfiles/0hashmismatch и
 trustedTLS admin login/logout PASS. Pre-pr scanner false positives исправлены,
@@ -252,7 +264,7 @@ Commit/push/PR/newCI нет. Ниже исторические checkpoints, ак
 | DEP-01 | Renovate: настройка конфига и автоматические PR обновлений (мини-этап вне нумерации S, ADR-113/121) | DONE по решению владельца (2026-11-17); config VERIFIED, PR #25 MERGED `89d5a86`: strict+10 cases/18 deps, pre-pr exit0, 20 registry pins/0 mismatch, code/security reviews+delta 0 findings. PR/push и отдельный post-merge Linux CI success: backend1301, infra-static159, runtime148, contracts22, Renovate10 passed; failed/errors/skipped0; все дополнительные gates success | Закрыт владельцем перед очисткой контекста. App installation/onboarding и первый hosted run NOT VERIFIED, отдельный follow-up G-31; факт настройки Mend не утверждается. Alerts включены/проверены. Следующий этап — по новой команде и ROADMAP/ADR | [report](increments/DEP-01_renovate_dependency_updates_REPORT.md) |
 | ARCH-01 | Контракты import-linter между доменными модулями (мини-этап вне нумерации S, ADR-114/120) | VERIFIED (2026-11-17): 14 kept/0 broken, 10 новых тестов; локальный pre-pr exit 0: backend 1301, contracts 22, infra 307, отдельный runtime 148 passed, 0 failed/errors/skipped; два независимых review — 0 findings. Linux CI зелёный на `1a45c4e` (PR #23: ci 44060321034/44060255903, contracts 44060321079/44060255864). MERGED `fe8b79b`, отдельные post-merge ci 44061994966 / contracts 44061994778 также success: backend 1301, infra-static 159, runtime 148, contracts 22; все дополнительные gates success | DONE (ADR-032); очередь S16/SLICE-01 перед S17 сохраняется | [report](increments/ARCH-01_domain_import_contracts_REPORT.md) |
 | PROF-01 | Профили запуска Compose: dev-минимум и полный, метрики/дашборды в обоих (мини-этап вне нумерации S, ADR-116) | NOT_STARTED | PENDING_DEPS (после CI-01) | — |
-| SLICE-01 | Тонкий экспериментальный прогон Requirements Worker с реальной моделью (мини-этап между S16 и S17, ADR-115) | NOT_STARTED | BLOCKED (нет допущенного реального профиля, OD-01/21/G-156; технический S16 DONE. Лимит10USD S16 не разрешает расходы SLICE-01) | — |
+| SLICE-01 | Тонкий экспериментальный прогон Requirements Worker с реальной моделью (мини-этап между S16 и S17, ADR-115) | TESTED | Реальный V3 прошёл; MFA/profile/identity approval фактические, 6 calls/0.0032058USD; финальные pre-pr/CI и доставка IN_PROGRESS | [report](increments/SLICE-01_requirements_experiment_REPORT.md) |
 
 ## Компоненты runtime
 

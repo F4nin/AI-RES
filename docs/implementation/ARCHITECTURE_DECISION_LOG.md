@@ -1,5 +1,14 @@
 # ARCHITECTURE_DECISION_LOG
 
+## ADR-142 — ограниченная tooling composition SLICE-01
+
+**ACCEPTED technical scope,2026-11-18.** [Решение](decisions/ADR-142-slice01-experimental-composition.md):
+не менять product code/старый synthetic-only candidate/account; standalone
+Requirements tool, frozen template/code/config refs, отдельные exact-request
+relay и durable tooling10USD ledger, truthful quarantined candidate observation,
+затем личное audited identity/Bifrost/profile approval и итоговый governed call.
+MFA/profile/identity лично подтверждены, реальный эксперимент прошёл; полный VERIFIED ожидает финальные gates/доставку.
+
 Единый журнал архитектурных и технических решений реализации AI RES (ненормативный). Статусы: PROPOSED, ACCEPTED, REJECTED, SUPERSEDED. Решения в пределах полномочий Implementation Lead регистрируются как ACCEPTED. Решения, меняющие нормативные документы, оформляются как NCP в `decisions/NORMATIVE_CHANGE_PROPOSALS.md` и не считаются утверждёнными до решения владельца. Подробные материалы крупных решений — `decisions/`. `docs/adr/` не используется (`.claude/rules/ecc-precedence.md`).
 
 Сводка: 73 записей; все ACCEPTED.
