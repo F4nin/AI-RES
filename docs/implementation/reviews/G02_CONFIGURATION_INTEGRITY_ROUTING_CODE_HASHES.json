@@ -1,0 +1,6 @@
+{
+  "backend/tests/integration/test_bifrost_candidate_integrity.py": "2f05b5508e7273ea5c203f64d4497f6d089687a9f0b3a1ba85e03c1a86a1b251",
+  "infra/llm_poc/bifrost_integrity/build.py": "bbd48ba7c822a4aebad1db369eba5c3631c798529cc127c0b51d55e251bc8155",
+  "infra/llm_poc/bifrost_integrity/integrity.patch": "28de6abb97d2416fa4ab71038f47381e7e8466a8dc2848705dc14a3d243b711e",
+  "infra/llm_poc/bifrost_integrity/manifest.json": "9ad4167e3bd91934e05990949f15fc143d419c6d66215b06f7192fdb9df154f8"
+}

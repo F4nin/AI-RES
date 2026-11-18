@@ -2368,3 +2368,10 @@ block + atomic append-only global decision audit. No profile activation. Additiv
 Minimal launcher соединяет existing guarded contexts/TLS/CLI,22purePASS/два reviews.
 Текущее поручение — закончить весь допуск в MVP, не новый отдельный preparatory stage;
 fullpre-pr/LinuxCI/actualsetup/live/human/SLICE пока сохраняют G156 OPEN/G02 NOT_STARTED.
+
+ADR137 runtime correction2026-11-18: unusedworkspace VKcleanup startup и optional
+routing persistent registry не запускаются в strictcandidate; основнойstore/auth
+сохранён, noSQLiteexceptions. Source diagnosis15minSQL_DRIFT и два independent
+APPROVE/open0 — [review](reviews/G02_CONFIGURATION_INTEGRITY_ROUTING_REVIEWS.md).
+Realprovider observations/limitations — [evidence](reviews/G02_FLASH_LIVE_EVIDENCE.json).
+Это продолжение текущей подготовки, не новыйинкремент или profileapproval.

@@ -45,6 +45,21 @@ diff --git a/transports/bifrost-http/server/server.go b/transports/bifrost-http/
  	return nil
  }
  
+diff --git a/transports/bifrost-http/server/plugins.go b/transports/bifrost-http/server/plugins.go
+--- a/transports/bifrost-http/server/plugins.go
++++ b/transports/bifrost-http/server/plugins.go
+@@ -170,7 +170,10 @@
+ 		if err != nil {
+ 			return nil, fmt.Errorf("routing plugin requires the governance plugin: %w", err)
+ 		}
+-		return routing.Init(ctx, routingConfig, logger, bifrostConfig.ConfigStore, governancePlugin)
++		// The fixed candidate has no routing rules or semantic vector store.
++		// Keep routing's unused persistent generation registry from mutating
++		// the frozen SQLite snapshot; governance and its auth store stay intact.
++		return routing.Init(ctx, routingConfig, logger, nil, governancePlugin)
+ 
+ 	case maxim.PluginName:
+ 		maximConfig, err := MarshalPluginConfig[maxim.Config](pluginConfig)
 diff --git a/transports/bifrost-http/server/candidate_integrity.go b/transports/bifrost-http/server/candidate_integrity.go
 new file mode 100644
 --- /dev/null

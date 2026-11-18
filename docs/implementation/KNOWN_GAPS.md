@@ -1,5 +1,19 @@
 # KNOWN_GAPS
 
+**Актуальный прогон2026-11-18:** localpre-pr PASS(backend2740/infra369/runtime148/poc19/contracts22);
+HEAD504ceb0 LinuxPR44300787624/push44300778838 alljobsPASS, backend2740/541warnings/14:31,
+locked dependency auditclean. На реальном DeepSeek TEXT/JSON/TOOL/SSE COMPLETE/capabilitytrue,
+stablefingerprintbc19ba97cbe016479903222bb1578db6, usage+ledgerKNOWN. CANCEL locally
+closed; initialCLI accountingunconfirmed thenauthoritativeSETTLED/UNKNOWN/fullreserve.
+TIMEOUTcase returnedCOMPLETE within10s: timeoutNOTOBSERVED. Original6/8attempts,
+used+reserved0.6005034USD,remaining9.3994966,pendingfalse/blockedfalse; providerbilling
+notverified. [Metadata evidence](reviews/G02_FLASH_LIVE_EVIDENCE.json). No humanmodelapproval.
+Concrete15minhousekeepingSQLdrift found/isolated; minimal3file candidate routingstore
+fix source-reviewed twiceAPPROVE/open0, build/native/longidle/newexactCI running.
+No newstage/framework, noSQLexceptions/auth weakening. G156 IN_PROGRESS; product
+profile/observedgateway/human/SLICE prerequisites remain, G02 NOT_STARTED.
+
+
 **G156 / ADR140,2026-11-18:** isolated identity operator/globaldecision audit
 теперь локально TESTED (306jointPGPASS/два independent APPROVE), launcher existing
 contexts локально проверен22purecases/два reviews. [Отчёт](increments/G02_identity_admission_operator_REPORT.md).

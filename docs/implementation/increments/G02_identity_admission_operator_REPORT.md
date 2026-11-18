@@ -178,3 +178,48 @@ validity, SOPS archive updated first, no main credential rotation. Reviewer
 executor_normative inspected concrete owned metadata/source and found no new
 security blocker; final enabled-relay delta needs inspect before firstTEXT.
 Provider plaintext absent, account not inserted, paid calls/spend0.
+
+### 16.2 Реальный provider и найденный runtime defect
+
+Linux504ceb0a1d5132fa3fa8f9bc998bb8ddecd4cce2 passed allCI+contracts (PRci44300787624,
+push44300778838), backend2740PASS/541warnings/871.69s, dependencyauditclean; infra-static
+221+Renovate10, runtime148/149.20s, PoC19, supplychainpassed. Thirdparty report-only
+findings remain perexistingpolicy; this is not a claim of zero findings acrossimages.
+Faulthandler180sdump occurred during actualcoldDockerbuild, which completed196.61s;
+secondfixturebuild165.37s. No test disabled, cancelledabeCI remainsnotaccepted.
+
+Originalaccount insertedonce10USD/8attempts; noreset. StrictTLS/authenticatedclaim400
+smokePASS. ExactexecutionhelperDockerobserver fixed Mac/helperAPI Config.OnBuild
+schema mismatch; sameactualsnapshot/fixedguards. Relayprivatehostname pinned to
+actualprivateIP becauseDockerresolved sharedoutbound address; TLS/SAN/CA unchanged.
+Independent executionnamespace10checks/enabledruntime18checks/DNSdelta10checks PASS.
+
+[Six realcases](../reviews/G02_FLASH_LIVE_EVIDENCE.json): TEXT/JSON/TOOL/SSE successful,
+stableactualfingerprint and knownusage. CANCELinitiallyCLIexit2/CLAIMED/accounting
+unconfirmed, laterreadonlyledgerSETTLED/UNKNOWN/full0.6003072reserve/pendingfalse;
+originalappend-onlyresultnotrewritten. TIMEOUTwithdefault10s completedfast, so actual
+timeoutnotobserved; no automaticretry.6attempts,used+reserved0.6005034,remaining
+9.3994966USD,0pending/blocked; billingnotverified. No response/prompt/key saved in
+artifact. Humanacceptance/profileactivation/productobservedwiring/SLICE notperformed.
+
+Separate provider-free diagnostic clone failed at902.3s with staticSQL_DRIFT.
+Protectedcopy comparison exposed only additionalgovernance_config static key
+complexity_semantic_generations beyondinitialtimestamps; copiesdeleted, values
+neverexported. Pinnedroutingv1.3.2 registry every15min savesemptyclaims plus a
+distributedlock lifecycle. Preseedalone wouldnotfix transientlockwrites. Minimal
+candidate-only routing.Init optionalConfigStore=nil disables unusedpersistence/
+registry while actualgovernance/authstore stays. Strictcandidateemptyrules/vector/
+complexity, soleprovider/adminroutesdeny/fullSQL/stickycheck unchanged. Sourcefix
+onlypatch+exactbuildpathallowlist+manifesthashes; no dependency/vendor/newframework.
+Two independent final3file reviews APPROVE/open0; purecheckedcontext1466files/4pins
+unchangedPASS. Newbuild/affectedGo/native/15minidle/newexactCI pending; no claim of
+closedruntimebug until evidence. Full localPG/pre-pr notrepeated forunchangedPython/
+DB/contracts; finalLinuxstillrunsfullsuite.
+
+Final3filefix localresults: immutableimagec52717de…/staticbinary2915a332…,
+[provenance](../reviews/G02_CONFIGURATION_INTEGRITY_ROUTING_BUILD_PROVENANCE.json).
+Normal/race8parent+42subtwicePASS,vet0; currentnative12PASS/152.32s/0skips,secret0.
+920s provider-free guardedidle runs inparallelwithfinalexactLinuxCI; definitive
+external results [PR34](https://github.com/F4nin/AI-RES/pull/34). These gates must
+close before any furtherpaidcall. Runtimeprobe key/ownerapproval remain separate;
+no architecture/publicAPI/migration changes in this concrete3filefix.

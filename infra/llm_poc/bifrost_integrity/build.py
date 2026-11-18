@@ -20,7 +20,7 @@ base = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = base
 SPEC.loader.exec_module(base)
 LABEL = "ai-res.bifrost-integrity.build-sha256"
-PATCH_PATHS = {"transports/bifrost-http/server/server.go", "transports/bifrost-http/server/candidate_integrity.go",
+PATCH_PATHS = {"transports/bifrost-http/server/server.go", "transports/bifrost-http/server/plugins.go", "transports/bifrost-http/server/candidate_integrity.go",
                "transports/bifrost-http/server/candidate_integrity_test.go"}
 
 

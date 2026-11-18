@@ -223,3 +223,22 @@ Root прочитал doc-updater и verification-loop, применил как 
 ## OD-19 / ADR-129 — 2026-11-17
 
 Root применил прочитанные architect/doc-updater/verification-loop как checklists совместимости, источников и evidence. Отдельный g02_dependencies: planner/architect read-only по existing service tokens/internal API/domain audit/roles/retries; отдельный od19_temporal_feasibility: pinned official Temporal1.29.7/SDK1.36.0 research без project-content egress, выявлены недостаточность defaultAuthorizer/queue-onlyACL и ранний token parse до custom interceptors. Выбраны неизменный task-token format и issuance receipts, а не неподтверждённый MAC-wrapper. Отдельный ncp16_security_review выполнил blind-first security/architecture review ADR129 до отчёта автора: два MEDIUM (вложенные Workflow Commands и Start intent authorization seam) исправлены; final delta APPROVE, open findings0. Протокол reviews/OD19_RUNTIME_AUTH_REVIEW.md. Native Claude commands/hooks и runtime/paid tests не выполнялись.
+
+## G156 — конкретные runtime/CI исправления и реальные наблюдения,2026-11-18
+
+Root — operator/integrator/реальные guarded probes; прежние python-testing/verification-loop
+checklists, без native Claude hooks/commands. executor_plan — source diagnosis и автор
+minimal candidate idle/routing fixes; его Go-reviewer инструкции применены как author
+checklist, Go skill в каталоге отсутствует (компенсация pinnedsource+Go/native checks).
+executor_normative — независимые security/Go/DB reviews + metadata-only actualruntime
+inspect:18enabledchecks/10DNSdelta; launch_general — независимый general/Go/CI review.
+Securityreviews не читали secretvalues/responsecontent и не делали providercalls.
+
+CI896 nativeDockerpath8FAIL corrected; abe cancelled20m, не PASS. Workflow45m+
+verbose/faulthandler diagnostics reviewedAPPROVE; 504 LinuxalljobsPASS. No tests
+removed/skipped. Root realTEXT/JSON/TOOL/SSE stableidentity+knownusage; CANCELlate
+UNKNOWNreserve measured, TIMEOUTnotobserved explicitly. Technicalevidence не human
+approval/immutablepin. Runtime15minSQL_DRIFT isolated to unusedroutingregistry
+complexity_semantic_generations and distributedlocks; exact3filefix reviewed
+APPROVE/open0 by2non-authors, modulepins+fullSQLguard preserved. Root affected
+build/Go/native+longidle/newexactCI pending; do not claim verification before results.

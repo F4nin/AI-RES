@@ -13,3 +13,15 @@ Compile-time outer HTTP guard допускает только точные origi
 Это проверка наблюдаемой целостности в доверенном dev host, не криптографическая attestation и не защита от произвольного исполнения кода/компрометации Docker host. Окно check→dispatch и необнаруженное изменение с возвратом между наблюдениями не объявляются исключёнными. DB read transaction завершается до HTTP/provider execution. Никакие реальные ключи/accounts/tariffs/approvals или расходы этим решением не создаются.
 
 Обязательны Go/unit/race/SQL corruption+mutation/live-state/URI tests, bounded observer failure/cancel tests, host pre-reserve/preclaim/settlement/restart/actual mount namespace tests, native hardened image с fake provider и regression прежнего mutable audit. Independent general/Go/Python/security review, source/build provenance и checkpoint evidence сохраняются. Нормативные документы, frozen0020–24 и main stack не меняются. Полный G156/pre-pr/LinuxCI/live/human/SLICE остаются отдельными gates.
+
+Уточнение конкретного runtime2026-11-18: требование «store остаётся включённым»
+относится к основному ConfigStore/governance/auth, и оно сохраняется. В strict
+candidate с пустымиroutingrules/vector/complexity optional аргумент ConfigStore
+только routing.Init передаётся nil: pinnedroutingv1.3.2 явно поддерживает это и
+сохраняет governance allowlist/loadbalance, но не запускает unused persistent
+generation registry. Его15minGC воспроизведён как SQL_DRIFT из-за новой
+complexity_semantic_generations и distributedlock writes. Startup unusedVKexpiry
+cleanup также не запускается; per-requestexpiry/auth прежние. ПолныйSQLitehash
+не исключает ни таблицы, ни columns/rows. Source review и actualbuild/idle evidence
+— [протокол](../reviews/G02_CONFIGURATION_INTEGRITY_ROUTING_REVIEWS.md). Это
+исправление isolated candidate, не замена official/mainstack или humanapproval.
