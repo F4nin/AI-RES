@@ -1,5 +1,11 @@
 # IMPLEMENTATION_STATUS
 
+**G02 DONE · 2026-11-24.** S17, S20 и S21 **VERIFIED / DONE** в согласованном
+техническом объёме. [PR #36](https://github.com/F4nin/AI-RES/pull/36) влит в
+`main` коммитом `ae8da4e`. Полный `make pre-pr`, Linux CI точного SHA и
+целевой G-107 прошли. Штатный `MANAGER_INTAKE` ожидает отдельного
+допуска и долговременного бюджета. [Паспорт G02](groups/G02_WORK.md).
+
 **G02 IN_PROGRESS · общая приёмка · 2026-11-24.** Локальный срез
 S17/S20/S21 подтверждён полным `make pre-pr` и выделенными native
 проверками. Манифест проверенного среза совпал. Следующий этап доставки —
@@ -438,11 +444,11 @@ Commit/push/PR/newCI нет. Ниже исторические checkpoints, ак
 | S14 | Worker contracts: Envelope/Result/Notice | VERIFIED (2026-11-13; локально, одним `make pre-pr`: backend 1236, infra 307, runtime 148, contracts 22; Linux CI зелёный (PR #18: ci 43428029283/43428039248, contracts 43428029128/43428039135 — backend, infra-runtime, infra-static, contracts success); review: CRITICAL 0, HIGH 2 — 1 исправлен, 1 граница Gate; дельта исправлений и ADR-104 отдельным агентом не пересматривались) | DONE (ADR-032) | [report](increments/S14_worker_contracts_runtime_validation_REPORT.md) |
 | S15 | LLMGatewayPort и Model Registry (провайдер-нейтрально) | VERIFIED (2026-11-13; локально `make pre-pr`: backend 1286, infra 307, runtime 148, contracts 22, import-linter 12 kept; Linux CI зелёный (PR #19: ci 43476639282/43476718776, contracts 43476639070/43476719560 — backend, infra-runtime, infra-static, contracts success)). Качество вывода модели не проверялось (только deterministic test double, ADR-022), реального провайдера нет (S16, OD-01); review: CRITICAL 0, HIGH 5 исправлены, дельта отдельным агентом не пересматривалась | DONE (ADR-032) | [report](increments/S15_llm_gateway_port_model_registry_REPORT.md) |
 | S16 | LLM Gateway: технический механизм подключения провайдеров; исходная live-provider приёмка отложена | TESTED local+Linux+post-merge: HTTP/SSE adapter, relay, opt-in Bifrost2.5.1; полный pre-pr exit0 (backend1461,infra369,runtime148,PoC19), все8 checks153e3bb и отдельные post-merge091b976 success. Real provider path NOT VERIFIED | DONE по прямому решению владельца2026-11-17 в уточнённом техническом scope, ADR-123. NCP-16 PROPOSED, key/live tests/Bifrost acceptance/profile approval сохраняются перед включением; 0 USD model spend. Поддержка всех провайдеров runtime не заявляется | [report](increments/S16_bifrost_poc_provider_profile_REPORT.md) |
-| S17 | Tool Registry и Tool Gateway | IMPLEMENTED, локальный срез с targeted PostgreSQL/unit и двумя APPROVE | Общая приёмка G02 впереди | [report](increments/S17_tool_registry_tool_gateway_REPORT.md) |
+| S17 | Tool Registry и Tool Gateway | VERIFIED: общий pre-pr, Linux CI, PostgreSQL/unit и независимое review | DONE, PR #36 | [Отчёт](increments/S17_tool_registry_tool_gateway_REPORT.md) |
 | S18 | Rules Registry и Rules Engine | VERIFIED — localpre-pr exit0 (backend1749/infra369/runtime148/contracts22/PoC19),finaltargeted186;3independentAPPROVE; exactsourceLinux backend1751/infra-static221/runtime148/contracts22/PoC19,all8checksSUCCESS | DONE (ADR032); доставка/закрытиеG01 через PR33 | [report](increments/S18_rules_registry_rules_engine_REPORT.md) |
 | S19 | ContextPackageVersion (минимальный Context Builder) | VERIFIED: local pre-pr exit0 (backend1565,infra369,runtime148,contracts22,Renovate10,PoC19); targeted107; 3 independent reviews APPROVE; exact-head и post-merge Linux success | DONE (ADR-032), PR31 MERGED99e5ec1; G01: S18 отдельной строкой | [report](increments/S19_context_package_versioning_REPORT.md) |
-| S20 | Project/Epic intake и Manager interaction | IN_PROGRESS | ADR-129 и G-107 до первого producer | [паспорт](groups/G02_WORK.md) |
-| S21 | Plan & Task orchestration | IN_PROGRESS | Локальные PlanVersion и createTask проверены, dispatch и G02 gates открыты | [Отчёт](increments/S21_plan_task_orchestration_REPORT.md) |
+| S20 | Project/Epic intake и Manager interaction | VERIFIED в техническом объёме: защищённый Manager, G-107, pre-pr и Linux CI | DONE, PR #36. Штатный MANAGER_INTAKE ждёт отдельного допуска | [Отчёт](increments/S20_project_epic_intake_manager_REPORT.md) |
+| S21 | Plan & Task orchestration | VERIFIED: PlanVersion, createTask, Cancel/replay, G-107, pre-pr и Linux CI | DONE, PR #36 | [Отчёт](increments/S21_plan_task_orchestration_REPORT.md) |
 | S22 | Readiness Gate | NOT_STARTED | PENDING_DEPS | — |
 | S23 | WorkerRun lifecycle и LangGraph runtime | NOT_STARTED | PENDING_DEPS | — |
 | S24 | Manager–Worker coordination | NOT_STARTED | PENDING_DEPS | — |

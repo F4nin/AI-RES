@@ -1,6 +1,11 @@
 # S17 — Tool Registry и Tool Gateway
 
-**Дата:** 2026-11-18 · **Статус:** IMPLEMENTED, локальный срез проверен.
+**Статус на 2026-11-24:** VERIFIED / DONE. Влит в `main` через
+[PR #36](https://github.com/F4nin/AI-RES/pull/36) в составе G02.
+Общий локальный `make pre-pr` и Linux CI точного SHA прошли.
+PostgreSQL подтвердил границы Run grants, отзыв, проектную изоляцию
+и невозможность расширить grant через API. Локальные tool tests и
+независимые review приведены ниже. [Матрица G1–G9](../groups/G02_WORK.md).
 **Scope evidence:** `7f0c29f9519217dba722ad1f5b6396d8a02216da` + рабочий diff
 `feat/g02-tool-registry-manager`. Общая приёмка G02 предстоит.
 [Промпт](prompts/S17_tool_registry_tool_gateway.md) · [Паспорт](../groups/G02_WORK.md)

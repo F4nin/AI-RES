@@ -1,6 +1,40 @@
 # G02 — Инструменты и планирование Manager
 
-## Общая приёмка S17/S20/S21 · 2026-11-24
+## Техническое закрытие · PR #36 · 2026-11-24
+
+**G02 DONE.** S17, S20 и S21 имеют статус **VERIFIED / DONE** в
+согласованном техническом объёме. [PR #36](https://github.com/F4nin/AI-RES/pull/36)
+влит в `main` коммитом `ae8da4e346216b8a5be105f0efb830c547a94179`.
+Git-деревья merge-коммита, проверенной ветки и PR merge ref совпадают
+(`2fb46f72c708b34924be2739e28bb229458c7aec`).
+
+| Gate | Результат |
+|---|---|
+| G1, G2, G4 | Локальный `make pre-pr` exit 0. Linux `make backend-check` и `make contracts-check` PASS. Контракты 51 passed, быстрый локальный набор 1984 passed. |
+| G3, G6 | Linux `make backend-test`: 3419 passed, 4 native-варианта пропущены в общем наборе. Два из них прошли отдельно локально и два в Compose CI. Infra static 245, runtime 148, Renovate 10, Bifrost 19 passed. Upgrade пустой и предыдущей БД, отсутствие drift, роли и RLS включены в PostgreSQL suite. |
+| G5 | Положительные и отрицательные проверки TLS, ACL, отзыва полномочий, точного Run, fail-closed и replay. Secret scan 0. Аудит зависимостей прошёл. Скан native Temporal подтвердил 139 связанных Go-пакетов и 0 исправляемых HIGH/CRITICAL. |
+| G7 | Сохранённое [независимое code/security review](../reviews/G02_S17_S20_REVIEWS.md). Открытых CRITICAL/HIGH в проверенном техническом срезе нет. |
+| G8, G9 | Статусы, roadmap, индекс, traceability и отчёты [S17](../increments/S17_tool_registry_tool_gateway_REPORT.md), [S20](../increments/S20_project_epic_intake_manager_REPORT.md), [S21](../increments/S21_plan_task_orchestration_REPORT.md) обновлены. G-107 принят для `MANAGER_MESSAGE` и `PLAN_EXECUTION`. |
+
+Обязательные Linux [ci](https://github.com/F4nin/AI-RES/actions/runs/45288225047)
+и [contracts](https://github.com/F4nin/AI-RES/actions/runs/45288224465)
+завершились успешно на точном SHA PR. Дополнительные проверки merge SHA
+имеют собственные [ci](https://github.com/F4nin/AI-RES/actions/runs/45291768134)
+и [contracts](https://github.com/F4nin/AI-RES/actions/runs/45291767875).
+
+Штатный `MANAGER_INTAKE` ожидает отдельного допуска точного входа и профиля
+через MFA и применения долговременного лимита G-145. Платных вызовов 0.
+Для открытия следующей группы требуется новое поручение.
+[Решение владельца](../DECISIONS_PENDING.md).
+
+Целевая проверка G-107 на SHA `8c0c2ebbc6d4618eec3e5e9946bd1acde7d6996f`
+подтвердила запуск Backend с манифестом сверки, допущенными
+`MANAGER_MESSAGE` и `PLAN_EXECUTION` и отдельным mTLS-наблюдателем.
+Процесс достиг native Temporal и открыл сессию `ai_res_api` в PostgreSQL.
+Сценарии обработки точного Run и восстановления покрываются выделенными
+проверками CI. [Отчёт S20](../increments/S20_project_epic_intake_manager_REPORT.md).
+
+## История · общая приёмка S17/S20/S21 · 2026-11-24
 
 Группа **IN_PROGRESS**, фаза доставки проверенного среза через draft PR.
 Ветка `feat/g02-tool-registry-manager`, база `7f0c29f9519217dba722ad1f5b6396d8a02216da`.

@@ -25,11 +25,11 @@
 | S14 | Worker contracts: Envelope/Result/Notice | [`S14_worker_contracts_runtime_validation.md`](S14_worker_contracts_runtime_validation.md) | S12 | DONE | — |
 | S15 | LLMGatewayPort и Model Registry (провайдер-нейтрально) | [`S15_llm_gateway_port_model_registry.md`](S15_llm_gateway_port_model_registry.md) | S11 | DONE | — |
 | S16 | LLM Gateway: технический механизм подключения провайдеров | [`S16_bifrost_poc_provider_profile.md`](S16_bifrost_poc_provider_profile.md) | S15, S13 | DONE по решению владельца2026-11-17, ADR-123; технический срез TESTED local+Linux, PR #28 MERGED | Real-provider admission NOT VERIFIED/BLOCKED; исходные live/approval gates отложены, report§17. Не повторять закрытый milestone |
-| S17 | Tool Registry и Tool Gateway | [`S17_tool_registry_tool_gateway.md`](S17_tool_registry_tool_gateway.md) | S07, S12 | PENDING_DEPS: SLICE-01 (ADR115); ARCH-01 DONE | Нет; G02 готовит G156, см. [паспорт](../../groups/G02_WORK.md) |
+| S17 | Tool Registry и Tool Gateway | [`S17_tool_registry_tool_gateway.md`](S17_tool_registry_tool_gateway.md) | S07, S12 | DONE | VERIFIED, G02 PR #36. [Отчёт](../S17_tool_registry_tool_gateway_REPORT.md) |
 | S18 | Rules Registry и Rules Engine | [`S18_rules_registry_rules_engine.md`](S18_rules_registry_rules_engine.md) | S07, S06 | DONE | — (PR33, отчёт S18) |
 | S19 | ContextPackageVersion (минимальный Context Builder) | [`S19_context_package_versioning.md`](S19_context_package_versioning.md) | S06, S07 | DONE | VERIFIED; PR31 MERGED99e5ec1, local/Linux/post-merge PASS; G01 далее S18 |
-| S20 | Project/Epic intake и Manager interaction | [`S20_project_epic_intake_manager.md`](S20_project_epic_intake_manager.md) | S12, S15, S19 | PENDING_DEPS | Нет (после DONE зависимостей) |
-| S21 | Plan & Task orchestration | [`S21_plan_task_orchestration.md`](S21_plan_task_orchestration.md) | S20 | PENDING_DEPS | Нет (после DONE зависимостей) |
+| S20 | Project/Epic intake и Manager interaction | [`S20_project_epic_intake_manager.md`](S20_project_epic_intake_manager.md) | S12, S15, S19 | DONE в техническом объёме | VERIFIED, G02 PR #36. [Отчёт](../S20_project_epic_intake_manager_REPORT.md) |
+| S21 | Plan & Task orchestration | [`S21_plan_task_orchestration.md`](S21_plan_task_orchestration.md) | S20 | DONE | VERIFIED, G02 PR #36. [Отчёт](../S21_plan_task_orchestration_REPORT.md) |
 | S22 | Readiness Gate | [`S22_readiness_gate.md`](S22_readiness_gate.md) | S14, S17, S18, S19, S21 | PENDING_DEPS | Нет (после DONE зависимостей) |
 | S23 | WorkerRun lifecycle и LangGraph runtime | [`S23_worker_run_lifecycle_langgraph.md`](S23_worker_run_lifecycle_langgraph.md) | S22, S15 | PENDING_DEPS | Нет (после DONE зависимостей) |
 | S24 | Manager–Worker coordination | [`S24_manager_worker_coordination.md`](S24_manager_worker_coordination.md) | S23 | PENDING_DEPS | Нет (после DONE зависимостей) |

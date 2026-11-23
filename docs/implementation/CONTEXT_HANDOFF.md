@@ -1,6 +1,22 @@
 # CONTEXT_HANDOFF — checkpoint перед обновлением контекста
 
-## G02 · доставка проверенного среза · 2026-11-24
+## G02 — DONE · 2026-11-24
+
+Технический объём S17/S20/S21 завершён и влит в `main` через
+[PR #36](https://github.com/F4nin/AI-RES/pull/36), merge SHA
+`ae8da4e346216b8a5be105f0efb830c547a94179`. На
+`8c0c2ebbc6d4618eec3e5e9946bd1acde7d6996f` прошли обязательные Linux
+[ci](https://github.com/F4nin/AI-RES/actions/runs/45288225047) и
+[contracts](https://github.com/F4nin/AI-RES/actions/runs/45288224465).
+После merge Git подтвердил совпадение деревьев. Код проверен общим локальным
+`make pre-pr` и независимым review. Целевой G-107 принят для Manager и Plan.
+[Общая матрица gates и отчёты](groups/G02_WORK.md).
+
+Штатный `MANAGER_INTAKE` выключен. Его отдельное включение требует
+допуска точного входа, подтверждения профиля через MFA и долговременного
+лимита G-145. Новый инкремент или группа начинается по новому поручению.
+
+## История · подготовка доставки G02 · 2026-11-24
 
 Владелец поручил завершить G02. Рабочая ветка `feat/g02-tool-registry-manager`
 в worktree `AI-RES-G02`, база `7f0c29f9519217dba722ad1f5b6396d8a02216da`.

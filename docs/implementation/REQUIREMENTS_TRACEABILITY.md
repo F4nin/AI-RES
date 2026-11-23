@@ -1,5 +1,10 @@
 # REQUIREMENTS_TRACEABILITY
 
+**G02 · S17/S20/S21 VERIFIED.** Правила Tool Gateway, защищённый Manager
+intake и оркестрация утверждённого плана приняты в [PR #36](https://github.com/F4nin/AI-RES/pull/36).
+ADR-129 и G-107 покрыты для `MANAGER_MESSAGE` и `PLAN_EXECUTION`.
+Штатный модельный допуск отслеживается отдельно. [Паспорт G02](groups/G02_WORK.md).
+
 **S20/S21 · ADR-185.** DOC-015 §14 → проверка фактически собранного native
 Temporal → подтверждённые исходные и альтернативные locks, проверка Go
 инвентаря в Trivy и блокировка исправляемых HIGH/CRITICAL.
