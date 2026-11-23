@@ -1,5 +1,11 @@
 # S21 — Планирование и задачи
 
+**Статус на 2026-11-24:** VERIFIED / DONE. Влит через
+[PR #36](https://github.com/F4nin/AI-RES/pull/36) в составе G02.
+Точные PlanVersion и решение человека, граф, Task, protected Cancel/replay
+и G-107 после ACK покрыты общим локальным pre-pr и Linux CI точного SHA.
+[Паспорт G02](../groups/G02_WORK.md).
+
 ## Актуальность разрешения Plan · 2026-11-24
 
 В точке записи черновика и решения Plan Backend повторно проверяет
@@ -43,7 +49,7 @@ Manager timeout, а также отдельный replay исчерпанног�
 подключение, общий G-107 и итоговая приёмка S21 пока открыты. Точные команды,
 версии и независимые review записаны в [отчёте S20](S20_project_epic_intake_manager_REPORT.md).
 
-**Дата** 2026-11-18 · **Статус** IN_PROGRESS · **IMPLEMENTATION NOT VERIFIED**  
+**Начальный checkpoint:** 2026-11-18 · **Статус на ту дату:** IN_PROGRESS.
 [Промпт S21](prompts/S21_plan_task_orchestration.md)
 
 ## Общая доставка назначенных Run · ADR-168–170 · 2026-11-21

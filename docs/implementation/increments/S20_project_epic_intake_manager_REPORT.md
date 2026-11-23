@@ -1,5 +1,35 @@
 # S20 — Project/Epic intake и Manager interaction
 
+**Статус на 2026-11-24:** VERIFIED / DONE в техническом объёме.
+[PR #36](https://github.com/F4nin/AI-RES/pull/36) влит в `main`.
+Linux CI, G-107, защита данных, история Temporal и PostgreSQL-механика
+подтверждены. Качество вывода реальной модели остаётся вне этого evidence.
+Для штатного `MANAGER_INTAKE` нужен отдельный допуск и G-145.
+[Общая матрица gates](../groups/G02_WORK.md).
+
+## Целевой запуск сверки G-107 · 2026-11-24
+
+В выделенном dev/test Compose на SHA
+`8c0c2ebbc6d4618eec3e5e9946bd1acde7d6996f` запущен штатный
+`python -m ai_res.api.serve` из Backend-образа
+`sha256:fb0b06cc56754a1a26eb383dbd114f25c0cb3d2b02bb31a0fcc3eebe5014d511`.
+Использован `compose.g02.yaml` с временным PostgreSQL, изолированными
+сетями и синтетическими credentials. Bind манифеста передал явный
+allowlist `MANAGER_MESSAGE` и `PLAN_EXECUTION` с post-ACK. Процесс прошёл
+healthcheck. Его планировщик установил mTLS с native Temporal и открыл
+PostgreSQL-сессию `ai_res_api`. Проверка не создавала Operation и дополняет
+ранее проверенные потерю ответа Start, карантин, Cancel и сверку после ACK
+на точных назначениях. Штатный producer выключен.
+
+Команды на Darwin arm64 с Python 3.13.5, Docker Engine 29.2.0 linux/arm64
+и Compose 5.0.2: `docker --context desktop-linux build --pull=false -t
+ai-res/g02-api-admission:8c0c2eb backend`, затем одноразовый Python probe
+`/tmp/aires-g02-runtime-api-probe.VcOj2u` с установленным OpenSSL 3.
+Build и probe вернули exit 0, три проверки PASS, пропусков 0.
+Логи `/tmp/aires-g02-runtime-api.r2Ro0V` и
+`/tmp/aires-g02-runtime-api-result.SqUDp6`. Временный Compose остановлен с
+сохранением обычного окружения. Платных вызовов 0.
+
 ## Актуальность полномочий при записи · 2026-11-24
 
 В `backend/src/ai_res/api/write_api.py` Manager получает сообщение с

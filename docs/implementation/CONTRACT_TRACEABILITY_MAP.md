@@ -1,5 +1,10 @@
 # CONTRACT_TRACEABILITY_MAP
 
+**G02 · S17/S20/S21 VERIFIED.** Версионированные приватные контракты и
+публичные WORKING overlays проверены в [PR #36](https://github.com/F4nin/AI-RES/pull/36)
+с `make contracts-check` и 51 контрактным тестом. Сценарии Operation, Outbox
+и Temporal приняты для Manager и Plan. [Паспорт G02](groups/G02_WORK.md).
+
 **S20 · ADR-182.** WORKING `proactive_notifications.yaml` → персональная
 лента проекта и GET/PUT предпочтений → точные ссылки Operation/Proposal,
 текущие Policy и recipient RLS. PUT использует сессию, CSRF,
