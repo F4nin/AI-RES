@@ -1,0 +1,216 @@
+openapi: 3.1.0
+info:
+  title: AI RES private native authorization metadata
+  version: 1.2.0
+  description: Metadata-only authorization and durable issuance receipts for the native frontend.
+x-status: WORKING
+x-source: ADR-129 sections 2 and 3.2, ADR-160 and DOC-068 v1.5
+security:
+  - authControlAr2: []
+paths:
+  /internal/auth-control/v1/authorize-start:
+    post:
+      operationId: authorizeNativeStart
+      description: Tests the exact unbound accepted dispatch intent and compact input digest.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DispatchIntent'
+      responses:
+        '204':
+          description: Assigned Start is authorized.
+        default:
+          $ref: '#/components/responses/Problem'
+  /internal/auth-control/v1/authorize-reconciliation-describe:
+    post:
+      operationId: authorizeNativeReconciliationDescribe
+      description: >
+        Verifies an exact active Manager Run before startup acknowledgement after
+        the Temporal frontend has authenticated the reconciliation observer by mTLS.
+        This grants only DescribeWorkflowExecution for the checked request.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReconciliationDescribe'
+      responses:
+        '204':
+          description: This exact bound Run can be described by the observer.
+          headers:
+            Cache-Control:
+              required: true
+              schema: {const: no-store}
+        default:
+          $ref: '#/components/responses/Problem'
+  /internal/auth-control/v1/authorize-bound-status:
+    post:
+      operationId: authorizeNativeBoundStatus
+      description: >
+        Permits the authenticated mTLS reconciliation observer to receive only
+        status, exact execution identity, workflow type and queue for an active
+        assigned Manager or Plan Run. It applies before and after start
+        acknowledgement. Operation transitions, History and list are separate
+        authorities and are outside this scope.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReconciliationDescribe'
+      responses:
+        '204':
+          description: This exact bound Run qualifies for status observation.
+          headers:
+            Cache-Control:
+              required: true
+              schema: {const: no-store}
+        default:
+          $ref: '#/components/responses/Problem'
+  /internal/auth-control/v1/register-task:
+    post:
+      operationId: registerNativeTask
+      description: Commits an exact issuance receipt before delivering any task to the verified runtime.
+      requestBody:
+        $ref: '#/components/requestBodies/IssuedTask'
+      responses:
+        '204':
+          description: Exact receipt is durably stored.
+        default:
+          $ref: '#/components/responses/Problem'
+  /internal/auth-control/v1/authorize-bound-cancel:
+    post:
+      operationId: authorizeNativeBoundCancel
+      description: Verifies that the mTLS cancellation caller targets the assigned run of an Operation with a persisted cancellation request.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BoundCancellation'
+      responses:
+        '204':
+          description: The exact run is eligible to receive the fixed cancellation signal.
+          headers:
+            Cache-Control:
+              required: true
+              schema: {const: no-store}
+        default:
+          $ref: '#/components/responses/Problem'
+  /internal/auth-control/v1/check-task:
+    post:
+      operationId: checkNativeTask
+      description: Verifies the receipt's scope against the current trusted execution assignment.
+      requestBody:
+        $ref: '#/components/requestBodies/IssuedTask'
+      responses:
+        '204':
+          description: Exact current task issuance confirmed.
+        default:
+          $ref: '#/components/responses/Problem'
+  /internal/auth-control/v1/workflow-task-context:
+    post:
+      operationId: readIssuedWorkflowTaskContext
+      description: Resolves the exact Manager command matrix for a registered Workflow Task.
+      requestBody:
+        $ref: '#/components/requestBodies/IssuedTask'
+      responses:
+        '200':
+          description: Scope of the verified Workflow Task.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowTaskContext'
+        default:
+          $ref: '#/components/responses/Problem'
+components:
+  securitySchemes:
+    authControlAr2:
+      type: http
+      scheme: bearer
+      bearerFormat: ar2
+      description: Ed25519 request binding using ar2 v2 encoding, a dedicated frontend key, issuer and audience.
+  requestBodies:
+    IssuedTask:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/TaskReceipt'
+  responses:
+    Problem:
+      description: Invalid credential or nonce 401, invalid request 422, unauthorized intent or receipt 403, store unavailable 503.
+      content:
+        application/problem+json:
+          schema: { type: object }
+  schemas:
+    BoundCancellation:
+      type: object
+      additionalProperties: false
+      required: [assignmentId, operationId, workflowRunId, namespace]
+      properties:
+        assignmentId: {type: string, format: uuid}
+        operationId: {type: string, format: uuid}
+        workflowRunId: {type: string, format: uuid}
+        namespace: {type: string, pattern: '^[a-z0-9][a-z0-9-]{0,62}$'}
+    ReconciliationDescribe:
+      type: object
+      additionalProperties: false
+      required: [operationId, workflowRunId, namespace]
+      properties:
+        operationId: {type: string, format: uuid}
+        workflowRunId: {type: string, format: uuid}
+        namespace: {type: string, pattern: '^[a-z0-9][a-z0-9-]{0,62}$'}
+    WorkflowTaskContext:
+      type: object
+      additionalProperties: false
+      required: [assignmentId, workflowType, workflowContractVersion, inputSha256, operationStatus]
+      properties:
+        assignmentId: {type: string, format: uuid}
+        workflowType: {enum: [ManagerIntakeWorkflow, PlanExecutionWorkflow]}
+        workflowContractVersion: {const: 1}
+        inputSha256: {type: string, pattern: '^[0-9a-f]{64}$'}
+        operationStatus:
+          enum: [ACCEPTED, QUEUED, RUNNING, WAITING_FOR_HUMAN, WAITING_FOR_DEPENDENCY, RETRYING, CANCEL_REQUESTED, SUCCEEDED, PARTIALLY_SUCCEEDED, FAILED, CANCELLED]
+    AuthControlClaims:
+      type: object
+      additionalProperties: false
+      required: [iss, aud, iat, exp, nonce, action, method, path, bodySha256]
+      properties:
+        iss: {const: TEMPORAL_AUTH_CONTROL}
+        aud: {const: PLATFORM_AUTH_CONTROL}
+        iat: {type: integer}
+        exp: {type: integer}
+        nonce: {type: string, format: uuid}
+        action: {enum: [authorize-start, authorize-reconciliation-describe, authorize-bound-status, authorize-bound-cancel, register-task, check-task, workflow-task-context]}
+        method: {const: POST}
+        path: {type: string}
+        bodySha256: {type: string, pattern: '^[0-9a-f]{64}$'}
+    DispatchIntent:
+      type: object
+      additionalProperties: false
+      required: [caller, assignmentId, workflowId, workflowType, namespace, taskQueue, workflowContractVersion, inputSha256]
+      properties:
+        caller: {const: OUTBOX_DISPATCHER}
+        assignmentId: {type: string, format: uuid}
+        workflowId: {type: string, pattern: '^operation-[0-9a-f-]{36}$'}
+        workflowType: {enum: [ManagerIntakeWorkflow, PlanExecutionWorkflow]}
+        namespace: {type: string, pattern: '^[a-z0-9][a-z0-9-]{0,62}$'}
+        taskQueue: {const: ai-res-manager}
+        workflowContractVersion: {const: 1}
+        inputSha256: {type: string, pattern: '^[0-9a-f]{64}$'}
+    TaskReceipt:
+      type: object
+      additionalProperties: false
+      required: [tokenSha256, principal, namespace, queue, taskKind, operationId, workflowRunId]
+      properties:
+        tokenSha256: {type: string, pattern: '^[0-9a-f]{64}$'}
+        principal: {enum: [MANAGER_RUNTIME, WORKER_RUNTIME]}
+        namespace: {type: string, pattern: '^[a-z0-9][a-z0-9-]{0,62}$'}
+        queue: {enum: [ai-res-manager, ai-res-workers]}
+        taskKind: {enum: [WORKFLOW, ACTIVITY]}
+        operationId: {type: string, format: uuid}
+        workflowRunId: {type: string, format: uuid}
+      description: WorkerRuntime task registration requires the separately admitted S23 WorkerRun path.

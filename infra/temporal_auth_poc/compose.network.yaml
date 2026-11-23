@@ -1,0 +1,45 @@
+# Opt-in network topology for the standalone candidate project.
+services:
+  postgres:
+    network_mode: !reset null
+    extra_hosts: !reset []
+    networks: [data]
+  postgres-provision:
+    network_mode: !reset null
+    networks: [data]
+  temporal-schema:
+    network_mode: !reset null
+    networks: [data]
+  migrate:
+    network_mode: !reset null
+    networks: [data]
+  candidate-native:
+    network_mode: !reset null
+    networks:
+      data: {}
+      workflow:
+        aliases: [temporal-workflow]
+      platform: {}
+    environment:
+      G02_NATIVE_COMPOSE_NETWORK: "1"
+      G02_PROBE_PAGINATE_HISTORY: "${G02_PROBE_PAGINATE_HISTORY:-0}"
+  candidate-probe:
+    network_mode: !reset null
+    networks:
+      data: {}
+      workflow: {}
+      platform:
+        aliases: [platform-api]
+    environment:
+      G02_NATIVE_COMPOSE_NETWORK: "1"
+      G02_PROBE_LOSE_START_RESPONSE: "${G02_PROBE_LOSE_START_RESPONSE:-0}"
+      G02_PROBE_REPLAY_EXHAUSTED_START: "${G02_PROBE_REPLAY_EXHAUSTED_START:-0}"
+      G02_PROBE_MANAGER_TIMEOUT: "${G02_PROBE_MANAGER_TIMEOUT:-0}"
+      G02_PROBE_PAGINATE_HISTORY: "${G02_PROBE_PAGINATE_HISTORY:-0}"
+    secrets:
+      - outbox_db_password
+
+networks:
+  data: {internal: true}
+  workflow: {internal: true}
+  platform: {internal: true}

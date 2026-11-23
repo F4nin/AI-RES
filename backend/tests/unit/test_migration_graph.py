@@ -49,7 +49,30 @@ def test_offline_sql_is_reviewable_and_secret_free():
     restore_actor_fix = "ALTER TABLE platform.model_admission_audit DROP CONSTRAINT ck_maa_writer;"
     observed_pin_expand = "ALTER TABLE platform.model_profiles ALTER COLUMN pinned_model_version DROP NOT NULL;"
     guarded_sql = sql
-    for reviewed_statement in (restore_actor_fix, observed_pin_expand):
+    # G02 replaces two immutable triggers in their migration transaction to allow event counters.
+    # The replacements preserve immutability of the business columns and do not remove data.
+    trigger_replacements = (
+        ("trg_manager_interactions_immutable", "trg_manager_interaction_body_immutable", "work.manager_interactions"),
+        ("trg_plan_versions_immutable", "trg_plan_versions_content_immutable", "work.plan_versions"),
+    )
+    trigger_drops = tuple(f"DROP TRIGGER {old} ON {table};" for old, _, table in trigger_replacements)
+    for dropped, (old, new, table) in zip(trigger_drops, trigger_replacements, strict=True):
+        assert sql.index(f"CREATE TRIGGER {old} ") < sql.index(dropped) < sql.index(f"CREATE TRIGGER {new} BEFORE UPDATE ON {table}")
+    assignment_actions = "DROP CONSTRAINT ck_operation_assignment_actions,"
+    assert sql.count("CONSTRAINT ck_operation_assignment_actions CHECK") == 2
+    assert sql.index(assignment_actions) < sql.index("ADD CONSTRAINT ck_operation_assignment_actions CHECK")
+    nonce_issuers = "DROP CONSTRAINT ck_platform_nonce_issuer,"
+    nonce_replacements = sql.split(nonce_issuers)
+    assert len(nonce_replacements) == 3
+    assert all(fragment.count("ADD CONSTRAINT ck_platform_nonce_issuer CHECK") == 1 for fragment in nonce_replacements[1:])
+    native_audit = "DROP CONSTRAINT ck_platform_auth_reason,"
+    native_audit_add = "ADD CONSTRAINT ck_platform_auth_reason CHECK"
+    assert sql.count("CONSTRAINT ck_platform_auth_reason CHECK") == 6
+    replacements = sql.split(native_audit)
+    assert len(replacements) == 6
+    assert all(fragment.count(native_audit_add) == 1 for fragment in replacements[1:])
+    guarded_sql = guarded_sql.replace(native_audit, "").replace(nonce_issuers, "")
+    for reviewed_statement in (restore_actor_fix, observed_pin_expand, *trigger_drops, assignment_actions):
         assert sql.count(reviewed_statement) == 1
         guarded_sql = guarded_sql.replace(reviewed_statement, "")
     for forbidden in ("temporal", "langgraph", "CREATE ROLE", "ALTER ROLE", "DROP "):

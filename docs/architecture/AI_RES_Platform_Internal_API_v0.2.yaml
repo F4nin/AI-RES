@@ -1,0 +1,157 @@
+openapi: 3.1.0
+info:
+  title: AI RES internal Platform API
+  version: 0.2.0
+  description: |
+    ADR-129. Private TLS listener. Requests use the ar2 credential, independent
+    from ar1 on legacy interfaces. The backend authenticates the caller before
+    consuming a durable, one-use nonce and resolving the execution assignment.
+    The assignment establishes tenant, Operation and allowed actions.
+    This contract describes Manager operation control. Temporal auth-control uses
+    a distinct identity and requires its typed receipt and metadata operations
+    before first use.
+x-status: BASELINED
+x-source:
+  - AI_RES_API_and_Interaction_Contracts_v1.10.md §7.2
+  - AI_RES_PostgreSQL_Migration_and_Access_Strategy_v1.2.md §2
+security:
+  - platformRequest: []
+paths:
+  /internal/v2/operations/{operationId}/start-acknowledgement:
+    parameters:
+      - $ref: '#/components/parameters/OperationId'
+    post:
+      operationId: acknowledgeOperationStartV2
+      summary: Acknowledge the assigned execution with the existing Operation state machine.
+      x-action: operation.acknowledge_start
+      x-caller: MANAGER_RUNTIME
+      requestBody:
+        $ref: '#/components/requestBodies/Execution'
+      responses:
+        '200': { $ref: '#/components/responses/OperationStatus' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+        '503': { $ref: '#/components/responses/Problem' }
+  /internal/v2/operations/{operationId}/failure:
+    parameters:
+      - $ref: '#/components/parameters/OperationId'
+    post:
+      operationId: recordOperationFailureV2
+      summary: Record the assigned execution failure using a registered machine code.
+      x-action: operation.record_failure
+      x-caller: MANAGER_RUNTIME
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FailureRequest'
+      responses:
+        '200': { $ref: '#/components/responses/OperationStatus' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '412': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+        '503': { $ref: '#/components/responses/Problem' }
+  /internal/v2/operations/{operationId}/cancellation-confirmation:
+    parameters:
+      - $ref: '#/components/parameters/OperationId'
+    post:
+      operationId: confirmOperationCancellationV2
+      summary: Confirm cancellation after the existing active WorkerRun check.
+      x-action: operation.confirm_cancellation
+      x-caller: MANAGER_RUNTIME
+      requestBody:
+        $ref: '#/components/requestBodies/Execution'
+      responses:
+        '200': { $ref: '#/components/responses/OperationStatus' }
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+        '503': { $ref: '#/components/responses/Problem' }
+components:
+  securitySchemes:
+    platformRequest:
+      type: http
+      scheme: bearer
+      bearerFormat: ar2
+      description: |
+        ar2.<payload>.<signature> with canonical unpadded base64url segments.
+        The signature is Ed25519 over the UTF-8 bytes of
+        ai-res-platform-request-v2, a NUL byte, and ar2.<payload>.
+        The payload is a UTF-8 JSON object with distinct required claims
+        described by PlatformRequestClaims. The signed path is the exact
+        canonical API path with no query or fragment. The digest binds exact raw
+        request-body bytes. Endpoint configuration supplies allowed issuer,
+        action, and body limit. Lifetime and clock skew are enforced using
+        deployment configuration. A fresh nonce is required for each HTTP
+        attempt. Semantic retries retain the same execution assignment and
+        command data. Credential verification alone grants no domain authority.
+  parameters:
+    OperationId:
+      name: operationId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+  requestBodies:
+    Execution:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ExecutionRequest'
+  responses:
+    OperationStatus:
+      description: Current domain status.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/OperationStatus'
+    Problem:
+      description: RFC 9457 with a stable machine code and no echo of secrets or body.
+      content:
+        application/problem+json:
+          schema: { type: object }
+  schemas:
+    PlatformRequestClaims:
+      type: object
+      additionalProperties: false
+      required: [iss, aud, iat, exp, nonce, action, method, path, bodySha256, assignmentId]
+      properties:
+        iss: { const: MANAGER_RUNTIME }
+        aud: { const: PLATFORM_API }
+        iat: { type: integer }
+        exp: { type: integer }
+        nonce: { type: string, format: uuid, description: Canonical lowercase UUIDv4. }
+        action: { enum: [operation.acknowledge_start, operation.record_failure, operation.confirm_cancellation] }
+        method: { const: POST }
+        path: { type: string }
+        bodySha256: { type: string, pattern: '^[0-9a-f]{64}$' }
+        assignmentId: { type: string, format: uuid }
+    ExecutionRequest:
+      type: object
+      required: [workflowId, workflowRunId]
+      additionalProperties: false
+      properties:
+        workflowId: { type: string, minLength: 1 }
+        workflowRunId: { type: string, format: uuid }
+    FailureRequest:
+      type: object
+      required: [workflowId, workflowRunId, code]
+      additionalProperties: false
+      properties:
+        workflowId: { type: string, minLength: 1 }
+        workflowRunId: { type: string, format: uuid }
+        code: { type: string, pattern: '^[A-Z][A-Z0-9_]*$', minLength: 1, maxLength: 64 }
+    OperationStatus:
+      type: object
+      required: [operationId, status]
+      additionalProperties: false
+      properties:
+        operationId: { type: string, format: uuid }
+        status:
+          enum: [ACCEPTED, QUEUED, RUNNING, WAITING_FOR_HUMAN, WAITING_FOR_DEPENDENCY, RETRYING, CANCEL_REQUESTED, SUCCEEDED, PARTIALLY_SUCCEEDED, FAILED, CANCELLED]

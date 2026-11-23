@@ -46,7 +46,7 @@ STORAGE = StorageConfig("https://files.example.test", "ai-res-sources", "us-east
 class World:
     """Org A with project P1 (padmin PROJECT_ADMIN, analyst ANALYST, viewer READ_ONLY_VIEWER, outsider no role) and project P2 (nobody); org admin `oadmin`."""
 
-    def __init__(self, iam: Any, tmp_path: Path, storage: StorageConfig | None = STORAGE, object_store: Any = None) -> None:
+    def __init__(self, iam: Any, tmp_path: Path, storage: StorageConfig | None = STORAGE, object_store: Any = None, manager_dispatch_namespace: str | None = None) -> None:
         self.iam = iam
         self.u = {n: uuid4() for n in ("padmin", "analyst", "viewer", "outsider", "oadmin")}
         self.p1, self.p2, self.pb = uuid4(), uuid4(), uuid4()
@@ -64,9 +64,10 @@ class World:
         mfa.write_text(base64.b64encode(bytes(range(32))).decode())
         self.settings = load_settings({"AI_RES_ENVIRONMENT": "test", "AI_RES_COOKIE_SECURE": "false", "AI_RES_MFA_ENCRYPTION_KEY_FILE": str(mfa), "AI_RES_ARGON2_TIME_COST": "1",
                                        "AI_RES_ARGON2_MEMORY_KIB": "8", "AI_RES_DEFAULT_ORGANIZATION_ID": str(iam.org_a), "AI_RES_ALLOWED_ORIGINS": ORIGIN,
-                                       "AI_RES_IDEMPOTENCY_KEYRING_FILE": str(key)})
+                                       "AI_RES_IDEMPOTENCY_KEYRING_FILE": str(key), "AI_RES_MANAGER_MESSAGE_MAX_BODY_BYTES": "160000"})
         self.services = build_identity_services(self.settings, create_session_factory(iam.engine()))
-        self.app = create_app(self.settings, identity=self.services, storage=storage, object_store=object_store)
+        self.app = create_app(self.settings, identity=self.services, storage=storage, object_store=object_store,
+                              manager_dispatch_namespace=manager_dispatch_namespace)
         self.app.state.cursor_key_ring = KeyRing("k1", {"k1": bytes(range(32, 64))})
 
     async def client(self, who: str | UUID | None, *, mfa: bool = False, csrf: bool = True, origin: bool = True, org: UUID | None = None) -> httpx.AsyncClient:

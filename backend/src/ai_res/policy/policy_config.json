@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "version": "2026-11-12.3",
+  "version": "2026-11-23.1",
   "status": "WORKING",
   "privilegedRoles": ["ORGANIZATION_OWNER", "ORGANIZATION_ADMIN", "PROJECT_ADMIN"],
   "actions": {
@@ -14,6 +14,7 @@
     "project.read": {"resourceType": "PROJECT", "allow": {"projectRoles": ["PROJECT_ADMIN", "ANALYST", "REVIEWER_APPROVER", "READ_ONLY_VIEWER", "AUDITOR"], "orgRoles": ["AUDITOR"]}},
     "epic.read": {"resourceType": "EPIC", "allow": {"projectRoles": ["PROJECT_ADMIN", "ANALYST", "REVIEWER_APPROVER", "READ_ONLY_VIEWER", "AUDITOR"], "orgRoles": ["AUDITOR"]}},
     "task.read": {"resourceType": "TASK", "allow": {"projectRoles": ["PROJECT_ADMIN", "ANALYST", "REVIEWER_APPROVER", "READ_ONLY_VIEWER", "AUDITOR"], "orgRoles": ["AUDITOR"]}},
+    "plan.read": {"resourceType": "PLAN_VERSION", "allow": {"projectRoles": ["PROJECT_ADMIN", "ANALYST", "REVIEWER_APPROVER", "READ_ONLY_VIEWER", "AUDITOR"], "orgRoles": ["AUDITOR"]}},
     "requirement.read": {"resourceType": "REQUIREMENT", "allow": {"projectRoles": ["PROJECT_ADMIN", "ANALYST", "REVIEWER_APPROVER", "READ_ONLY_VIEWER", "AUDITOR"], "orgRoles": ["AUDITOR"]}},
     "source.read": {"resourceType": "SOURCE", "allow": {"projectRoles": ["PROJECT_ADMIN", "ANALYST", "REVIEWER_APPROVER", "READ_ONLY_VIEWER", "AUDITOR"], "orgRoles": ["AUDITOR"]}},
     "artifact.read": {"resourceType": "ARTIFACT", "allow": {"projectRoles": ["PROJECT_ADMIN", "ANALYST", "REVIEWER_APPROVER", "READ_ONLY_VIEWER", "AUDITOR"], "orgRoles": ["AUDITOR"]}},
@@ -23,10 +24,18 @@
     "project.create": {"resourceType": "PROJECT", "allow": {"orgRoles": ["ORGANIZATION_OWNER", "ORGANIZATION_ADMIN"]}, "humanOnly": true},
     "project.update": {"resourceType": "PROJECT", "allow": {"projectRoles": ["PROJECT_ADMIN"]}, "humanOnly": true},
     "epic.create": {"resourceType": "EPIC", "allow": {"projectRoles": ["PROJECT_ADMIN", "ANALYST"]}, "humanOnly": true},
+    "plan.propose": {"resourceType": "EPIC", "allow": {"projectRoles": ["ANALYST"]}, "humanOnly": true},
+    "plan.decide": {"resourceType": "PLAN_VERSION", "allow": {"projectRoles": ["ANALYST"]}, "humanOnly": true},
+    "manager.send_message": {"resourceType": "EPIC", "allow": {"projectRoles": ["ANALYST"]}, "humanOnly": true},
+    "manager.proposal.read": {"resourceType": "MANAGER_PROPOSAL_VERSION", "allow": {"projectRoles": ["ANALYST"]}, "humanOnly": true},
+    "notification.preference.manage": {"resourceType": "PROJECT", "allow": {"projectRoles": ["ANALYST"]}, "humanOnly": true},
+    "manager.proposal.decide": {"resourceType": "MANAGER_PROPOSAL_VERSION", "allow": {"projectRoles": ["ANALYST"]}, "humanOnly": true},
+    "task.create": {"resourceType": "EPIC", "allow": {"projectRoles": ["PROJECT_ADMIN", "ANALYST"]}, "humanOnly": true},
     "requirement.register": {"resourceType": "REQUIREMENT", "allow": {"projectRoles": ["PROJECT_ADMIN", "ANALYST"]}, "humanOnly": true},
     "requirement.propose_version": {"resourceType": "REQUIREMENT", "allow": {"projectRoles": ["PROJECT_ADMIN", "ANALYST"]}, "humanOnly": true},
     "source.upload_create": {"resourceType": "SOURCE", "allow": {"projectRoles": ["PROJECT_ADMIN", "ANALYST"]}, "humanOnly": true},
     "source.upload_complete": {"resourceType": "SOURCE", "allow": {"projectRoles": ["PROJECT_ADMIN", "ANALYST"]}, "humanOnly": true},
-    "operation.cancel": {"resourceType": "OPERATION", "allow": {"projectRoles": ["PROJECT_ADMIN", "ANALYST"]}, "humanOnly": true}
+    "operation.cancel": {"resourceType": "OPERATION", "allow": {"projectRoles": ["PROJECT_ADMIN", "ANALYST"]}, "humanOnly": true},
+    "operation.approve_start_replay": {"resourceType": "OPERATION", "allow": {"projectRoles": ["PROJECT_ADMIN"]}, "humanOnly": true, "requiresMfa": true}
   }
 }

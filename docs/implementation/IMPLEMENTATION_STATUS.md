@@ -1,5 +1,207 @@
 # IMPLEMENTATION_STATUS
 
+**G02 IN_PROGRESS · общая приёмка · 2026-11-24.** Локальный срез
+S17/S20/S21 подтверждён полным `make pre-pr` и выделенными native
+проверками. Манифест проверенного среза совпал. Следующий этап доставки —
+Linux CI draft PR. Штатный запуск зависит от G-107, допуска
+`MANAGER_INTAKE` и применения лимита OD-21 через G-145.
+[Паспорт G02](groups/G02_WORK.md).
+
+**G02 IN_PROGRESS · ADR-184/185 · 2026-11-24.** Репетиция Temporal
+stock/native/stock, защита точного входа Manager и ключевые диапазоны
+пагинации уведомлений проверены. Native образ Go 1.27.4 прошёл отдельный
+SBOM/Trivy, 0 исправляемых HIGH/CRITICAL. Полный локальный `make pre-pr`
+в Ubuntu прошёл. Остаются штатный допуск `MANAGER_INTAKE`, G-145,
+целевая приёмка G-107 и GitHub Linux CI.
+[Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**G02 IN_PROGRESS · ADR-183 · 2026-11-23.** Защищённые Compose entrypoints
+проверены на PostgreSQL/Temporal с синтетической моделью Manager в тестовой
+фикстуре. Проверены Backend consumer одобрений, защищённая отмена и сверка
+Plan после ACK. Backend лента ADR-182 оформлена миграцией 0055 и WORKING
+OpenAPI. Реальные producer, переход со старой истории и общая приёмка открыты.
+[Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**G02 IN_PROGRESS, ADR-181/182 · 2026-11-23.** Самостоятельный native
+Temporal image и явный private bind Platform локально TESTED. PostgreSQL 16
+Compose smoke прошёл TLS, deny, отзыв сертификата и restart того же namespace.
+Решение по уведомлениям и исключению неклассифицированного текста принято по
+делегированию владельца. Штатный защищённый контур, доставка уведомлений,
+общие gates и CI открыты. [Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**G02 IN_PROGRESS, ADR-180 · 2026-11-21.** Reconciliation использует
+явный список типов Operation, и post-ACK не расширяет его. Повторные ключи
+JSON отклоняются. 17 unit, PostgreSQL/Temporal Plan и combined native
+Plan+Manager-timeout прошли; два независимых review APPROVE. G-107 и штатный
+Temporal target остаются открыты. [Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**Предыдущий checkpoint.** Native PoC target исследован: текущая PostgreSQL
+реализация доступна только test-tagged бинарником; default image ограничен
+SQLite и `auth-poc` identity. Штатный Temporal stock image не настроен на
+frontend mTLS/native authorization. Production target ещё не реализован.
+Следующий шаг — отдельный non-test entrypoint и production identity profile,
+перед secret/network wiring. [Handoff](CONTEXT_HANDOFF.md).
+
+**G02 IN_PROGRESS, ADR-179 · 2026-11-21.** У Dispatcher отдельный
+Ed25519 signing seed; assigned Backend проверяет выделенный registry только
+с `OUTBOX_DISPATCHER`. Обновление старых dev-secrets сохраняет значения,
+проверяет соответствие keypair и fail-closed отклоняет неполное состояние.
+11 backend и 12 infrastructure focused tests пройдены, сетевой native
+сценарий прошёл, два независимых review APPROVE. Compose mounts и target
+Temporal wiring остаются открыты. [Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**G02 IN_PROGRESS.** NCP-19 добавил подписанную передачу lease из
+штатного Outbox CLI в приватный Backend listener. Миграция 0054
+проверяет текущий lease и nonce. Целевой запуск и общая приёмка
+остаются открыты. [Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**G02 IN_PROGRESS.** ADR-177 подключил доверенный Backend-обработчик
+назначенных Start/Cancel в сетевом стенде. Штатное разделение процессов
+ожидает подтверждение приватного вызова и SQL-допуска NCP-19.
+[Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**G02 IN_PROGRESS.** ADR-176 закрепил namespace в назначенных Start
+и Cancel. Миграция 0053 и проверка PostgreSQL завершены. Штатная
+композиция защищённого dispatcher остаётся открытой.
+[Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**G02 IN_PROGRESS, 2026-11-21.** По делегированию владельца приняты
+ADR-174 (явный Start replay по точному событию) и ADR-175 (минимальный
+контекст Epic). DOC-086 v0.5, DOC-068 v1.6 и миграция 0052 реализованы.
+Manager Activity проверена на изолированном Temporal с обязательной
+привязкой Proposal к точному снимку PostgreSQL. Штатная защищённая
+композиция, доставка уведомлений и общая приёмка открыты.
+[Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**G02 IN_PROGRESS, 2026-11-21.** ADR-171 подтвердил сверку точной отмены
+до ACK. ADR-172 проверил группировку и частоту для уже допущенных
+уведомлений, ADR-173 добавил внутреннюю версию Epic. Доставка сводок,
+передача состояния Manager, штатная композиция и общие gates открыты.
+[Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**G02 IN_PROGRESS, 2026-11-21.** Сквозная отмена Plan Run после создания
+задачи подтверждена изолированным PostgreSQL/Temporal. Для S20 остаётся
+доставка сгруппированных уведомлений с настройками проекта. Штатное
+подключение и общая приёмка продолжаются отдельно.
+[Отчёт S21](increments/S21_plan_task_orchestration_REPORT.md).
+
+**G02 IN_PROGRESS, 2026-11-21.** ADR-168/169/170 добавили отмену точного
+назначенного Run, восстановление того же Run после потери ответа Start и
+безопасное упорядочивание ранней отмены. Открыты сверка исчерпанной доставки,
+штатная защищённая активация, контекст Manager и общие gates.
+[Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**G02 IN_PROGRESS, 2026-11-21.** ADR-166 проверен в цепочке Manager Proposal →
+PlanVersion → отдельное утверждение плана → Tasks. ADR-167 развёл lease claim
+и карантин назначенных START и обычных строк. Штатная защищённая активация,
+отмена, контекст Manager и общие gates остаются открытыми.
+[Паспорт G02](groups/G02_WORK.md).
+
+**G02 IN_PROGRESS, 2026-11-21.** После возобновления S21 получил штатную
+HTTP-команду создания черновика PlanVersion и сквозную проверку с Temporal.
+S20 получил внутренний PostgreSQL-запрос проекции Epic. Подключение Manager,
+его Proposal → PlanVersion, выдача допустимой истории v0.4, проактивные
+сообщения и общая приёмка открыты. [Паспорт G02](groups/G02_WORK.md).
+
+**G02 IN_PROGRESS · предыдущая пауза владельца.** ADR-164 закрыл многостраничную выдачу
+native Workflow Task на изолированном стенде, включая повторную проверку
+receipt, отрицания прямого History RPC и отказ после ACK. Штатное подключение
+и приёмка группы остаются открыты. [Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**G02 IN_PROGRESS, 2026-11-20.** Native Manager Activity после ACK достигла
+настоящего `START_TO_CLOSE` до вызова модели. Workflow `FAILED`, Postgres
+Operation сохранена в `RUNNING`, случай записан в аудит. Exact persisted
+History воспроизводится. Штатное подключение и приёмка группы открыты.
+[Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**G02 IN_PROGRESS, 2026-11-20.** ADR-163 устранил блокировку native ошибки
+Activity для защищённого Plan. Реальный Run после ACK завершился `FAILED`,
+Backend записал доменную коррекцию, очищенный History replay прошёл.
+Штатная композиция и общая приёмка ещё открыты.
+[Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**G02 IN_PROGRESS, 2026-11-20.** ADR-162 подключил opt-in доменную сверку
+точного активного Run после ACK. PostgreSQL учитывает эффекты Plan и результат
+Manager, сохраняет неопределённый исход в аудите. Отдельная проверка native
+failure delivery выявила блокировку `RespondActivityTaskFailed`. Целевое
+подключение и полный G-107 остаются открытыми.
+[Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**G02 IN_PROGRESS, 2026-11-20.** По делегированию владельца приняты ADR-160 и
+ADR-161. 0048 и native frontend обеспечивают scoped чтение точного активного
+Manager/Plan Run до и после ACK. Предмет сверки эффекта и production wiring
+остаются открытыми. Для передачи истории необходимы происхождение текста из
+классифицированной версии и текущий per-entry ACL.
+[Паспорт G02](groups/G02_WORK.md).
+
+**G02 IN_PROGRESS, 2026-11-20.** S20 проверил потерю успешного ответа Start
+до привязки и повтор того же Run через сетевой кандидат. S21 получил
+потребителя зафиксированного утверждения и отдельный допуск Plan. Сценарий
+HTTP → consumer → Temporal → ar2 → Tasks прошёл локально. Подписанный
+ar2 v0.4 проверен с пустой историей. Открыты production dispatch/reconciliation,
+допуск записей v0.4, проекция Epic, проактивность и общая приёмка.
+[Паспорт G02](groups/G02_WORK.md).
+
+**G02 IN_PROGRESS, 2026-11-20.** Сетевой кандидат подтвердил mTLS и ar2 через
+раздельные internal Compose networks. Реальный Dispatcher повторил доставку
+после потери отметки, сохранил один Run и один результат. Полный G-107 и
+штатное подключение остаются открытыми. [Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**G02 IN_PROGRESS, 2026-11-20.** Изолированный кандидат подтвердил сквозной
+Manager Run с реальным private ar2 и PostgreSQL `verify-full`. Пройдены
+штатные provisioning/schema/migrate jobs и проверка TLS с реальными ролями.
+Целевая топология и полный G-107 открыты. [Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**G02 IN_PROGRESS, 2026-11-20.** Изолированный тестовый Compose подтвердил
+логическое восстановление PostgreSQL history/visibility и чтение точного
+Run после перезапуска native Temporal. Целевая композиция с работающим ar2
+и полный G-107 открыты. [Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**G02 IN_PROGRESS, 2026-11-20.** S20 локально проверил native Temporal
+с PostgreSQL и отдельной CA для mTLS History/Matching. Сверены history,
+visibility точного Run и сверка Backend до ACK. Целевая композиция и полный
+G-107 открыты. [Отчёт](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**G02 IN_PROGRESS, 2026-11-20.** S20 получил отдельный Linux-образ native PoC
+на закреплённых исходниках Temporal, Go и module locks. Усилена проверка
+изоляции запуска. Целевой native build и полный G-107 открыты.
+[Отчёт](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**G02 IN_PROGRESS, 2026-11-20.** В S20 Backend lifespan запускает опциональный
+планировщик сверки назначенных Manager Run до ACK. Проверены проектные курсоры,
+повтор, остановка и mTLS для exact Describe на изолированном стенде. Целевая
+Temporal-композиция и полный G-107 открыты. [Отчёт](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**G02 IN_PROGRESS, 2026-11-20.** В S20 изолированный native Temporal подтвердил
+допуск отдельного наблюдателя к Describe точного Manager Run до ACK по ADR-151.
+Миграция 0047, проверка PostgreSQL и security audit проверены локально.
+Целевое подключение и полный G-107 открыты. [Отчёт](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**G02 IN_PROGRESS, 2026-11-20.** В S20 локально проверен пакет сверки назначенных
+Temporal Run до ACK на PostgreSQL и изолированном Temporal. Production admission,
+планировщик и G-107 целиком остаются открытыми. [Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**G02 IN_PROGRESS, 2026-11-19.** В worktree `AI-RES-G02` тестами покрыта
+корректировка G-107 для exact Run до start ACK. По согласию владельца оформлен
+DOC-086 v0.4 и реализован вход истории в Manager reasoning. Handler, допуск
+истории, общий G-107 и целевой runtime открыты. Статусы S17/S20/S21 отражают
+частичное evidence рабочего diff. [Паспорт](groups/G02_WORK.md).
+
+**G02 IN_PROGRESS, 2026-11-19.** S17 Tool Gateway проверен целевыми тестами.
+S20 сохраняет intake, human decisions и отдельно проверенный журнал вопросов.
+Manager LangGraph проверен через детерминированный LLMGatewayPort. S21 сохраняет
+PlanVersion, точное решение человека и создаёт Task из однозначного approved
+PlanItem через v1.3/201. Новые Temporal workflows прошли replay в изолированном
+стенде. Сквозное локальное intake и PlanExecution прошли через
+PostgreSQL, реальный Temporal dev server и private TLS/ar2 v0.3.
+Проверены потеря подтверждения Start, точная привязка Run, повтор Outbox
+и отмена без WorkerRun. Подготовка по зафиксированному утверждению плана
+атомарно создаёт один PLAN_EXECUTION и START Outbox. Тест native Temporal подтвердил
+завершение Manager intake и зафиксировал исход в PostgreSQL. Остаются
+подключение вопросов и проактивная выдача, полный G-107, native failure/cancel,
+подключение потребителя утверждения, целевой runtime и общие gates.
+[Паспорт](groups/G02_WORK.md). Ниже история подготовки.
+
 **SLICE-01 VERIFIED / DONE (2026-11-18).** Реальный governed V3 прошёл S14,
 source/quote/line7/typeFR/secret checks; результат предъявлен владельцу.
 6calls/0.0032058USD/remaining9.9967942; old account не сброшен. MFA/profile/identity
@@ -236,11 +438,11 @@ Commit/push/PR/newCI нет. Ниже исторические checkpoints, ак
 | S14 | Worker contracts: Envelope/Result/Notice | VERIFIED (2026-11-13; локально, одним `make pre-pr`: backend 1236, infra 307, runtime 148, contracts 22; Linux CI зелёный (PR #18: ci 43428029283/43428039248, contracts 43428029128/43428039135 — backend, infra-runtime, infra-static, contracts success); review: CRITICAL 0, HIGH 2 — 1 исправлен, 1 граница Gate; дельта исправлений и ADR-104 отдельным агентом не пересматривались) | DONE (ADR-032) | [report](increments/S14_worker_contracts_runtime_validation_REPORT.md) |
 | S15 | LLMGatewayPort и Model Registry (провайдер-нейтрально) | VERIFIED (2026-11-13; локально `make pre-pr`: backend 1286, infra 307, runtime 148, contracts 22, import-linter 12 kept; Linux CI зелёный (PR #19: ci 43476639282/43476718776, contracts 43476639070/43476719560 — backend, infra-runtime, infra-static, contracts success)). Качество вывода модели не проверялось (только deterministic test double, ADR-022), реального провайдера нет (S16, OD-01); review: CRITICAL 0, HIGH 5 исправлены, дельта отдельным агентом не пересматривалась | DONE (ADR-032) | [report](increments/S15_llm_gateway_port_model_registry_REPORT.md) |
 | S16 | LLM Gateway: технический механизм подключения провайдеров; исходная live-provider приёмка отложена | TESTED local+Linux+post-merge: HTTP/SSE adapter, relay, opt-in Bifrost2.5.1; полный pre-pr exit0 (backend1461,infra369,runtime148,PoC19), все8 checks153e3bb и отдельные post-merge091b976 success. Real provider path NOT VERIFIED | DONE по прямому решению владельца2026-11-17 в уточнённом техническом scope, ADR-123. NCP-16 PROPOSED, key/live tests/Bifrost acceptance/profile approval сохраняются перед включением; 0 USD model spend. Поддержка всех провайдеров runtime не заявляется | [report](increments/S16_bifrost_poc_provider_profile_REPORT.md) |
-| S17 | Tool Registry и Tool Gateway | NOT_STARTED | PENDING_DEPS: SLICE-01 перед S17 (ADR115); ARCH-01 DONE. G02 подготовка G156 | — |
+| S17 | Tool Registry и Tool Gateway | IMPLEMENTED, локальный срез с targeted PostgreSQL/unit и двумя APPROVE | Общая приёмка G02 впереди | [report](increments/S17_tool_registry_tool_gateway_REPORT.md) |
 | S18 | Rules Registry и Rules Engine | VERIFIED — localpre-pr exit0 (backend1749/infra369/runtime148/contracts22/PoC19),finaltargeted186;3independentAPPROVE; exactsourceLinux backend1751/infra-static221/runtime148/contracts22/PoC19,all8checksSUCCESS | DONE (ADR032); доставка/закрытиеG01 через PR33 | [report](increments/S18_rules_registry_rules_engine_REPORT.md) |
 | S19 | ContextPackageVersion (минимальный Context Builder) | VERIFIED: local pre-pr exit0 (backend1565,infra369,runtime148,contracts22,Renovate10,PoC19); targeted107; 3 independent reviews APPROVE; exact-head и post-merge Linux success | DONE (ADR-032), PR31 MERGED99e5ec1; G01: S18 отдельной строкой | [report](increments/S19_context_package_versioning_REPORT.md) |
-| S20 | Project/Epic intake и Manager interaction | NOT_STARTED | PENDING_DEPS | — |
-| S21 | Plan & Task orchestration | NOT_STARTED | PENDING_DEPS | — |
+| S20 | Project/Epic intake и Manager interaction | IN_PROGRESS | ADR-129 и G-107 до первого producer | [паспорт](groups/G02_WORK.md) |
+| S21 | Plan & Task orchestration | IN_PROGRESS | Локальные PlanVersion и createTask проверены, dispatch и G02 gates открыты | [Отчёт](increments/S21_plan_task_orchestration_REPORT.md) |
 | S22 | Readiness Gate | NOT_STARTED | PENDING_DEPS | — |
 | S23 | WorkerRun lifecycle и LangGraph runtime | NOT_STARTED | PENDING_DEPS | — |
 | S24 | Manager–Worker coordination | NOT_STARTED | PENDING_DEPS | — |
@@ -275,7 +477,7 @@ Commit/push/PR/newCI нет. Ниже исторические checkpoints, ак
 | Docker Compose / secrets / CI | VERIFIED (локально и на GitHub Actions) | S03 |
 | Outbox / Inbox | VERIFIED для S10; outbox-dispatcher добавлен в Compose в S11, полный путь остаётся частичным | S10–S11 |
 | Temporal, Manager Runtime, Worker Runtime | VERIFIED (skeleton: старт, ack, fail-closed; WorkerRun — S23) | S11, S20, S23 |
-| LangGraph | NOT_STARTED | S23 |
+| LangGraph | Локально проверен reasoning Manager с детерминированным LLMGatewayPort | S20, S23 |
 | LLM Gateway (port / Bifrost) | VERIFIED (port, реестр, test double) / TESTED (отключённый Bifrost adapter/relay, local+Linux); real provider/approval BLOCKED (OD-01, NCP-16) | S15 / S16 |
 | Readiness Gate | NOT_STARTED | S22 |
 | MinIO / ingestion / retrieval | MinIO VERIFIED в S03; ingestion и retrieval NOT_STARTED | S03, S27, S28 |

@@ -276,14 +276,29 @@ def test_secrets_mounted_only_into_services_that_need_them():
 
 
 def test_no_default_credentials_secrets_are_random_and_distinct(secret_values):
-    vals = [v for k, v in secret_values.items() if k not in ("minio_root_user", "service_public_keys") and not k.startswith("postgres_tls_")]
-    assert len(set(vals)) == len(vals)
-    # mfa_encryption_key is base64 of exactly 32 random bytes (44 chars): its strength is the key size, not the text length
-    assert all(len(v) >= 48 for k, v in secret_values.items() if k not in ("minio_root_user", "mfa_encryption_key", "idempotency_keyring", "manager_signing_key", "service_public_keys") and not k.startswith("postgres_tls_"))
-    assert len(base64.b64decode(secret_values["mfa_encryption_key"], validate=True)) == 32
+    public_material = {"minio_root_user", "service_public_keys", "assigned_delivery_public_keys"}
+    private_values = {name: value for name, value in secret_values.items()
+                      if name not in public_material and not name.startswith("postgres_tls_")}
+    distinct_values = len(set(private_values.values())) == len(private_values)
+    assert distinct_values, "two private secret files contain the same value"
+    # Key strength is measured in decoded bytes. Generated passwords use the length check below.
+    encoded_keys = {"mfa_encryption_key", "manager_signing_key", "outbox_delivery_signing_key"}
+    decoded_keys = []
+    for name in encoded_keys:
+        key = base64.b64decode(private_values[name], validate=True)
+        key_size = len(key)
+        assert key_size == 32, f"invalid decoded size for {name}"
+        decoded_keys.append(key)
+    non_passwords = encoded_keys | {"idempotency_keyring"}
+    assert all(len(value) >= 48 for name, value in private_values.items() if name not in non_passwords)
     key_id, key_b64 = secret_values["idempotency_keyring"].split()
-    assert key_id == "k1" and len(base64.b64decode(key_b64, validate=True)) == 32  # `<key_id> <base64 32 bytes>`, the format load_keyring() accepts
-    assert all(w not in v.lower() for v in vals for w in ("password", "changeme", "minioadmin", "admin"))
+    ring_key = base64.b64decode(key_b64, validate=True)
+    ring_size = len(ring_key)
+    assert key_id == "k1" and ring_size == 32  # `<key_id> <base64 32 bytes>`, the format load_keyring() accepts
+    decoded_keys.append(ring_key)
+    distinct_keys = len(set(decoded_keys)) == len(decoded_keys)
+    assert distinct_keys, "two private keys contain the same decoded bytes"
+    assert all(w not in v.lower() for v in private_values.values() for w in ("password", "changeme", "minioadmin", "admin"))
 
 
 # --- S11: Manager/Worker Runtime isolation and orchestration processes -----------------------------------------------------

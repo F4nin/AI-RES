@@ -18,7 +18,7 @@ cat > "$PGDATA/pg_hba.conf.new" <<'HBA'
 local   all                                      all                      scram-sha-256
 hostssl temporal_db,temporal_visibility_db       temporal                 all   scram-sha-256
 hostssl ai_res_db                                ai_res_checkpointer      all   scram-sha-256
-hostssl ai_res_db                                ai_res_migrator,ai_res_api,ai_res_outbox_dispatcher,ai_res_event_consumer,ai_res_auditor   all   scram-sha-256
+hostssl ai_res_db                                ai_res_migrator,ai_res_api,ai_res_platform_api,ai_res_outbox_dispatcher,ai_res_event_consumer,ai_res_auditor   all   scram-sha-256
 hostssl all                                      postgres                 all   scram-sha-256
 host    all                                      all                      all   reject
 HBA

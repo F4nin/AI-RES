@@ -1,5 +1,170 @@
 # KNOWN_GAPS
 
+**G02 / ADR-184/185.** Сохранение stock history, drain синтетической Activity и
+rollback ожидающего legacy Run проверяются в отдельном PostgreSQL/Temporal.
+Требуются готовность конкретного стека и подтверждённое отсутствие открытых
+legacy Run перед переходом. Для штатного Manager открыты инженерная сборка
+допуска контента/модели и долговечный бюджет G-145, а также общая приёмка
+G-107. Итоговый `make pre-pr` прошёл в Linux VM с отдельным Docker
+Engine. Персональная лента получила
+отдельные индексные seek для продолжения. Исторический anti-join источника
+планировщика сохраняет MEDIUM по нагрузке. Обновлённый native образ проходит
+обязательный отдельный скан с 0 исправляемых HIGH/CRITICAL.
+[Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**G02 / ADR-183.** Целевые процессы Temporal, Platform, Delivery и Outbox
+пройдены на изолированном стенде. Допуск контекста/модели штатного Manager,
+активация producer, переход с существующей историей и полный G-107 сохраняются.
+Для `make pre-pr` общий Docker проект `ai-res` занят relay G156, его сеть
+`172.28.20.0/24` конфликтует с отдельным проектом базового Compose.
+[Паспорт G02](groups/G02_WORK.md).
+
+**G02 / ADR-181–182.** В базовой конфигурации Compose сохраняется stock
+Temporal. Персональная лента и настройки сводок проверены на PostgreSQL.
+Для v0.4 требуется доказанная классификация точного текста. Для доставки
+остаётся MEDIUM по пропускной способности при длинной истории получателя.
+Исторический anti-join может исчерпать выделенный таймаут, в том числе в
+запросе обязательной доставки. Требуются измерения перед приёмкой нагрузки.
+[Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**G-107 / ADR-180.** Reconciliation schedule теперь ограничивает pre-ACK
+и post-ACK одной явно заданной allowlist назначенных типов; повторяющиеся
+JSON keys отвергаются. Legacy остаётся Manager-only. Это не создаёт producer
+и не доказывает полный цикл Outbox/Operation/Temporal. Открыты исчерпанный
+Start без доказанного Run, штатное native wiring и общие G-107 gates.
+[Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**S20 / проактивность.** ADR-172 реализует группировку и настраиваемую частоту
+для принятого набора событий. Проверены отложенная сводка,
+точный scope, повторы, обязательные события и переход летнего времени.
+DOC-001 «Управление проактивностью и уведомлениями» требует сводки
+некритичных событий и сохраняет обязательные критические уведомления.
+Каналы MVP, предпочтения частоты и пороги эскалации в DOC-001 открыты.
+Проектный SSE служит журналом событий и восстановлению состояния по
+ADR-033/092. Доставка и настройки проактивных уведомлений остаются
+отдельной задачей S20. [Паспорт G02](groups/G02_WORK.md).
+
+**G-107 / ADR-168–170.** Проверенный Run отменяется по exact mTLS identity.
+При возможном Start до binding отмена даёт `409 OPERATION_NOT_READY`.
+Изолированный Temporal подтверждает тот же Run при повторе. Открыта
+сверка, если Start был допущен, повтор исчерпан и доказательства Run нет.
+ADR-174 закрепляет решение владельца по DOC-061 §18. Backend проверяет
+точное поколение и действующего `PROJECT_ADMIN` с MFA. Для штатной
+активации остаются штатный защищённый dispatcher и общие gates.
+[Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**G-107 / ADR-167/168.** Назначенные START и CANCEL разграничены с обычными в Outbox
+claim и lease-expiry quarantine. Сохраняются durable intent и проверка
+отдельной runtime authority. ADR-176 ограничивает claim и карантин точным
+namespace и сохраняет недоказанный маршрут в карантине. ADR-177
+соединяет существующие доверенные Backend-команды и Temporal-клиенты.
+NCP-19 и ADR-178 подключают два процессных entrypoint через exact
+lease. ADR-179 разделяет Outbox signer и узкий verifier allowlist.
+Открыты целевые Compose secret mounts, проверка сетевой достижимости и
+штатная native Temporal identity wiring.
+[Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**G02 / S20, 2026-11-21.** Восстановление текущего состояния Epic проверено
+внутренним PostgreSQL-запросом. ADR-175 связывает Proposal с точной выданной
+версией в проверенном private v5. Открыта штатная активация. Для истории v0.4 схема
+`sources.source_versions` предоставляет immutable checksum и provenance,
+но не предоставляет назначенную версии классификацию или доказанную связь
+с текстом ответа. До такого источника доказательств выдача истории остаётся
+закрытой. [Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**G-107 / ADR-164.** Изолированный PostgreSQL/Temporal прошёл многостраничную
+выдачу Workflow Task и повторную проверку допуска. Evidence относится к
+назначенным Manager и Plan Workflows стенда. Открыты штатная композиция,
+другие режимы таймаутов и повторов, неоднозначные внешние эффекты Manager и
+общая приёмка. [Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**G-107 / ADR-162, 2026-11-20.** Exact Run после ACK сопоставляется с доменными
+эффектами PostgreSQL. Безопасная коррекция Plan и audit-first обработка
+неопределённого исхода реализованы. ADR-163 устранил блокировку native
+`RespondActivityTaskFailed` и `FAIL_WORKFLOW_EXECUTION` для точной Plan
+Activity при полной полученной History. Подтверждены `FAILED`, доменная
+коррекция и replay. Native `START_TO_CLOSE` Manager после ACK также подтверждён
+на изолированном Temporal. Открыты штатная композиция, многостраничная
+History, другие режимы таймаута и повторов, разрешение неоднозначных внешних
+эффектов Manager и общая приёмка.
+[Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**G-107 / S20–S21, 2026-11-20.** Допуск статуса по ADR-160 реализован через
+private auth-control, миграцию 0048 и минимальный промежуточный ответ native
+Temporal. Точная причина терминального состояния и доменный эффект требуют
+собственных доказательств. Штатный защищённый запуск, наблюдение и settlement
+остаются открытыми. Допуск статуса не меняет доменную Operation.
+[Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**G-107 / S21, 2026-11-20.** Потеря первого успешного ответа Start до
+binding проверена сетевым кандидатом. Deadline моделируется после принятия
+Start на границе publisher, повтор использует реальный Dispatcher. Отдельно
+ADR-158 подключил opt-in обработку Plan approval. Для целевого runtime
+остаются независимая Plan authority, stock process wiring, сбои процесса
+и сверка фактических эффектов после ACK.
+[Паспорт G02](groups/G02_WORK.md).
+
+**G-104/G-106/G-107, 2026-11-20.** ADR-157 проверил автоматический повтор
+Outbox при потере отметки после привязки Run на сетевом кандидате.
+Открыты целевые identities и процессы, loss до binding через штатный
+контур, естественная lease expiry/process crash и post-ACK effects.
+[Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**G-104/G-106/G-107, 2026-11-20.** ADR-156 подтвердил native Manager Run с
+private ar2 и PostgreSQL `verify-full` на изолированном кандидате.
+Открыты target topology и service identity wiring, ar2 при целевом
+restart/restore, replay Outbox и post-ACK effects.
+[Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**G-104/G-107, 2026-11-20.** ADR-155 подтвердил logical restore history/visibility
+и перезапуск Temporal в отдельном Compose. Целевые identities и secrets,
+восстановление PostgreSQL/Platform authority в целевом стеке, повтор Outbox,
+потерянный Start и post-ACK остаются открытыми.
+[Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**G-104/G-107, 2026-11-20.** ADR-154 подтвердил history/visibility на временном
+PostgreSQL и internode gRPC mTLS для History/Matching. Открыты целевые identities,
+TLS к PostgreSQL, membership TLS и проверка остальных внутренних сервисов,
+restart/restore, потерянный Start, повтор Outbox и сверка после ACK.
+[Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**G-104/G-107, 2026-11-20.** ADR-153 закрепляет Linux-сборку изолированного
+native PoC. Целевой PostgreSQL runtime, mTLS identities, восстановление
+и G-107 в полном scope требуют отдельной реализации и приёмки.
+[Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**G-107, 2026-11-20.** ADR-152 реализует периодическую сверку до ACK в Backend,
+подключённую к изолированному native Temporal. Открыты целевой native образ и
+identity, восстановление до привязки, повтор Outbox и сверка после ACK.
+[Отчёт](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**G-107, 2026-11-20.** Отдельная identity наблюдателя и exact Describe до ACK
+локально проверены на native Temporal через ar2 и PostgreSQL, ADR-151. Открыты
+целевая конфигурация наблюдателя, планировщик, потерянный Start ACK на целевом
+транспорте, повтор Outbox и проверка фактических эффектов после ACK.
+
+**G-107, 2026-11-20.** ADR-150 добавляет постраничный обход за один проект
+для активных bound Run до ACK. Production observer admission, подключение
+планировщика, повторная доставка Outbox и сверка побочных эффектов после ACK
+остаются открытыми. [Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**G-107, 2026-11-19.** По отдельному подтверждённому сбою до start ACK
+проверены exact bound Run, повторная проверка версии и отзыва, один переход
+и аудит. Открыты production observer, периодическая сверка, повторная доставка Outbox и reconciliation последствий после ACK. G-107 остаётся OPEN.
+
+**S20, адаптивный контекст.** Согласование NCP-14 закрыто, DOC-086 v0.4 и input
+reasoning локально проверены. Protected handler возвращает пустую историю.
+Определение допустимого контекста по текущему Policy/ACL и классификации
+остаётся OPEN. Запись взаимодействия сама по себе не доказывает классификацию
+текста ответа. [Решения владельца](DECISIONS_PENDING.md).
+
+**G02, текущий срез.** G-104, G-106, G-107, G-110 и G-111 остаются OPEN.
+Isolated native mTLS/receipt PoC, ar2 private TLS, scoped DB control и
+проверяемая обработка терминального наблюдения реализованы частично. Открыты
+native auth-control production wiring, полный reconcile loop, routing producer
+и совместные runtime gates. Это уточняет исторические строки о полном отсутствии
+кода. [Рабочий checkpoint](groups/G02_WORK.md)
+
 **SLICE-01, 2026-11-18:** локальный реальный эксперимент TESTED: profile/MFA,
 общий лимит10USD, actual governed result и grounding доказаны. V1 diagnostic loss
 устранён; V2 JSON/line-offset нарушения стали regression tests, V3 прошёл. Это не
@@ -260,7 +425,7 @@ G72 context sealing исправлен forward0018 в S19, но остально
 | G-104 | Temporal без аутентификации/авторизации/TLS: любой пир сети `workflow` (в т.ч. Worker Runtime) может открыть клиент Temporal, стартовать `OperationWorkflow` на `ai-res-manager` с любым (operationId, organizationId, projectId) или опрашивать очередь Manager; Manager затем выполнит ack/fail со своим токеном (confused deputy) | Утверждение «Worker не может инициировать доменные записи» держится на сетевой и кодовой изоляции, не на Temporal-authorizer; до S23 Worker не исполняет код агентов | OPEN — механизм выбран по делегированию OD-19, ADR-129: mTLS/native RPC+queue auth и issuance receipts. PoC/реализация NOT VERIFIED; до первого real start producer и Worker execution, не закрывать по наличию ADR |
 | G-105 | Тесты идут на Temporal dev-сервере (CLI-образ закреплён по digest), а не на сервере Compose 1.29.7 с PostgreSQL; Worker Versioning (Contracts §9.5 — основной механизм) не исследован PoC, build id в истории не записывается, используется patching | Replay/идемпотентность не зависят от backend persistence; версия сервера может отличаться | OPEN — PoC Worker Versioning до долгоживущих workflow (S21+); S33 |
 | G-106 | Внутренний Platform API: нет jti-кэша (replay токена ≤60 с), audience `API` общий с публичным API, HTTP без TLS в сети `app` (общей с proxy), DB-роль `ai_res_api` общая с публичным API, нет аудита/rate limit отказов 401/403 (нет tenant context для аудита), нет лимита тела до аутентификации | Перехват токена в `app` даёт ack/fail произвольной Operation (при знании UUID-троек) в пределах TTL | OPEN — ADR-129 принят по делегированию владельца: platform network/privateTLS, audience/request binding, durable replay protection, server-owned assignments, узкая DB-role и audit. Реализация/приёмка NOT VERIFIED |
-| G-107 | Нет reconciler'а Operation ↔ Outbox ↔ Temporal (Spec v1.13 п.14): при недоступности Platform API дольше `ACTIVITY_BUDGET` (15 мин, WORKING) workflow падает, Operation остаётся ACCEPTED/RUNNING, а повторная доставка получает ALREADY_FINISHED (теперь warning + метрика, но не восстановление); нет производителя START_DESTINATION и allowlist типов Operation для маршрута | Безопасно только пока ни один реальный тип Operation не направляется на маршрут (производителя нет) | OPEN — S12/S13: reconciler и allowlist типов — ОБЯЗАТЕЛЬНЫЕ условия до первого производителя |
+| G-107 | Сверка Operation ↔ Outbox ↔ Temporal с явным allowlist проверена для точного назначенного Run в изолированном PostgreSQL/Temporal. Проверены потеря ответа Start, ручной повтор из карантина, Cancel и отказ после ACK. | Общая приёмка штатной композиции, наблюдателя и политик допуска для точного стека ещё открыта. | OPEN — принять сквозной контур и разрешённые типы Operation до активации первого штатного producer. [Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md) |
 | G-108 | Healthcheck'и manager/worker/dispatcher проверяют только достижимость Temporal, healthcheck platform-api — любой HTTP-ответ (не БД); нет OTel-интерсептора Temporal, trace linkage workflow, метрик очередей | Зависший poller или потерянная БД не делают сервис unhealthy (процесс worker завершается при падении воркера, но не при зависании) | OPEN — S13 (observability) | **S13: частично закрыт** — TracingInterceptor (spans в одном trace, replay совместим), метрики ядра SDK и серверные метрики Temporal; не закрыто: healthcheck по-прежнему проверяет только достижимость Temporal, имена метрик schedule-to-start не проверены реальным workflow (G-129).
 | G-109 | Контракт `contracts/internal/…v0.1.yaml` не входит в `make contracts-check` (валидация, Spectral, breaking-diff); соответствие маршрутам проверяет только test_internal_platform_api | Дрейф контракта ловится одним тестом | OPEN — NCP-14, расширение toolchain S01 |
 | G-110 | QUEUED не наблюдаем отдельно (ACCEPTED→QUEUED→RUNNING одной транзакцией в первой Activity; §2.5 п.5 ожидает QUEUED после scheduling); `ORCHESTRATION_NOT_IMPLEMENTED` не внесён в реестр кодов; replay-fixture skeleton v1 фиксирует последовательность ack→fail (S21 введёт новый major или тип workflow) | Отклонение от буквы §2.5 п.5 из-за прав роли dispatcher | OPEN — решение владельца при S21 (NCP-14) |

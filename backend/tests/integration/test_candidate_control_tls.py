@@ -10,6 +10,7 @@ import ssl
 import threading
 import time
 from datetime import UTC, datetime, timedelta
+from ipaddress import IPv4Address
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -46,6 +47,7 @@ def certificates(directory, *, hostname="llm-poc-control"):
           .add_extension(x509.SubjectKeyIdentifier.from_public_key(ca_key.public_key()), critical=False)
           .sign(ca_key, hashes.SHA256()))
     server_name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, hostname)])
+    san = x509.IPAddress(IPv4Address(hostname)) if hostname == "127.0.0.1" else x509.DNSName(hostname)
     server = (x509.CertificateBuilder().subject_name(server_name).issuer_name(ca_name).public_key(server_key.public_key())
               .serial_number(x509.random_serial_number()).not_valid_before(now-timedelta(minutes=1)).not_valid_after(now+timedelta(days=1))
               .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
@@ -54,7 +56,7 @@ def certificates(directory, *, hostname="llm-poc-control"):
                                           data_encipherment=False, key_agreement=False, key_cert_sign=False, crl_sign=False,
                                           encipher_only=None, decipher_only=None), critical=True)
               .add_extension(x509.ExtendedKeyUsage([ExtendedKeyUsageOID.SERVER_AUTH]), critical=False)
-              .add_extension(x509.SubjectAlternativeName([x509.DNSName(hostname)]), critical=False)
+              .add_extension(x509.SubjectAlternativeName([san]), critical=False)
               .sign(ca_key, hashes.SHA256()))
     ca_file, cert_file, key_file = (directory / name for name in ("ca.pem", "server.pem", "server.key"))
     ca_file.write_bytes(ca.public_bytes(serialization.Encoding.PEM))

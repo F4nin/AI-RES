@@ -1,0 +1,137 @@
+openapi: 3.1.0
+info:
+  title: AI RES internal Manager Epic context
+  version: 0.5.0
+  description: >
+    Additive private commands for the exact assigned Manager Run.
+    The v0.3 and v0.4 paths retain their existing response shapes.
+x-status: BASELINED
+x-source: Owner-approved NCP-18 and ADR-175.
+security: [{platformAr2: []}]
+paths:
+  /internal/v5/operations/{operationId}/manager-input:
+    parameters: [{$ref: '#/components/parameters/OperationId'}]
+    post:
+      operationId: captureAssignedManagerEpicContext
+      x-caller: MANAGER_RUNTIME
+      x-action: manager.read_input
+      description: >
+        Read the assigned message and freeze the first eligible metadata snapshot of
+        the exact active Run. Retries return the same version and state. The snapshot
+        is disclosed only to the Activity. Source content, question text and history
+        are outside the Epic state. Prior question content remains governed by v0.4.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ExecutionRequest'}
+      responses:
+        '200':
+          description: Bound Manager input.
+          headers:
+            Cache-Control: {required: true, schema: {const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ContextInput'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+        '413': {$ref: '#/components/responses/Problem'}
+        '422': {$ref: '#/components/responses/Problem'}
+        '503': {$ref: '#/components/responses/Problem'}
+  /internal/v5/operations/{operationId}/manager-draft:
+    parameters: [{$ref: '#/components/parameters/OperationId'}]
+    post:
+      operationId: recordContextBoundManagerDraft
+      x-caller: MANAGER_RUNTIME
+      x-action: manager.record_draft
+      description: >
+        Persist a Proposal tied to the issued snapshot for this assignment and Run.
+        The reference participates in the immutable Proposal content hash. Missing,
+        mismatched and foreign references cannot write a Proposal. After issuance
+        a legacy command cannot create a Proposal without provenance.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ContextDraft'}
+      responses:
+        '200':
+          description: Existing Operation status representation.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/OperationStatus'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+        '413': {$ref: '#/components/responses/Problem'}
+        '422': {$ref: '#/components/responses/Problem'}
+        '503': {$ref: '#/components/responses/Problem'}
+components:
+  parameters:
+    OperationId: {name: operationId, in: path, required: true, schema: {type: string, format: uuid}}
+  securitySchemes:
+    platformAr2:
+      type: http
+      scheme: bearer
+      bearerFormat: ar2
+      description: Existing nonce and expiry rules bind the exact v5 path, action and body digest.
+  responses:
+    Problem:
+      description: RFC 9457 problem with a safe machine code.
+      content:
+        application/problem+json:
+          schema: {type: object}
+  schemas:
+    ExecutionRequest:
+      type: object
+      additionalProperties: false
+      required: [workflowId, workflowRunId]
+      properties:
+        workflowId: {type: string, minLength: 1}
+        workflowRunId: {type: string, format: uuid}
+    ContextInput:
+      type: object
+      additionalProperties: false
+      required: [operationId, message, contextVersionId, epicState]
+      properties:
+        operationId: {type: string, format: uuid}
+        message: {type: string, minLength: 1, maxLength: 20000}
+        contextVersionId: {type: string, format: uuid}
+        epicState: {$ref: '#/components/schemas/EpicState'}
+    EpicState:
+      type: object
+      additionalProperties: false
+      required: [epicVersion, epicStatus, operationVersion, operationStatus, questionSequence, hasOpenQuestion, planVersion, planDecision, taskCounts]
+      properties:
+        epicVersion: {type: integer, minimum: 1}
+        epicStatus: {type: string, pattern: '^[A-Z][A-Z_]*$'}
+        operationVersion: {type: integer, minimum: 1}
+        operationStatus: {const: RUNNING}
+        questionSequence: {type: integer, minimum: 0}
+        hasOpenQuestion: {type: boolean}
+        planVersion: {type: [integer, 'null'], minimum: 1}
+        planDecision: {enum: [APPROVE, REJECT, REQUEST_CHANGES, null]}
+        taskCounts:
+          type: object
+          propertyNames: {pattern: '^[A-Z][A-Z_]*$'}
+          additionalProperties: {type: integer, minimum: 0}
+    ContextDraft:
+      type: object
+      additionalProperties: false
+      required: [workflowId, workflowRunId, goal, scope, primaryQuestion, contextVersionId]
+      properties:
+        workflowId: {type: string, minLength: 1}
+        workflowRunId: {type: string, format: uuid}
+        goal: {type: [string, 'null'], maxLength: 20000}
+        scope: {type: [string, 'null'], maxLength: 20000}
+        primaryQuestion: {type: [string, 'null'], maxLength: 20000}
+        contextVersionId: {type: string, format: uuid}
+    OperationStatus:
+      type: object
+      additionalProperties: false
+      required: [operationId, status]
+      properties:
+        operationId: {type: string, format: uuid}
+        status:
+          enum: [ACCEPTED, QUEUED, RUNNING, WAITING_FOR_HUMAN, WAITING_FOR_DEPENDENCY, RETRYING, CANCEL_REQUESTED, SUCCEEDED, PARTIALLY_SUCCEEDED, FAILED, CANCELLED]

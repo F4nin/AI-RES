@@ -1,0 +1,232 @@
+# Protected G02 transport overlay. Use with compose.yaml in a dedicated dev/test project.
+# The protected ingress remains disabled until Manager model authority and reconciliation are admitted.
+name: ai-res-g02-protected
+
+x-protected: &protected
+  build: { context: ../backend, dockerfile: Dockerfile }
+  image: ai-res/api:dev
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  pids_limit: 256
+  init: true
+  user: "10001:10001"
+  mem_limit: 256m
+  tmpfs: ["/tmp:uid=10001,gid=10001,mode=0700"]
+
+x-platform-env: &platform-env
+  AI_RES_ENVIRONMENT: prod
+  AI_RES_DB_HOST: postgres
+  AI_RES_DB_SSLMODE: verify-full
+  AI_RES_DB_SSLROOTCERT_FILE: /run/secrets/postgres_tls_ca_cert
+  AI_RES_PLATFORM_REQUEST_MAX_BYTES: "${G02_REQUEST_MAX_BYTES:?}"
+  AI_RES_PLATFORM_CREDENTIAL_MAX_BYTES: "${G02_CREDENTIAL_MAX_BYTES:?}"
+  AI_RES_PLATFORM_LISTENER_MAX_CONNECTIONS: "${G02_MAX_CONNECTIONS:?}"
+  AI_RES_SERVICE_TOKEN_MAX_TTL_SECONDS: "${G02_CREDENTIAL_TTL_SECONDS:?}"
+  AI_RES_OTLP_ENDPOINT: http://otel-collector:4318
+
+services:
+  temporal:
+    build: { context: ./temporal_auth_poc, target: native-runtime }
+    image: ai-res/temporal-native:g02-local
+    networks: !override
+      data: {}
+      workflow: { aliases: [temporal-workflow] }
+      platform: {}
+      observability: { aliases: [temporal-metrics] }
+    entrypoint: [/temporal-native]
+    environment: !override
+      G02_TEMPORAL_METRICS: "1"
+    healthcheck: { disable: true }
+    tmpfs: !reset []
+    secrets: !override
+      - temporal_db_password
+      - postgres_tls_ca_cert
+      - temporal_frontend_cert
+      - temporal_frontend_key
+      - temporal_frontend_ca
+      - temporal_internode_cert
+      - temporal_internode_key
+      - temporal_internode_ca
+      - temporal_platform_ca
+      - temporal_auth_control_signing_key
+    volumes: !override
+      - type: bind
+        source: "${G02_PROTECTED_DIR:?}/active-certs"
+        target: /etc/temporal/active-client-certs
+        read_only: true
+        bind: { create_host_path: false }
+    depends_on:
+      platform-control: { condition: service_healthy }
+  temporal-namespace:
+    build: { context: ../backend, dockerfile: Dockerfile }
+    image: ai-res/api:dev
+    entrypoint: [python, /g02/namespace_native.py]
+    networks: !override [workflow]
+    environment:
+      G02_NAMESPACE_RETENTION_SECONDS: "${G02_NAMESPACE_RETENTION_SECONDS:?}"
+    volumes: !override
+      - ./config/temporal/namespace_native.py:/g02/namespace_native.py:ro
+    secrets: [temporal_frontend_ca, temporal_operator_cert, temporal_operator_key]
+    depends_on: !override
+      temporal: { condition: service_started }
+  # Explicitly suspend the S11 plaintext components while testing the protected transport.
+  platform-api:
+    profiles: [legacy-platform]
+  manager-runtime:
+    profiles: [legacy-manager]
+  worker-runtime:
+    profiles: [later-worker]
+  temporal-ui:
+    profiles: [later-temporal-ui]
+  api:
+    networks: [workflow]
+    environment:
+      AI_RES_TEMPORAL_ADDRESS: temporal-workflow:7233
+      AI_RES_TEMPORAL_NAMESPACE: ai-res
+      AI_RES_RECONCILIATION_CONFIG_FILE: /g02/reconciliation.json
+    secrets: [temporal_frontend_ca, temporal_reconciliation_cert, temporal_reconciliation_key]
+    volumes:
+      - type: bind
+        source: "${G02_RECONCILIATION_FILE:-./config/temporal/g02-reconciliation.json}"
+        target: /g02/reconciliation.json
+        read_only: true
+        bind: { create_host_path: false }
+    depends_on:
+      temporal-namespace: { condition: service_completed_successfully }
+  platform-control:
+    <<: *protected
+    networks:
+      data: {}
+      platform: { aliases: [platform-api] }
+      observability: {}
+    command: [python, /g02/private_entrypoint.py, platform]
+    environment:
+      <<: *platform-env
+      AI_RES_DB_USER: ai_res_platform_api
+      AI_RES_DB_PASSWORD_FILE: /run/secrets/platform_api_db_password
+      AI_RES_DB_APPLICATION_NAME: ai-res-platform-api
+      AI_RES_SERVICE_PUBLIC_KEYS_FILE: /run/secrets/g02_platform_public_keys
+      AI_RES_PLATFORM_TLS_CERTIFICATE_FILE: /run/secrets/g02_platform_tls_cert
+      AI_RES_PLATFORM_TLS_KEY_FILE: /run/secrets/g02_platform_tls_key
+    secrets: [platform_api_db_password, postgres_tls_ca_cert, g02_platform_public_keys, g02_platform_tls_cert, g02_platform_tls_key]
+    volumes: [./config/temporal/private_entrypoint.py:/g02/private_entrypoint.py:ro]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    healthcheck:
+      test: [CMD, python, -c, "import socket; socket.create_connection(('platform-api', 8443), 2).close()"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  delivery-control:
+    <<: *protected
+    networks:
+      data: {}
+      workflow: {}
+      delivery: { aliases: [assigned-delivery] }
+      observability: {}
+    command: [python, /g02/private_entrypoint.py, delivery]
+    environment:
+      <<: *platform-env
+      AI_RES_DB_USER: ai_res_api
+      AI_RES_DB_PASSWORD_FILE: /run/secrets/api_db_password
+      AI_RES_DB_APPLICATION_NAME: ai-res-assigned-delivery
+      AI_RES_TEMPORAL_ADDRESS: temporal-workflow:7233
+      AI_RES_TEMPORAL_NAMESPACE: ai-res
+      AI_RES_ASYNCAPI_CONTRACT_FILE: /contracts/domain-events.yaml
+      AI_RES_PLATFORM_TLS_CERTIFICATE_FILE: /run/secrets/g02_delivery_tls_cert
+      AI_RES_PLATFORM_TLS_KEY_FILE: /run/secrets/g02_delivery_tls_key
+      AI_RES_ASSIGNED_DELIVERY_PUBLIC_KEYS_FILE: /run/secrets/assigned_delivery_public_keys
+      AI_RES_ASSIGNED_TEMPORAL_SERVER_NAME: temporal-workflow
+      AI_RES_ASSIGNED_TEMPORAL_CA_FILE: /run/secrets/temporal_frontend_ca
+      AI_RES_ASSIGNED_START_CERTIFICATE_FILE: /run/secrets/temporal_dispatcher_cert
+      AI_RES_ASSIGNED_START_KEY_FILE: /run/secrets/temporal_dispatcher_key
+      AI_RES_ASSIGNED_CANCEL_CERTIFICATE_FILE: /run/secrets/temporal_cancellation_cert
+      AI_RES_ASSIGNED_CANCEL_KEY_FILE: /run/secrets/temporal_cancellation_key
+    configs:
+      - { source: domain_events_contract, target: /contracts/domain-events.yaml }
+    volumes: [./config/temporal/private_entrypoint.py:/g02/private_entrypoint.py:ro]
+    secrets:
+      - api_db_password
+      - postgres_tls_ca_cert
+      - g02_delivery_tls_cert
+      - g02_delivery_tls_key
+      - assigned_delivery_public_keys
+      - temporal_frontend_ca
+      - temporal_dispatcher_cert
+      - temporal_dispatcher_key
+      - temporal_cancellation_cert
+      - temporal_cancellation_key
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      temporal-namespace: { condition: service_completed_successfully }
+      platform-control: { condition: service_healthy }
+    healthcheck:
+      test: [CMD, python, -c, "import socket; socket.create_connection(('assigned-delivery', 8444), 2).close()"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  outbox-dispatcher:
+    networks: !override [data, delivery, observability]
+    environment: !override
+      <<: *platform-env
+      AI_RES_DB_USER: ai_res_outbox_dispatcher
+      AI_RES_DB_PASSWORD_FILE: /run/secrets/outbox_db_password
+      AI_RES_DB_APPLICATION_NAME: ai-res-outbox-dispatcher
+      AI_RES_TEMPORAL_NAMESPACE: ai-res
+      AI_RES_ASYNCAPI_CONTRACT_FILE: /contracts/domain-events.yaml
+      AI_RES_SERVICE_SIGNING_KEY_FILE: /run/secrets/outbox_delivery_signing_key
+      AI_RES_ASSIGNED_DELIVERY_CA_FILE: /run/secrets/g02_delivery_ca
+      AI_RES_ASSIGNED_DELIVERY_URL: https://assigned-delivery:8444
+    healthcheck: { disable: true }
+    secrets: !override [outbox_db_password, postgres_tls_ca_cert, outbox_delivery_signing_key, g02_delivery_ca]
+    depends_on: !override
+      migrate: { condition: service_completed_successfully }
+      delivery-control: { condition: service_healthy }
+
+networks:
+  platform: { internal: true }
+  delivery: { internal: true }
+
+secrets:
+  # These are copies of the same base SOPS values under the private G02 mount directory.
+  postgres_superuser_password: { file: "${G02_PROTECTED_DIR:?}/postgres_superuser_password" }
+  temporal_db_password: { file: "${G02_PROTECTED_DIR:?}/temporal_db_password" }
+  checkpointer_db_password: { file: "${G02_PROTECTED_DIR:?}/checkpointer_db_password" }
+  migrator_db_password: { file: "${G02_PROTECTED_DIR:?}/migrator_db_password" }
+  api_db_password: { file: "${G02_PROTECTED_DIR:?}/api_db_password" }
+  platform_api_db_password: { file: "${G02_PROTECTED_DIR:?}/platform_api_db_password" }
+  outbox_db_password: { file: "${G02_PROTECTED_DIR:?}/outbox_db_password" }
+  consumer_db_password: { file: "${G02_PROTECTED_DIR:?}/consumer_db_password" }
+  auditor_db_password: { file: "${G02_PROTECTED_DIR:?}/auditor_db_password" }
+  backup_db_password: { file: "${G02_PROTECTED_DIR:?}/backup_db_password" }
+  postgres_tls_ca_cert: { file: "${G02_PROTECTED_DIR:?}/postgres_tls_ca_cert" }
+  postgres_tls_server_cert: { file: "${G02_PROTECTED_DIR:?}/postgres_tls_server_cert" }
+  postgres_tls_server_key: { file: "${G02_PROTECTED_DIR:?}/postgres_tls_server_key" }
+  cursor_hmac_key: { file: "${G02_PROTECTED_DIR:?}/cursor_hmac_key" }
+  mfa_encryption_key: { file: "${G02_PROTECTED_DIR:?}/mfa_encryption_key" }
+  idempotency_keyring: { file: "${G02_PROTECTED_DIR:?}/idempotency_keyring" }
+  temporal_frontend_cert: { file: "${G02_PROTECTED_DIR:?}/temporal_frontend_cert" }
+  temporal_frontend_key: { file: "${G02_PROTECTED_DIR:?}/temporal_frontend_key" }
+  temporal_frontend_ca: { file: "${G02_PROTECTED_DIR:?}/temporal_frontend_ca" }
+  temporal_internode_cert: { file: "${G02_PROTECTED_DIR:?}/temporal_internode_cert" }
+  temporal_internode_key: { file: "${G02_PROTECTED_DIR:?}/temporal_internode_key" }
+  temporal_internode_ca: { file: "${G02_PROTECTED_DIR:?}/temporal_internode_ca" }
+  temporal_platform_ca: { file: "${G02_PROTECTED_DIR:?}/temporal_platform_ca" }
+  temporal_auth_control_signing_key: { file: "${G02_PROTECTED_DIR:?}/temporal_auth_control_signing_key" }
+  temporal_operator_cert: { file: "${G02_PROTECTED_DIR:?}/temporal_operator_cert" }
+  temporal_operator_key: { file: "${G02_PROTECTED_DIR:?}/temporal_operator_key" }
+  temporal_dispatcher_cert: { file: "${G02_PROTECTED_DIR:?}/temporal_dispatcher_cert" }
+  temporal_dispatcher_key: { file: "${G02_PROTECTED_DIR:?}/temporal_dispatcher_key" }
+  temporal_cancellation_cert: { file: "${G02_PROTECTED_DIR:?}/temporal_cancellation_cert" }
+  temporal_cancellation_key: { file: "${G02_PROTECTED_DIR:?}/temporal_cancellation_key" }
+  temporal_reconciliation_cert: { file: "${G02_PROTECTED_DIR:?}/temporal_reconciliation_cert" }
+  temporal_reconciliation_key: { file: "${G02_PROTECTED_DIR:?}/temporal_reconciliation_key" }
+  g02_platform_public_keys: { file: "${G02_PROTECTED_DIR:?}/g02_platform_public_keys" }
+  g02_platform_tls_cert: { file: "${G02_PROTECTED_DIR:?}/g02_platform_tls_cert" }
+  g02_platform_tls_key: { file: "${G02_PROTECTED_DIR:?}/g02_platform_tls_key" }
+  g02_delivery_tls_cert: { file: "${G02_PROTECTED_DIR:?}/g02_delivery_tls_cert" }
+  g02_delivery_tls_key: { file: "${G02_PROTECTED_DIR:?}/g02_delivery_tls_key" }
+  g02_delivery_ca: { file: "${G02_PROTECTED_DIR:?}/g02_delivery_ca" }
+  assigned_delivery_public_keys: { file: "${G02_PROTECTED_DIR:?}/assigned_delivery_public_keys" }
+  outbox_delivery_signing_key: { file: "${G02_PROTECTED_DIR:?}/outbox_delivery_signing_key" }

@@ -119,6 +119,9 @@ class Settings(BaseModel):
     # `data` network: transport security for Temporal is not decided (WORKING, G-104).
     temporal_address: str | None = Field(default=None, pattern=r"^[A-Za-z0-9.-]{1,253}:[0-9]{1,5}$")
     temporal_namespace: str = Field(default="ai-res", pattern=r"^[a-z0-9][a-z0-9-]{0,62}$")
+    reconciliation_config_file: Path | None = None  # Backend-only opt-in with project scopes and observer mTLS (ADR-152)
+    notification_schedule_file: Path | None = None  # Backend-only delivery scopes, frequency choices and poll limits
+    plan_approval_config_file: Path | None = None  # Backend-only, requires separately admitted PLAN_EXECUTION
     asyncapi_contract_file: Path | None = None  # packaged domain-event contract the dispatcher validates against (closes G-99 for the dispatcher process)
     worker_contract_schema_file: Path | None = None  # packaged DOC-007 schema (WORKING); needed by any process validating Worker contracts (S14; wired in S23)
     # LLM gateway (S15, ADR-109): WORKING technical defaults for bounded retry / circuit breaker; none is an SLO (OD-02).
@@ -128,10 +131,39 @@ class Settings(BaseModel):
     llm_circuit_failure_threshold: int = Field(default=5, ge=1, le=100)
     llm_circuit_open_seconds: float = Field(default=30.0, gt=0, le=3600)
     llm_bytes_per_token_estimate: float = Field(default=3.0, gt=0, le=16)  # input-size estimate for the budget hold; settlement uses provider usage
+    # Manager intake does not start until the protected dispatch composition supplies an ingress limit.
+    manager_message_max_body_bytes: int | None = Field(default=None, ge=1)
     platform_api_url: str | None = None  # internal Platform API base URL used by the runtimes (never the public listener)
+    # ADR-129 private ar2 listener. Limits are configured for the deployment, with no approved product defaults.
+    platform_tls_certificate_file: Path | None = None
+    platform_tls_key_file: Path | None = None
+    platform_request_max_bytes: int | None = Field(default=None, ge=1)
+    platform_credential_max_bytes: int | None = Field(default=None, ge=1)
+    platform_listener_max_connections: int | None = Field(default=None, ge=1)
+    platform_listener_bind_host: ipaddress.IPv4Address = ipaddress.IPv4Address("127.0.0.1")
+    platform_operation_failure_codes: Annotated[tuple[str, ...], BeforeValidator(_split_csv)] = ()
+    assigned_delivery_url: str | None = None
+    assigned_delivery_ca_file: Path | None = None
+    assigned_delivery_public_keys_file: Path | None = None
+    assigned_delivery_bind_host: str = "127.0.0.1"
+    assigned_delivery_bind_port: int = Field(default=8444, ge=1, le=65535)
+    assigned_temporal_server_name: str | None = Field(default=None, pattern=r"^[A-Za-z0-9][A-Za-z0-9.-]{0,252}$")
+    assigned_temporal_ca_file: Path | None = None
+    assigned_start_certificate_file: Path | None = None
+    assigned_start_key_file: Path | None = None
+    assigned_cancel_certificate_file: Path | None = None
+    assigned_cancel_key_file: Path | None = None
     platform_api_timeout_seconds: float = Field(default=10.0, gt=0, le=60)  # WORKING
     policy_timeout_seconds: float = Field(default=2.0, gt=0, le=30)  # WORKING: Policy Engine decision budget; exceeded => fail-closed 503
     trusted_proxy_cidrs: Annotated[tuple[str, ...], BeforeValidator(_split_csv)] = ()  # peers allowed to set X-Forwarded-For (Caddy); empty = ignore XFF
+
+    @field_validator("platform_listener_bind_host")
+    @classmethod
+    def _private_platform_bind(cls, address: ipaddress.IPv4Address) -> ipaddress.IPv4Address:
+        private_networks = ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16")
+        if not address.is_loopback and not any(address in ipaddress.IPv4Network(network) for network in private_networks):
+            raise ValueError("Platform must bind to loopback or one explicit private IPv4 address")
+        return address
 
     @field_validator("otlp_endpoint", "otlp_grpc_endpoint")
     @classmethod

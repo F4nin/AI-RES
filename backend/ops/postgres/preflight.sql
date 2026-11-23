@@ -15,6 +15,6 @@ UNION ALL
 SELECT 'long_transaction', 'pid ' || pid || ' idle in transaction since ' || xact_start
   FROM pg_stat_activity WHERE datname = current_database() AND state = 'idle in transaction' AND xact_start < now() - interval '5 minutes'
 UNION ALL
-SELECT 'missing_role', r FROM unnest(ARRAY['ai_res_owner','ai_res_migrator','ai_res_api','ai_res_outbox_dispatcher','ai_res_event_consumer',
-  'ai_res_auditor','ai_res_backup','ai_res_api_group','ai_res_outbox_group','ai_res_consumer_group','ai_res_auditor_group']) r
+SELECT 'missing_role', r FROM unnest(ARRAY['ai_res_owner','ai_res_migrator','ai_res_api','ai_res_platform_api','ai_res_outbox_dispatcher','ai_res_event_consumer',
+  'ai_res_auditor','ai_res_backup','ai_res_api_group','ai_res_platform_api_group','ai_res_outbox_group','ai_res_consumer_group','ai_res_auditor_group']) r
  WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = r);

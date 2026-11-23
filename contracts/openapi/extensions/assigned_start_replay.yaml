@@ -1,0 +1,74 @@
+x-status: WORKING
+x-source:
+  - docs/implementation/ARCHITECTURE_DECISION_LOG.md#adr-174--человеческое-подтверждение-start-replay
+paths:
+  /operations/{operationId}/start-replay:
+    parameters:
+      - $ref: '#/components/parameters/ReplayOperationId'
+    get:
+      tags: [Operations]
+      operationId: readAssignedStartReplayCandidate
+      summary: Inspect the assigned Start in quarantine.
+      description: Requires an active PROJECT_ADMIN with MFA in the Operation's project.
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Exact replay candidate and its current generation.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssignedStartReplayTarget'
+        default:
+          $ref: '#/components/responses/Problem'
+  /operations/{operationId}/start-replay/{eventId}:
+    parameters:
+      - $ref: '#/components/parameters/ReplayOperationId'
+      - name: eventId
+        in: path
+        required: true
+        schema: {type: string, format: uuid}
+    post:
+      tags: [Operations]
+      operationId: approveAssignedStartReplay
+      summary: Approve replay of one quarantined assigned Start.
+      description: Requires an active PROJECT_ADMIN with MFA and the ETag obtained for the exact candidate. Approval and enqueue are audited in one transaction.
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - name: If-Match
+          in: header
+          required: true
+          schema: {type: string}
+      responses:
+        '202':
+          description: Replay recorded for the dispatcher.
+          headers:
+            Location:
+              schema: {type: string}
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssignedStartReplayTarget'
+        default:
+          $ref: '#/components/responses/Problem'
+components:
+  parameters:
+    ReplayOperationId:
+      name: operationId
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+  schemas:
+    AssignedStartReplayTarget:
+      type: object
+      additionalProperties: false
+      required: [operationId, eventId]
+      properties:
+        operationId: {type: string, format: uuid}
+        eventId: {type: string, format: uuid}

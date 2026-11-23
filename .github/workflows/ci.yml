@@ -32,6 +32,39 @@ jobs:
           PYTEST_ADDOPTS: "-vv --durations=15 -o faulthandler_timeout=180"
       - name: dependency audit (locked runtime set)
         run: make backend-audit
+      - name: Build isolated G02 Temporal and test runner
+        shell: bash
+        run: |
+          docker build --target postgres-test -t ai-res/temporal-auth-poc-postgres:test infra/temporal_auth_poc
+          docker build --target native-runtime -t ai-res/temporal-native:g02-local infra/temporal_auth_poc
+          docker build -t ai-res/g02-protected-backend:test backend
+          docker build -t ai-res/s20-compose-probe:local -f infra/temporal_auth_poc/Dockerfile.candidate backend
+          export G02_CANDIDATE_DIR="$RUNNER_TEMP"
+          G02_CANDIDATE_UID="$(id -u)"
+          G02_CANDIDATE_GID="$(id -g)"
+          export G02_CANDIDATE_UID G02_CANDIDATE_GID
+          images="$({
+            docker compose --env-file /dev/null --project-directory infra -f infra/temporal_auth_poc/compose.candidate.yaml -f infra/temporal_auth_poc/compose.network.yaml config --images
+            docker compose --env-file /dev/null -f infra/compose.yaml config --images temporal
+          } | sort -u)"
+          while IFS= read -r image; do
+            case "$image" in
+              ai-res/temporal-auth-poc-postgres:test|ai-res/s20-compose-probe:local) ;;
+              *@sha256:*) docker pull "$image" ;;
+              *) exit 1 ;;
+            esac
+          done <<< "$images"
+      - name: G02 native PostgreSQL and Temporal evidence
+        shell: bash
+        run: |
+          python3 -B -m infra.temporal_auth_poc.compose_candidate --network --paginate-history
+          python3 -B -m infra.temporal_auth_poc.compose_candidate --network --lose-start-response --paginate-history --manager-timeout
+          python3 -B -m infra.temporal_auth_poc.compose_candidate --network --replay-exhausted-start --paginate-history
+          backend/.venv/bin/python -B -m infra.temporal_auth_poc.compose_candidate --network --native-runtime
+          backend/.venv/bin/python -B -m infra.temporal_auth_poc.protected_candidate
+          backend/.venv/bin/python -B -m infra.temporal_auth_poc.compose_cutover
+      - name: SBOM and blocking scan for the native Temporal image
+        run: infra/scripts/supply_chain.sh --g02-native-only
 
   infra-static:
     runs-on: ubuntu-24.04
@@ -48,7 +81,7 @@ jobs:
       - name: placeholder secret files for `docker compose config`
         run: |
           mkdir -p infra/secrets/runtime
-          for n in postgres_superuser_password temporal_db_password checkpointer_db_password migrator_db_password api_db_password outbox_db_password consumer_db_password auditor_db_password backup_db_password minio_root_user minio_root_password cursor_hmac_key postgres_tls_ca_cert postgres_tls_server_cert postgres_tls_server_key bifrost_admin_password bifrost_virtual_key llm_relay_auth; do
+          for n in postgres_superuser_password temporal_db_password checkpointer_db_password migrator_db_password api_db_password platform_api_db_password outbox_db_password consumer_db_password auditor_db_password backup_db_password minio_root_user minio_root_password cursor_hmac_key postgres_tls_ca_cert postgres_tls_server_cert postgres_tls_server_key bifrost_admin_password bifrost_virtual_key llm_relay_auth; do
             touch "infra/secrets/runtime/$n"
           done
       - run: make infra-check

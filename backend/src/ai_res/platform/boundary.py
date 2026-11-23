@@ -2,11 +2,11 @@
 so correlation headers, request id and telemetry apply to 500 responses too (Starlette's own handler runs outside)."""
 import logging
 
-from starlette.requests import ClientDisconnect
+from starlette.requests import ClientDisconnect, Request
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from ai_res.platform.problems import PROBLEM_JSON, ErrorCode, problem_body
+from ai_res.platform.problems import PROBLEM_JSON, ErrorCode, ProblemError, problem_body
 
 log = logging.getLogger("ai_res.boundary")
 
@@ -37,3 +37,12 @@ class ErrorBoundaryMiddleware:
             response = JSONResponse(problem_body(ErrorCode.INTERNAL_ERROR, 500, None), status_code=500, media_type=PROBLEM_JSON,
                                     headers={"Cache-Control": "no-store"})
             await response(scope, receive, send)
+
+
+async def read_bounded_body(request: Request, maximum: int) -> bytes:
+    total = bytearray()
+    async for chunk in request.stream():
+        if len(total) + len(chunk) > maximum:
+            raise ProblemError(ErrorCode.VALIDATION_ERROR, "Request body exceeds its limit.")
+        total.extend(chunk)
+    return bytes(total)

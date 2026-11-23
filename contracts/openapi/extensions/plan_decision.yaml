@@ -1,0 +1,213 @@
+x-status: WORKING
+x-source:
+  - AI_RES_API_and_Interaction_Contracts_v1.10.md §§3.2, 5.2
+  - AI_RES_Process_Design_and_Algorithms_v1.9.md §6
+  - docs/implementation/increments/prompts/S21_plan_task_orchestration.md
+paths:
+  /epics/{epicId}/plans:
+    post:
+      tags: [Work]
+      operationId: proposePlanVersion
+      summary: Create an immutable draft PlanVersion for an Epic.
+      description: Persists a validated dependency graph. When proposalVersionId is supplied, its approved goal and scope must match. A separate decision on the exact plan version is required before execution.
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - name: epicId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanVersionDraftRequest'
+      responses:
+        '201':
+          description: Immutable draft PlanVersion.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanVersionSnapshot'
+        '412':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+  /plan-versions/{planVersionId}:
+    get:
+      tags: [Work]
+      operationId: getPlanVersion
+      summary: Read one immutable PlanVersion.
+      description: Returns the stored plan content and its hash for an authorized project member. The ETag is based on the immutable versionNumber.
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: planVersionId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Immutable PlanVersion.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanVersionSnapshot'
+        default:
+          $ref: '#/components/responses/Problem'
+  /plan-versions/{planVersionId}/decision:
+    post:
+      tags: [Work]
+      operationId: decidePlanVersion
+      summary: Record an authorized human decision on an exact immutable PlanVersion.
+      description: Records a decision for the supplied content hash and the explicitly selected dependency-closed set of items. If-Match uses the ETag of the immutable PlanVersion representation.
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - name: planVersionId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+        - $ref: '#/components/parameters/IfMatch'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanVersionDecisionRequest'
+      responses:
+        '201':
+          description: Version-specific human decision recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanVersionDecisionReceipt'
+        default:
+          $ref: '#/components/responses/Problem'
+components:
+  schemas:
+    PlanVersionDraftRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, goal, entries, items]
+      properties:
+        expectedVersion:
+          description: Current PlanVersion number, or zero when the Epic has no PlanVersion.
+          type: integer
+          minimum: 0
+          maximum: 2147483647
+        proposalVersionId:
+          description: Exact approved Manager proposal for this Epic.
+          type: string
+          format: uuid
+        goal: {type: string, minLength: 1, maxLength: 20000}
+        scope: {type: [string, 'null'], maxLength: 20000}
+        rationale: {type: [string, 'null'], maxLength: 20000}
+        entries:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {type: string, format: uuid}
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/PlanVersionDraftItem'
+    PlanVersionDraftItem:
+      type: object
+      additionalProperties: false
+      required: [id, title, taskType]
+      properties:
+        id: {type: string, format: uuid}
+        title: {type: string, minLength: 1, maxLength: 240}
+        taskType: {type: string, pattern: '^[A-Z][A-Z_]*$'}
+        predecessors:
+          type: array
+          uniqueItems: true
+          items: {type: string, format: uuid}
+        description: {type: [string, 'null'], maxLength: 20000}
+        rationale: {type: [string, 'null'], maxLength: 20000}
+        expectedOutput: {type: [string, 'null'], maxLength: 20000}
+        acceptanceCriteria:
+          type: array
+          items: {type: string, maxLength: 20000}
+    PlanVersionSnapshot:
+      type: object
+      additionalProperties: false
+      required: [id, planId, epicId, versionNumber, contentHash, goal, scope, rationale, entries, items]
+      properties:
+        id: {type: string, format: uuid}
+        planId: {type: string, format: uuid}
+        epicId: {type: string, format: uuid}
+        versionNumber: {type: integer, minimum: 1}
+        contentHash: {type: string, pattern: '^[0-9a-f]{64}$'}
+        goal: {type: string}
+        scope: {type: [string, 'null']}
+        rationale: {type: [string, 'null']}
+        entries:
+          type: array
+          items: {type: string, format: uuid}
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlanVersionItem'
+    PlanVersionItem:
+      type: object
+      additionalProperties: false
+      required: [id, title, taskType, predecessors, description, rationale, expectedOutput, acceptanceCriteria]
+      properties:
+        id: {type: string, format: uuid}
+        title: {type: string}
+        taskType: {type: string}
+        predecessors:
+          type: array
+          items: {type: string, format: uuid}
+        description: {type: [string, 'null']}
+        rationale: {type: [string, 'null']}
+        expectedOutput: {type: [string, 'null']}
+        acceptanceCriteria:
+          type: array
+          items: {type: string}
+    PlanVersionDecisionRequest:
+      type: object
+      additionalProperties: false
+      required: [decision, contentHash]
+      properties:
+        decision: {enum: [APPROVE, REJECT, REQUEST_CHANGES]}
+        contentHash: {type: string, pattern: '^[0-9a-f]{64}$'}
+        approvedItemIds:
+          description: Exact dependency-closed approved set. Required for APPROVE.
+          type: array
+          uniqueItems: true
+          items: {type: string, format: uuid}
+        comment: {type: string}
+      allOf:
+        - if:
+            properties:
+              decision: {const: APPROVE}
+          then:
+            required: [approvedItemIds]
+            properties:
+              approvedItemIds: {minItems: 1}
+          else:
+            not:
+              required: [approvedItemIds]
+    PlanVersionDecisionReceipt:
+      type: object
+      additionalProperties: false
+      required: [decisionId, planVersionId, decision]
+      properties:
+        decisionId: {type: string, format: uuid}
+        planVersionId: {type: string, format: uuid}
+        decision: {enum: [APPROVE, REJECT, REQUEST_CHANGES]}

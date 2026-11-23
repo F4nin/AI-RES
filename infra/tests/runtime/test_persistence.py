@@ -18,9 +18,11 @@ def _head() -> str:
     revisions, parents = set(), set()
     for f in (BACKEND / "src/ai_res/db/migrations/versions").glob("[0-9]*.py"):
         text = f.read_text()
-        revisions.add(re.search(r'^revision: str = "([0-9a-f]+)"', text, re.M).group(1))  # type: ignore[union-attr]
-        parent = re.search(r'^down_revision: str \| None = (?:"([0-9a-f]+)"|None)', text, re.M)
-        if parent and parent.group(1):
+        revision = re.search(r'^revision(?:: str)? = "([0-9a-f]+)"', text, re.M)
+        parent = re.search(r'^down_revision(?:: str \| None)? = (?:"([0-9a-f]+)"|None)', text, re.M)
+        assert revision and parent, f"invalid revision metadata in {f.name}"
+        revisions.add(revision.group(1))
+        if parent.group(1):
             parents.add(parent.group(1))
     heads = revisions - parents
     assert len(heads) == 1, f"expected exactly one head, found {sorted(heads)}"

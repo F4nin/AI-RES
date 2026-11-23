@@ -1,0 +1,92 @@
+x-status: WORKING
+x-source:
+  - AI_RES_Identity_Access_Control_v1.5.md §8
+  - AI_RES_Process_Design_and_Algorithms_v1.9.md §§4–6
+  - docs/implementation/increments/prompts/S20_project_epic_intake_manager.md
+paths:
+  /manager-proposal-versions/{proposalVersionId}:
+    get:
+      tags: [Work]
+      operationId: getManagerProposalVersion
+      summary: Read the immutable proposal generated for a Manager interaction.
+      description: Returns the proposal content and exact version hash to an authorized analyst in its project.
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: proposalVersionId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Exact proposal content and its SHA-256.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManagerProposalVersion'
+        default:
+          $ref: '#/components/responses/Problem'
+  /manager-proposal-versions/{proposalVersionId}/decision:
+    post:
+      tags: [Work]
+      operationId: decideManagerProposalVersion
+      summary: Record a human decision on one immutable Manager proposal.
+      description: The deciding analyst must be active in the project and different from the author of the intake message. A decision on this proposal grants no PlanVersion approval.
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - name: proposalVersionId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+        - $ref: '#/components/parameters/IfMatch'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ManagerProposalDecisionRequest'
+      responses:
+        '201':
+          description: Exact proposal decision recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManagerProposalDecisionReceipt'
+        default:
+          $ref: '#/components/responses/Problem'
+components:
+  schemas:
+    ManagerProposalVersion:
+      type: object
+      additionalProperties: false
+      required: [id, epicId, interactionId, contentHash, goal, scope, primaryQuestion]
+      properties:
+        id: {type: string, format: uuid}
+        epicId: {type: string, format: uuid}
+        interactionId: {type: string, format: uuid}
+        contentHash: {type: string, pattern: '^[0-9a-f]{64}$'}
+        goal: {type: [string, 'null']}
+        scope: {type: [string, 'null']}
+        primaryQuestion: {type: [string, 'null']}
+    ManagerProposalDecisionRequest:
+      type: object
+      additionalProperties: false
+      required: [decision, contentHash]
+      properties:
+        decision: {enum: [APPROVE, REJECT, REQUEST_CHANGES]}
+        contentHash: {type: string, pattern: '^[0-9a-f]{64}$'}
+        comment: {type: [string, 'null'], maxLength: 20000}
+    ManagerProposalDecisionReceipt:
+      type: object
+      additionalProperties: false
+      required: [decisionId, proposalVersionId, decision]
+      properties:
+        decisionId: {type: string, format: uuid}
+        proposalVersionId: {type: string, format: uuid}
+        decision: {enum: [APPROVE, REJECT, REQUEST_CHANGES]}

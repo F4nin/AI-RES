@@ -28,7 +28,7 @@ from ai_res.platform.problems import ErrorCode, ProblemError
 DEFAULT_LIMIT, OAS_MAX_LIMIT = 25, 100  # Public API v1.3 `Limit` parameter
 MAX_TEXT = 200  # cap for free-text fields copied out of JSON references (worker run problem / result)
 READ_ACTIONS = {"project.read": "PROJECT", "epic.read": "EPIC", "task.read": "TASK", "requirement.read": "REQUIREMENT", "source.read": "SOURCE",
-                "artifact.read": "ARTIFACT", "worker_run.read": "WORKER_RUN", "operation.read": "OPERATION"}
+                "artifact.read": "ARTIFACT", "worker_run.read": "WORKER_RUN", "operation.read": "OPERATION", "plan.read": "PLAN_VERSION"}
 _log = logging.getLogger("ai_res.api.read")
 T = TypeVar("T")
 
@@ -57,6 +57,24 @@ def epic_dto(r: Row) -> dict[str, Any]:
 
 def task_dto(r: Row) -> dict[str, Any]:
     return {"id": str(r["id"]), "epicId": str(r["epic_id"]), "title": r["title"], "status": r["status"], "priority": r["priority"]}
+
+
+def plan_version_dto(r: Row) -> dict[str, Any]:
+    snapshot = r["snapshot"]
+    items = [
+        {"id": item["id"], "title": item["title"], "taskType": item["task_type"], "predecessors": item["predecessors"],
+         "description": item["description"], "rationale": item["rationale"], "expectedOutput": item["expected_output"],
+         "acceptanceCriteria": item["acceptance_criteria"]}
+        for item in snapshot["items"]
+    ]
+    return {"id": str(r["id"]), "planId": str(r["plan_id"]), "epicId": str(r["epic_id"]), "versionNumber": r["row_version"],
+            "contentHash": bytes(r["content_hash"]).hex(), "goal": snapshot["goal"], "scope": snapshot["scope"],
+            "rationale": snapshot["rationale"], "entries": snapshot["entries"], "items": items}
+
+
+def manager_proposal_dto(r: Row) -> dict[str, Any]:
+    return {"id": str(r["id"]), "epicId": str(r["epic_id"]), "interactionId": str(r["interaction_id"]),
+            "contentHash": bytes(r["content_hash"]).hex(), "goal": r["goal"], "scope": r["scope"], "primaryQuestion": r["primary_question"]}
 
 
 def requirement_dto(r: Row) -> dict[str, Any]:
@@ -106,14 +124,16 @@ def worker_run_dto(r: Row) -> dict[str, Any]:
     }
 
 
-def operation_dto(r: Row) -> dict[str, Any]:
+def operation_dto(r: Row, *, include_manager_proposal: bool = False) -> dict[str, Any]:
     result, problem = r["result_ref"], r["problem_ref"]
+    if r["operation_type"] == "MANAGER_MESSAGE" and not include_manager_proposal:
+        result = None
     return {
         "id": str(r["id"]), "status": r["status"], "submittedAt": _iso(r["created_at"]), "acceptedAt": _iso(r["created_at"]),
         "startedAt": None if r["started_at"] is None else _iso(r["started_at"]), "completedAt": None if r["completed_at"] is None else _iso(r["completed_at"]),
         "lastProgressAt": None,  # no progress timestamp is stored (progress_snapshot is opaque and WORKING): marked, not invented
         "resultRef": result["id"][:MAX_TEXT] if isinstance(result, dict) and isinstance(result.get("id"), str) else None,
-        "correlationId": str(r["correlation_id"]), "organizationId": str(r["organization_id"]), "projectId": str(r["project_id"]), "epicId": None,
+        "correlationId": str(r["correlation_id"]), "organizationId": str(r["organization_id"]), "projectId": str(r["project_id"]), "epicId": _opt(r.get("epic_id")),
         "operationType": r["operation_type"], "initiatorType": _INITIATOR_TYPE.get(r["initiator_type"], "SYSTEM"), "initiatorId": _opt(r["initiator_id"]),
         "subjectRef": None, "problem": None if not isinstance(problem, dict) else {k: _bounded(problem[k]) for k in _PROBLEM_KEYS if _bounded(problem.get(k)) is not None},
         "rowVersion": r["row_version"], "aggregateVersion": r["row_version"], "parentOperationId": _opt(r["parent_operation_id"]),
@@ -136,7 +156,8 @@ def register_read_api(app: FastAPI, services: IdentityServices) -> None:
     if services.current_session is None:
         raise RuntimeError("register_identity must run before register_read_api")  # Depends(None) would turn request parameters into an identity
     config = enforcer.config
-    if config is None or any(a not in config.actions or config.actions[a].resource_type != t for a, t in READ_ACTIONS.items()):
+    read_actions = {**READ_ACTIONS, "manager.proposal.read": "MANAGER_PROPOSAL_VERSION"}
+    if config is None or any(a not in config.actions or config.actions[a].resource_type != t for a, t in read_actions.items()):
         raise RuntimeError("policy configuration lacks the read actions or their resource types; refusing to expose read endpoints")  # fail closed at start-up
     rule = config.actions["project.read"]
     if any(config.actions[a].project_roles != rule.project_roles or config.actions[a].org_roles != rule.org_roles for a in READ_ACTIONS):
@@ -281,8 +302,38 @@ def register_read_api(app: FastAPI, services: IdentityServices) -> None:
 
     single("/epics/{object_id}", "getEpic", "work.epics", "epic.read", "EPIC", lambda q, i: q.get_epic(i), epic_dto, False)
     single("/tasks/{object_id}", "getTask", "work.tasks", "task.read", "TASK", lambda q, i: q.get_task(i), task_dto, True)
+    single("/plan-versions/{object_id}", "getPlanVersion", "work.plan_versions", "plan.read", "PLAN_VERSION", ReadQueries.get_plan_version, plan_version_dto, True)
+    single("/manager-proposal-versions/{object_id}", "getManagerProposalVersion", "work.manager_proposal_versions", "manager.proposal.read",
+           "MANAGER_PROPOSAL_VERSION", ReadQueries.get_manager_proposal, manager_proposal_dto, True)
     single("/worker-runs/{object_id}", "getWorkerRun", "agents.worker_runs", "worker_run.read", "WORKER_RUN", lambda q, i: q.get_worker_run(i), worker_run_dto, False)
 
-    single("/operations/{object_id}", "getOperation", "operations.operations", "operation.read", "OPERATION", lambda q, i: q.get_operation(i), operation_dto, True)
+    @router.get("/operations/{object_id}", name="getOperation")
+    async def get_operation(object_id: UUID, response: Response, s: Session) -> dict[str, Any]:
+        async def read(q: ReadQueries, project: UUID) -> Row:
+            row = await q.get_operation(object_id)
+            if row is None or row["project_id"] != project:
+                raise _not_found()
+            return row
+
+        row = await by_id(s, "operations.operations", object_id, "operation.read", "OPERATION", read)
+        dto = operation_dto(row, include_manager_proposal=True)
+        if row["operation_type"] == "MANAGER_MESSAGE" and dto["resultRef"] is not None:
+            try:
+                proposal_id = UUID(dto["resultRef"])
+            except ValueError:
+                dto["resultRef"] = None
+            else:
+                try:
+                    proposal = await in_project(s, row["project_id"], "manager.proposal.read", "MANAGER_PROPOSAL_VERSION", proposal_id,
+                                                lambda q: q.get_manager_proposal(proposal_id))
+                except ProblemError as exc:
+                    if exc.code is not ErrorCode.RESOURCE_NOT_FOUND:
+                        raise
+                    proposal = None
+                if proposal is None or proposal["operation_id"] != object_id:
+                    dto["resultRef"] = None
+        response.headers["ETag"] = format_etag(row["row_version"])
+        no_store(response)
+        return dto
 
     app.include_router(router)

@@ -1,6 +1,6 @@
 # ruff: noqa: E501  -- route tables and DTO mappers read best one entry per line
 """Controlled write commands of the Public API v1.3 (S09, ADR-078..083): createProject, updateProjectMetadata, createEpic, registerRequirementCandidate,
-proposeRequirementVersion, createUploadIntent. `createTask` is NOT here: ADR-012 (PREP review) moved it to S21 (NCP-08).
+proposeRequirementVersion, createUploadIntent. S21 createTask resolves an exact, unique approved PlanItem in an active PLAN_EXECUTION (ADR-012).
 
 Every command is ONE database transaction that holds: tenant context -> idempotency record -> domain write (+ aggregate event + outbox where AsyncAPI v1.6
 defines a message) -> audit rows -> idempotency completion. Any failure rolls all of it back, so there is never a half-created object or an event without its
@@ -9,25 +9,32 @@ dependencies. Nothing here approves anything: requirement versions are CANDIDATE
 """
 import logging
 import re
+from asyncio import timeout
 from collections.abc import Awaitable, Callable
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import timedelta
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, FastAPI, Header, Response
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from fastapi import APIRouter, Depends, FastAPI, Header, Request, Response
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, ValidationError, field_validator
 from pydantic.alias_generators import to_camel
 
 from ai_res.api.identity import IdentityServices
 from ai_res.api.locator import ObjectLocator
-from ai_res.api.read_api import epic_dto, operation_dto, project_dto, requirement_dto, requirement_version_dto
+from ai_res.api.read_api import epic_dto, operation_dto, plan_version_dto, project_dto, requirement_dto, requirement_version_dto, task_dto
+from ai_res.application.manager_intake import AuthorizedIntake, persist_manager_intake
+from ai_res.application.plan_execution import RequestedTask, create_matching_approved_task
 from ai_res.db.session import DbSession as AsyncSession
 from ai_res.db.session import IntegrityViolation, UnitOfWork
 from ai_res.modules.audit.writer import SqlAuditWriter, correlation_uuid
+from ai_res.modules.epics.manager_interactions import ManagerMessage, ResponseMode
+from ai_res.modules.epics.manager_proposals import HumanDecision, ManagerProposalRepository, ProposalVersionRef
 from ai_res.modules.epics.repository import EpicRepository
 from ai_res.modules.events.aggregate_events import EventSpec
+from ai_res.modules.events.assigned_replay import QuarantinedStart, approve_quarantined_start, inspect_quarantined_start
 from ai_res.modules.events.envelope import DOMAIN_DESTINATION
+from ai_res.modules.iam.authority import lock_authenticated_session
 from ai_res.modules.iam.sessions import AuthenticatedSession
 from ai_res.modules.idempotency.repository import IdempotencyOutcome, IdempotencyRepository
 from ai_res.modules.idempotency.service import IdempotencyService, load_keyring
@@ -39,17 +46,22 @@ from ai_res.modules.sources.completion import complete_verified_upload
 from ai_res.modules.sources.object_store import ObjectStore, ObjectStoreError, S3ObjectStore
 from ai_res.modules.sources.presign import StorageCredentials, checksum_header, presign_url
 from ai_res.modules.sources.repository import NewUpload, SourceRepository
+from ai_res.modules.sources.version_metadata import SourceVersionMetadataReader
+from ai_res.modules.tasks.plan_versions import PlanItemSpec, PlanProposalOrigin, PlanSnapshot, PlanVersionRepository
+from ai_res.platform.boundary import read_bounded_body
 from ai_res.platform.clock import utc_now
 from ai_res.platform.concurrency import AggregateVersionConflict, format_etag, parse_if_match
 from ai_res.platform.config import ConfigError, Settings, read_secret_file
 from ai_res.platform.correlation import current_request_id
 from ai_res.platform.ids import new_id
-from ai_res.platform.ports import AuditOutcome, AuditRecord, PolicyRequest
+from ai_res.platform.ports import AuditOutcome, AuditRecord, PolicyDecision, PolicyRequest, Principal
 from ai_res.platform.problems import ErrorCode, ProblemError
 
 _log = logging.getLogger("ai_res.api.write")
 PROJECT_TYPES = Literal["GREENFIELD", "BROWNFIELD", "HYBRID", "UNKNOWN"]
 MAX_TEXT = 20_000  # WORKING technical bound on free text (no normative limit; ADR-078)
+MAX_PLAN_DRAFT_BYTES = 1024 * 1024  # technical request allocation bound
+WRITE_BODY_TIMEOUT_SECONDS = 10.0  # technical read deadline, not a product SLO
 MAX_EVIDENCE_REFS = 50  # WORKING
 UNSPECIFIED_TYPE = "UNSPECIFIED"  # declared text kept for a requirement whose type was not given: it is stored as UNKNOWN, never guessed (ADR-056)
 _SHA256 = re.compile(r"\A[0-9a-fA-F]{64}\Z")
@@ -65,6 +77,72 @@ def _nonblank(value: str) -> str:
     if not value.strip():
         raise ValueError("must not be blank")
     return value
+
+
+class ManagerMessageBody(_Body):
+    message: str = Field(min_length=1, max_length=MAX_TEXT)
+    attachment_refs: tuple[UUID, ...] = ()
+    expected_response_mode: ResponseMode | None = None
+
+    @field_validator("message")
+    @classmethod
+    def valid_message(cls, value: str) -> str:
+        if "\x00" in value:
+            raise ValueError("invalid text")
+        return value
+
+    @field_validator("expected_response_mode", mode="before")
+    @classmethod
+    def supplied_mode(cls, value: object) -> object:
+        if value is None:
+            raise ValueError("expected response mode must be omitted or an enum")
+        return value
+
+
+def _plan_text(value: str) -> str:
+    if "\x00" in value:
+        raise ValueError("invalid text")
+    return value
+
+
+PlanDraftText = Annotated[str, Field(max_length=MAX_TEXT), AfterValidator(_plan_text)]
+
+
+class PlanItemDraftBody(PlanItemSpec):
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=False)
+    title: Annotated[str, Field(min_length=1, max_length=240), AfterValidator(_plan_text)]
+    description: PlanDraftText | None = None
+    rationale: PlanDraftText | None = None
+    expected_output: PlanDraftText | None = None
+    acceptance_criteria: tuple[PlanDraftText, ...] = ()
+
+
+class PlanDraftBody(_Body):
+    expected_version: int = Field(ge=0, le=2_147_483_647, strict=True)
+    proposal_version_id: UUID | None = None
+    goal: Annotated[PlanDraftText, Field(min_length=1), AfterValidator(_nonblank)]
+    scope: PlanDraftText | None = None
+    rationale: PlanDraftText | None = None
+    entries: tuple[UUID, ...] = Field(min_length=1)
+    items: tuple[PlanItemDraftBody, ...] = Field(min_length=1)
+
+    @field_validator("entries")
+    @classmethod
+    def unique_entries(cls, ids: tuple[UUID, ...]) -> tuple[UUID, ...]:
+        return PlanSnapshot.unique_entries(ids)
+
+    @field_validator("proposal_version_id", mode="before")
+    @classmethod
+    def supplied_proposal(cls, value: object) -> object:
+        if value is None:
+            raise ValueError("proposalVersionId must be omitted or a UUID")
+        return value
+
+
+class ManagerProposalDecisionBody(_Body):
+    decision: HumanDecision
+    content_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
+    comment: PlanDraftText | None = None
 
 
 class CreateProjectBody(_Body):
@@ -87,6 +165,21 @@ class CreateEpicBody(_Body):
     goal: str | None = Field(default=None, max_length=MAX_TEXT)
     scope: str | None = Field(default=None, max_length=MAX_TEXT)
     _title = field_validator("title")(_nonblank)
+
+
+class CreateTaskBody(_Body):
+    title: str = Field(min_length=1, max_length=240)
+    description: str | None = None
+    task_type: str
+    acceptance_criteria: list[str] = Field(default_factory=list)
+    _title = field_validator("title")(_nonblank)
+
+
+class PlanVersionDecisionBody(_Body):
+    decision: Literal["APPROVE", "REJECT", "REQUEST_CHANGES"]
+    content_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
+    approved_item_ids: list[UUID] | None = None
+    comment: str | None = None
 
 
 class RegisterRequirementBody(_Body):
@@ -174,19 +267,33 @@ def _need_key(value: str | None) -> str:
     return value
 
 
+async def _read_command_body(request: Request, maximum: int) -> bytes:
+    try:
+        async with timeout(WRITE_BODY_TIMEOUT_SECONDS):
+            return await read_bounded_body(request, maximum)
+    except TimeoutError:
+        raise ProblemError(ErrorCode.VALIDATION_ERROR, "Request body was not received within its time limit.") from None
+
+
 def register_write_api(app: FastAPI, services: IdentityServices, *, idempotency: IdempotencyService | None = None, storage: StorageConfig | None = None,
-                       object_store: ObjectStore | None = None) -> None:
+                       object_store: ObjectStore | None = None, manager_dispatch_namespace: str | None = None) -> None:
     settings, enforcer, factory = services.settings, services.enforcer, services.factory
-    if services.current_session is None or services.origin_guard is None:
+    current_session = services.current_session
+    if current_session is None or services.origin_guard is None:
         raise RuntimeError("register_identity must run before register_write_api")
+    manager_body_limit = settings.manager_message_max_body_bytes
+    if manager_dispatch_namespace is not None and manager_body_limit is None:
+        raise ConfigError("Manager dispatch requires a request body limit")
     config = enforcer.config
     actions = {"project.create": "PROJECT", "project.update": "PROJECT", "epic.create": "EPIC", "requirement.register": "REQUIREMENT",
                "requirement.propose_version": "REQUIREMENT", "source.upload_create": "SOURCE", "project.read": "PROJECT", "operation.cancel": "OPERATION",
-               "source.upload_complete": "SOURCE"}
+               "source.upload_complete": "SOURCE", "task.create": "EPIC", "epic.read": "EPIC", "plan.propose": "EPIC", "plan.decide": "PLAN_VERSION",
+               "manager.send_message": "EPIC", "source.read": "SOURCE", "manager.proposal.read": "MANAGER_PROPOSAL_VERSION",
+               "manager.proposal.decide": "MANAGER_PROPOSAL_VERSION", "operation.approve_start_replay": "OPERATION"}
     if config is None or any(a not in config.actions or config.actions[a].resource_type != t for a, t in actions.items()):
         raise RuntimeError("policy configuration lacks the write actions or their resource types; refusing to expose write endpoints")  # fail closed at start-up
     router = APIRouter(prefix="/api/v1", dependencies=[Depends(services.origin_guard)])
-    Session = Annotated[AuthenticatedSession, Depends(services.current_session)]
+    Session = Annotated[AuthenticatedSession, Depends(current_session)]
     locator = ObjectLocator.from_policy(services)
     state: dict[str, Any] = {"idem": idempotency, "storage": storage, "storage_loaded": storage is not None}
 
@@ -215,13 +322,27 @@ def register_write_api(app: FastAPI, services: IdentityServices, *, idempotency:
                              organization_id=str(s.organization_id), project_id=None if project_id is None else str(project_id),
                              attributes={"mfa_verified": s.mfa_verified_at is not None})
 
-    async def authorize(s: AuthenticatedSession, action: str, project_id: UUID | None, resource_id: UUID | None = None) -> Any:
+    async def authorize(s: AuthenticatedSession, action: str, project_id: UUID | None, resource_id: UUID | None = None) -> tuple[PolicyRequest, PolicyDecision]:
         """Project-scoped commands first prove the caller may READ the project (a denial is the same 404 as a missing project), and only then ask for the write
         right (a refusal is an honest 403: the caller already sees the project). Both decisions are audited; neither holds a data connection."""
         if project_id is not None:
             await enforcer.decide(policy_request(s, "project.read", project_id, project_id), conceal=True)
         request = policy_request(s, action, project_id, resource_id)
         return request, await enforcer.decide(request)
+
+    async def current_write_authority(session: AsyncSession, s: AuthenticatedSession, project_id: UUID, action: PolicyRequest,
+                                      *, reads: tuple[PolicyRequest, ...] = ()) -> tuple[bool, list[tuple[PolicyRequest, PolicyDecision]]]:
+        await enforcer.lock_subject_grants(session, s.user_id, s.organization_id, project_id)
+        mfa_verified = await lock_authenticated_session(session, s)
+        attributes = {"mfa_verified": mfa_verified}
+        project_read = policy_request(s, "project.read", project_id, project_id)
+        checks = []
+        for read in (project_read, *reads):
+            current = replace(read, attributes=attributes)
+            checks.append((current, await enforcer.decide(current, conceal=True)))
+        current = replace(action, attributes=attributes)
+        checks.append((current, await enforcer.decide(current)))
+        return mfa_verified, checks
 
     def audit(s: AuthenticatedSession, action: str, rtype: str, rid: UUID, project_id: UUID | None, details: dict[str, Any]) -> AuditRecord:
         return AuditRecord(action=action, outcome=AuditOutcome.SUCCEEDED, resource_type=rtype, resource_id=str(rid), actor_id=str(s.user_id),
@@ -232,22 +353,25 @@ def register_write_api(app: FastAPI, services: IdentityServices, *, idempotency:
         return EventSpec(event_type=event_type, schema_version=1, actor_type="USER", actor_id=s.user_id, correlation_id=correlation_uuid(current_request_id()),
                          destinations=(DOMAIN_DESTINATION,), data=data)
 
-    async def run(s: AuthenticatedSession, *, command: str, key: str | None, payload: Any, project_id: UUID, decision: tuple[Any, Any], resource_type: str,
-                  execute: Callable[[AsyncSession], Awaitable[UUID]], render: Callable[[AsyncSession, UUID], Awaitable[Rendered]], response_status: int = 201) -> Rendered:
+    async def run(s: AuthenticatedSession, *, command: str, key: str | None, payload: Any, project_id: UUID,
+                  decision: tuple[PolicyRequest, PolicyDecision], resource_type: str, execute: Callable[[AsyncSession], Awaitable[UUID]],
+                  render: Callable[[AsyncSession, UUID], Awaitable[Rendered]], response_status: int = 201,
+                  refresh_authority: Callable[[AsyncSession], Awaitable[list[tuple[PolicyRequest, PolicyDecision]]]] | None = None) -> Rendered:
         """The common transaction. A replay (same key + same fingerprint) re-renders the stored resource and writes nothing; the same key with another
         request is 409 IDEMPOTENCY_KEY_REUSED; a request still in progress is a retryable 409."""
         raw_key = _need_key(key)
-        request, allowed = decision
         service = idem()
         async with UnitOfWork(factory) as uow:
             await uow.with_tenant(s.organization_id, project_id)
+            authorization = [decision] if refresh_authority is None else await refresh_authority(uow.session)
             record = await service.begin(uow.session, organization_id=s.organization_id, project_id=project_id, actor_type="USER", actor_id=s.user_id,
                                          command=command, key=raw_key, payload=payload)
             if record.outcome is IdempotencyOutcome.REPLAY and record.resource_id is not None:
                 return await render(uow.session, record.resource_id)
             if record.outcome is not IdempotencyOutcome.NEW:
                 raise ProblemError(ErrorCode.OPERATION_NOT_READY, "The same request is still being processed; retry shortly.")
-            await enforcer.record_allow(request, allowed, session=uow.session)  # fail-closed: no audit row, no change
+            for request, allowed in authorization:
+                await enforcer.record_allow(request, allowed, session=uow.session)  # fail-closed: no audit row, no change
             rid = await execute(uow.session)
             await service.complete(uow.session, record, status="COMPLETED", resource_type=resource_type, resource_id=rid, response_status=response_status, response_body_ref=None)
             return await render(uow.session, rid)
@@ -264,6 +388,220 @@ def register_write_api(app: FastAPI, services: IdentityServices, *, idempotency:
         if row is None:
             raise ProblemError(ErrorCode.INTERNAL_ERROR, "Created resource is not visible.")
         return Rendered(status, project_dto(row), {"ETag": format_etag(row["row_version"])})
+
+    @router.post("/epics/{epic_id}/manager-messages", status_code=202, operation_id="sendManagerMessage")
+    async def send_manager_message(epic_id: UUID, incoming: Request, response: Response, s: Session,
+                                   idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None) -> dict[str, Any]:
+        project_id = await locator.locate(s, "work.epics", epic_id)
+        if project_id is None:
+            raise ProblemError(ErrorCode.RESOURCE_NOT_FOUND, "Epic not found.")
+        request, _ = await authorize(s, "manager.send_message", project_id, epic_id)
+        if manager_dispatch_namespace is None or manager_body_limit is None:
+            raise ProblemError(ErrorCode.DEPENDENCY_UNAVAILABLE, "Manager dispatch is unavailable.")
+        raw_key = _need_key(idempotency_key)
+        raw = await _read_command_body(incoming, manager_body_limit)
+        try:
+            body = ManagerMessageBody.model_validate_json(raw)
+        except ValidationError:
+            raise ProblemError(ErrorCode.VALIDATION_ERROR, "Invalid Manager message.") from None
+        async with UnitOfWork(factory) as uow:
+            await uow.with_tenant(s.organization_id, project_id)
+            # The request stream is client-paced. Revalidate authority under the write transaction's locks.
+            await enforcer.lock_subject_grants(uow.session, s.user_id, s.organization_id, project_id)
+            attributes = {"mfa_verified": await lock_authenticated_session(uow.session, s)}
+            project_read = policy_request(s, "project.read", project_id, project_id)
+            await enforcer.decide(replace(project_read, attributes=attributes), conceal=True)
+            await enforcer.authorize(replace(request, attributes=attributes), session=uow.session)
+            if body.attachment_refs:
+                sources = SourceVersionMetadataReader(uow.session)
+                metadata = await sources.resolve_all(body.attachment_refs, s.organization_id, project_id)
+                for source_id in dict.fromkeys(item.object_id for item in metadata):
+                    lookup = policy_request(s, "source.read", project_id, source_id)
+                    await enforcer.authorize(replace(lookup, attributes=attributes), session=uow.session, conceal=True)
+            correlation = correlation_uuid(current_request_id())
+            scope = AuthorizedIntake(s.organization_id, project_id, epic_id, s.user_id, correlation)
+            rid = await persist_manager_intake(
+                uow.session, idem(), scope, ManagerMessage(body.message, body.attachment_refs, body.expected_response_mode),
+                idempotency_key=raw_key, dispatch_namespace=manager_dispatch_namespace,
+            )
+            row = await ReadQueries(uow.session).get_operation(rid)
+            if row is None:
+                raise ProblemError(ErrorCode.INTERNAL_ERROR, "Manager Operation is not visible.")
+            rendered = Rendered(202, operation_dto(row), {"Location": f"/api/v1/operations/{rid}", "ETag": format_etag(row["row_version"])})
+        return out(response, rendered)
+
+    @router.post("/epics/{epic_id}/tasks", status_code=201, operation_id="createTask")
+    async def create_task(epic_id: UUID, body: CreateTaskBody, response: Response, s: Session,
+                          idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None) -> dict[str, Any]:
+        project_id = await locator.locate(s, "work.epics", epic_id)
+        if project_id is None:
+            raise ProblemError(ErrorCode.RESOURCE_NOT_FOUND, "Epic not found.")
+        allowed = await authorize(s, "task.create", project_id, epic_id)
+        requested = RequestedTask(body.title, body.task_type, body.description, tuple(body.acceptance_criteria))
+
+        async def execute(session: AsyncSession) -> UUID:
+            task_id = await create_matching_approved_task(
+                session, epic_id, requested, actor_id=s.user_id, correlation_id=correlation_uuid(current_request_id()),
+            )
+            await SqlAuditWriter(session).write(audit(s, "TASK_REGISTERED_IN_APPROVED_PLAN", "TASK", task_id, project_id, {}))
+            return task_id
+
+        async def render(session: AsyncSession, task_id: UUID) -> Rendered:
+            row = await ReadQueries(session).get_task(task_id)
+            if row is None:
+                raise ProblemError(ErrorCode.RESOURCE_NOT_FOUND, "Task not found.")
+            return Rendered(201, task_dto(row), {})
+
+        rendered = await run(s, command="createTask", key=idempotency_key,
+                             payload={"epicId": str(epic_id), **body.model_dump(mode="json")}, project_id=project_id, decision=allowed,
+                             resource_type="TASK", execute=execute, render=render)
+        return out(response, rendered)
+
+    @router.post("/epics/{epic_id}/plans", status_code=201, operation_id="proposePlanVersion")
+    async def propose_plan(epic_id: UUID, incoming: Request, response: Response, _authenticated: Session,
+                           idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None) -> dict[str, Any]:
+        raw_key = _need_key(idempotency_key)
+        raw = await _read_command_body(incoming, MAX_PLAN_DRAFT_BYTES)
+        # The byte stream is client-paced. Recheck the session and exact scope afterwards.
+        s: AuthenticatedSession = await current_session(incoming)
+        project_id = await locator.locate(s, "work.epics", epic_id)
+        if project_id is None:
+            raise ProblemError(ErrorCode.RESOURCE_NOT_FOUND, "Epic not found.")
+        read_checks = [policy_request(s, "epic.read", project_id, epic_id)]
+        await enforcer.decide(policy_request(s, "project.read", project_id, project_id), conceal=True)
+        await enforcer.decide(read_checks[0], conceal=True)
+        request = policy_request(s, "plan.propose", project_id, epic_id)
+        allowed = request, await enforcer.decide(request)
+        try:
+            body = PlanDraftBody.model_validate_json(raw)
+        except ValidationError:
+            raise ProblemError(ErrorCode.VALIDATION_ERROR, "Invalid plan draft.") from None
+        if body.proposal_version_id is not None:
+            check = policy_request(s, "manager.proposal.read", project_id, body.proposal_version_id)
+            await enforcer.decide(check, conceal=True)
+            read_checks.append(check)
+        snapshot = PlanSnapshot(goal=body.goal, scope=body.scope, rationale=body.rationale, items=body.items, entries=body.entries)
+        payload = {"epicId": str(epic_id), "expectedVersion": body.expected_version, **snapshot.model_dump(mode="json", exclude={"proposal_origin"})}
+        if body.proposal_version_id is not None:
+            payload["proposalVersionId"] = str(body.proposal_version_id)
+
+        async def refresh(session: AsyncSession) -> list[tuple[PolicyRequest, PolicyDecision]]:
+            _, checks = await current_write_authority(session, s, project_id, request, reads=tuple(read_checks))
+            return checks
+
+        async def execute(session: AsyncSession) -> UUID:
+            proposed = snapshot
+            details = {"epicId": str(epic_id)}
+            if body.proposal_version_id is not None:
+                decision_id, digest = await ManagerProposalRepository(session).approved_plan_origin(
+                    body.proposal_version_id, epic_id, goal=body.goal, scope=body.scope,
+                )
+                origin = PlanProposalOrigin(proposal_version_id=body.proposal_version_id, decision_id=decision_id, content_hash=digest)
+                proposed = snapshot.model_copy(update={"proposal_origin": origin})
+                details.update(proposalVersionId=str(body.proposal_version_id), proposalDecisionId=str(decision_id))
+            version, _digest = await PlanVersionRepository(session).propose(
+                s.organization_id, project_id, epic_id, proposed, correlation_id=correlation_uuid(current_request_id()), actor_id=s.user_id,
+                expected_version=body.expected_version,
+            )
+            await SqlAuditWriter(session).write(audit(s, "PLAN_VERSION_PROPOSE", "PLAN_VERSION", version, project_id, details))
+            return version
+
+        async def render(session: AsyncSession, version: UUID) -> Rendered:
+            row = await ReadQueries(session).get_plan_version(version)
+            if row is None or row["epic_id"] != epic_id:
+                raise ProblemError(ErrorCode.INTERNAL_ERROR, "Created PlanVersion is not visible.")
+            return Rendered(201, plan_version_dto(row), {"ETag": format_etag(row["row_version"])})
+
+        rendered = await run(s, command="proposePlanVersion", key=raw_key, payload=payload,
+                             project_id=project_id, decision=allowed, resource_type="PLAN_VERSION", execute=execute, render=render,
+                             refresh_authority=refresh)
+        return out(response, rendered)
+
+    @router.post("/manager-proposal-versions/{proposal_version_id}/decision", status_code=201, operation_id="decideManagerProposalVersion")
+    async def decide_proposal(proposal_version_id: UUID, incoming: Request, response: Response, _authenticated: Session,
+                              if_match: Annotated[str | None, Header(alias="If-Match")] = None,
+                              idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None) -> dict[str, Any]:
+        if parse_if_match(if_match) != 1:
+            raise ProblemError(ErrorCode.VERSION_CONFLICT, "Proposal version changed.")
+        raw_key = _need_key(idempotency_key)
+        raw = await _read_command_body(incoming, MAX_PLAN_DRAFT_BYTES)
+        s: AuthenticatedSession = await current_session(incoming)
+        project_id = await locator.locate(s, "work.manager_proposal_versions", proposal_version_id)
+        if project_id is None:
+            raise ProblemError(ErrorCode.RESOURCE_NOT_FOUND, "Proposal not found.")
+        check = policy_request(s, "manager.proposal.read", project_id, proposal_version_id)
+        await enforcer.decide(check, conceal=True)
+        allowed = await authorize(s, "manager.proposal.decide", project_id, proposal_version_id)
+        try:
+            body = ManagerProposalDecisionBody.model_validate_json(raw)
+        except ValidationError:
+            raise ProblemError(ErrorCode.VALIDATION_ERROR, "Invalid Proposal decision.") from None
+        version = ProposalVersionRef(proposal_version_id, bytes.fromhex(body.content_hash))
+        actor = Principal(user_id=str(s.user_id), session_id=str(s.session_id),
+                          mfa_verified=s.mfa_verified_at is not None, expires_at=min(s.idle_expires_at, s.absolute_expires_at))
+        decision = allowed[1]
+
+        async def refresh(session: AsyncSession) -> list[tuple[PolicyRequest, PolicyDecision]]:
+            nonlocal actor, decision
+            mfa_verified, checks = await current_write_authority(session, s, project_id, allowed[0], reads=(check,))
+            actor = replace(actor, mfa_verified=mfa_verified)
+            decision = checks[-1][1]
+            return checks
+
+        async def execute(session: AsyncSession) -> UUID:
+            return await ManagerProposalRepository(session).record_human_decision(
+                s.organization_id, project_id, version, body.decision, actor, decision, require_separation=True,
+                comment=body.comment, correlation_id=correlation_uuid(current_request_id()),
+            )
+
+        async def render(_session: AsyncSession, decision_id: UUID) -> Rendered:
+            return Rendered(201, {"decisionId": str(decision_id), "proposalVersionId": str(version.id), "decision": body.decision.value}, {})
+
+        rendered = await run(s, command="decideManagerProposalVersion", key=raw_key,
+                             payload={"proposalVersionId": str(version.id), **body.model_dump(mode="json")}, project_id=project_id,
+                             decision=allowed, resource_type="MANAGER_PROPOSAL_DECISION", execute=execute, render=render,
+                             refresh_authority=refresh)
+        return out(response, rendered)
+
+    @router.post("/plan-versions/{plan_version_id}/decision", status_code=201, operation_id="decidePlanVersion")
+    async def decide_plan(plan_version_id: UUID, body: PlanVersionDecisionBody, response: Response, s: Session,
+                          if_match: Annotated[str | None, Header(alias="If-Match")] = None,
+                          idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None) -> dict[str, Any]:
+        expected = parse_if_match(if_match)
+        project_id = await locator.locate(s, "work.plan_versions", plan_version_id)
+        if project_id is None:
+            raise ProblemError(ErrorCode.RESOURCE_NOT_FOUND, "Plan version not found.")
+        allowed = await authorize(s, "plan.decide", project_id, plan_version_id)
+        items = frozenset(body.approved_item_ids or ())
+        if (body.decision == "APPROVE" and (not items or len(items) != len(body.approved_item_ids or ()))) or (
+            body.decision != "APPROVE" and "approved_item_ids" in body.model_fields_set
+        ):
+            raise ProblemError(ErrorCode.VALIDATION_ERROR, "Invalid approved item set.")
+        actor = Principal(user_id=str(s.user_id), session_id=str(s.session_id),
+                          mfa_verified=s.mfa_verified_at is not None, expires_at=min(s.idle_expires_at, s.absolute_expires_at))
+        decision = allowed[1]
+
+        async def refresh(session: AsyncSession) -> list[tuple[PolicyRequest, PolicyDecision]]:
+            nonlocal actor, decision
+            mfa_verified, checks = await current_write_authority(session, s, project_id, allowed[0])
+            actor = replace(actor, mfa_verified=mfa_verified)
+            decision = checks[-1][1]
+            return checks
+
+        async def execute(session: AsyncSession) -> UUID:
+            return await PlanVersionRepository(session).decide(
+                s.organization_id, project_id, plan_version_id, bytes.fromhex(body.content_hash), actor, decision,
+                decision=body.decision, approved=items, comment=body.comment, expected_version=expected, correlation_id=correlation_uuid(current_request_id()),
+            )
+
+        async def render(_session: AsyncSession, decision_id: UUID) -> Rendered:
+            return Rendered(201, {"decisionId": str(decision_id), "planVersionId": str(plan_version_id), "decision": body.decision}, {})
+
+        rendered = await run(s, command="decidePlanVersion", key=idempotency_key,
+                             payload={"planVersionId": str(plan_version_id), "version": expected, **body.model_dump(mode="json")},
+                             project_id=project_id, decision=allowed, resource_type="PLAN_VERSION_DECISION",
+                             execute=execute, render=render, refresh_authority=refresh)
+        return out(response, rendered)
 
     # -- createProject: the project id (and therefore the tenant context of the new project's rows) is fixed before the creating transaction ---------------
     @router.post("/projects", status_code=201)
@@ -565,6 +903,53 @@ def register_write_api(app: FastAPI, services: IdentityServices, *, idempotency:
 
         return out(response, await run(s, command="requestOperationCancellation", key=idempotency_key, payload={"operationId": str(operation_id)}, project_id=project_id,
                                        decision=decision, resource_type="OPERATION", execute=execute, render=render, response_status=202))
+
+    @router.get("/operations/{operation_id}/start-replay")
+    async def read_start_replay(operation_id: UUID, response: Response, s: Session) -> dict[str, Any]:
+        project_id = await locator.locate(s, "operations.operations", operation_id)
+        if project_id is None:
+            raise ProblemError(ErrorCode.RESOURCE_NOT_FOUND, "Resource not found.")
+        request, allowed = await authorize(s, "operation.approve_start_replay", project_id, operation_id)
+        async with UnitOfWork(factory) as uow:
+            await uow.with_tenant(s.organization_id, project_id)
+            await enforcer.record_allow(request, allowed, session=uow.session)
+            target = await inspect_quarantined_start(uow.session, operation_id)
+        if target is None:
+            raise ProblemError(ErrorCode.RESOURCE_NOT_FOUND, "Replay candidate not found.")
+        response.headers["ETag"] = format_etag(target.replay_count + 1)
+        response.headers["Cache-Control"] = "no-store"
+        return {"operationId": str(operation_id), "eventId": str(target.event_id)}
+
+    @router.post("/operations/{operation_id}/start-replay/{event_id}", status_code=202)
+    async def approve_start_replay(
+        operation_id: UUID, event_id: UUID, response: Response, s: Session,
+        if_match: Annotated[str | None, Header(alias="If-Match")] = None,
+        idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+    ) -> dict[str, Any]:
+        project_id = await locator.locate(s, "operations.operations", operation_id)
+        if project_id is None:
+            raise ProblemError(ErrorCode.RESOURCE_NOT_FOUND, "Resource not found.")
+        decision = await authorize(s, "operation.approve_start_replay", project_id, operation_id)
+        generation = parse_if_match(if_match)
+        if generation > 2_147_483_647:
+            raise ProblemError(ErrorCode.VERSION_CONFLICT, "Replay version changed.")
+
+        async def execute(session: AsyncSession) -> UUID:
+            if not await approve_quarantined_start(
+                session, operation_id, QuarantinedStart(event_id, generation - 1),
+                actor_id=s.user_id, session_id=s.session_id, correlation_id=correlation_uuid(current_request_id()),
+            ):
+                raise ProblemError(ErrorCode.VERSION_CONFLICT, "Replay candidate has changed.")
+            return operation_id
+
+        async def render(_session: AsyncSession, rid: UUID) -> Rendered:
+            return Rendered(202, {"operationId": str(rid), "eventId": str(event_id)}, {"Location": f"/api/v1/operations/{rid}"})
+
+        return out(response, await run(
+            s, command="approveAssignedStartReplay", key=idempotency_key,
+            payload={"operationId": str(operation_id), "eventId": str(event_id), "generation": generation},
+            project_id=project_id, decision=decision, resource_type="OPERATION", execute=execute, render=render, response_status=202,
+        ))
 
     app.include_router(router)
 

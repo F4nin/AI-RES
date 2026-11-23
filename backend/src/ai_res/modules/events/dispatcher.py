@@ -27,7 +27,7 @@ from ai_res.modules.events import delivery
 from ai_res.modules.events.alerts import GrowthThresholds, evaluate_outbox
 from ai_res.modules.events.contract import EventContract
 from ai_res.modules.events.metrics import EventMetrics, get_event_metrics
-from ai_res.modules.events.outbox_repository import OutboxRepository, OutboxRow
+from ai_res.modules.events.outbox_repository import OutboxRepository, OutboxRow, validate_assigned_namespace
 from ai_res.platform.clock import utc_now
 
 log = logging.getLogger("ai_res.events.dispatcher")
@@ -54,8 +54,10 @@ class DispatcherConfig:
     max_consecutive_errors: int = 10
     thresholds: GrowthThresholds = GrowthThresholds()
     destinations: tuple[str, ...] | None = None  # only these destinations are claimed (ADR-089); None = all
+    assigned_namespace: str | None = None
 
     def __post_init__(self) -> None:
+        validate_assigned_namespace(self.assigned_namespace)
         if not self.owner or self.batch_size < 1 or self.lease_seconds <= 0 or self.max_attempts < 1 or self.backoff_base_seconds <= 0:
             raise ValueError("invalid dispatcher configuration")
         if self.backoff_cap_seconds < self.backoff_base_seconds or self.poll_interval_seconds <= 0 or self.stats_interval_seconds <= 0:
@@ -98,7 +100,7 @@ class Dispatcher:
         c = self._config
         async with UnitOfWork(self._factory) as uow:
             repo = OutboxRepository(uow.session)
-            rows = await repo.claim(c.owner, c.batch_size, c.lease_seconds, c.max_attempts, c.destinations)
+            rows = await repo.claim(c.owner, c.batch_size, c.lease_seconds, c.max_attempts, c.destinations, assigned_namespace=c.assigned_namespace)
             expired = repo.claim_quarantined
         for _ in range(expired):  # a row whose lease kept expiring was quarantined by the claim: that must be visible, not silent
             self._metrics.count("quarantined", "LEASE_EXPIRED_MAX_ATTEMPTS")

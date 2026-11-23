@@ -90,7 +90,7 @@ def test_audits_clean_and_tables_exist(world):
         assert run_audit(c, "rls_coverage.sql") == [] and run_audit(c, "grants_audit.sql") == [] and run_audit(c, "postflight.sql") == []
         tables = {r[0] for r in c.execute("SELECT schemaname || '.' || tablename FROM pg_tables WHERE schemaname IN ('agents','execution')")}
     assert tables == {"agents.worker_runs", "agents.worker_run_events", "agents.worker_results", "agents.worker_definitions", "agents.worker_definition_versions",
-                      "execution.readiness_evaluations", "execution.readiness_check_results"}
+                      "agents.worker_tool_grants", "execution.readiness_evaluations", "execution.readiness_check_results"}
 
 
 @pytest.mark.parametrize("table", ["agents.worker_runs", "agents.worker_run_events", "agents.worker_results", "execution.readiness_evaluations", "execution.readiness_check_results"])

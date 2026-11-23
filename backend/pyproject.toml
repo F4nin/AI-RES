@@ -24,6 +24,7 @@ dependencies = [
   "temporalio>=1.20,<2",
   "httpx>=0.28.1",
   "opentelemetry-exporter-otlp-proto-http>=1.27",
+  "langgraph==1.2.22",
 ]
 
 [dependency-groups]
@@ -144,7 +145,11 @@ name = "Manager/Worker Runtime and orchestration hold no database, ORM, policy o
 type = "forbidden"
 source_modules = ["ai_res.runtime", "ai_res.orchestration"]
 forbidden_modules = ["sqlalchemy", "psycopg", "alembic", "ai_res.db", "ai_res.policy", "ai_res.api", "ai_res.cli", "ai_res.modules"]
-ignore_imports = ["ai_res.runtime.manager -> ai_res.modules.iam.service_tokens"]  # signing a service token needs no database; the module imports only platform
+# Service credential codecs are pure and never access the database.
+ignore_imports = [
+    "ai_res.runtime.manager -> ai_res.modules.iam.service_tokens",
+    "ai_res.runtime.platform_control_client -> ai_res.modules.iam.platform_credentials",
+]
 
 [[tool.importlinter.contracts]]
 name = "Platform and persistence layers do not depend on the policy engine"
@@ -159,7 +164,7 @@ name = "Domain module layers (ARCH-01)"
 type = "layers"
 containers = ["ai_res.modules"]
 layers = [
-  "artifacts:context:epics:model_registry:projects:readiness:readmodel:requirements:rules:sources:tasks:worker_runs",
+  "artifacts:context:epics:model_registry:projects:readiness:readmodel:requirements:rules:sources:tasks:tools:worker_runs",
   "idempotency:iam:operations",
   "events:audit",
 ]
@@ -180,6 +185,7 @@ modules = [
   "ai_res.modules.rules",
   "ai_res.modules.sources",
   "ai_res.modules.tasks",
+  "ai_res.modules.tools",
   "ai_res.modules.worker_runs",
 ]
 

@@ -4,6 +4,7 @@ import json
 import logging
 import re
 from datetime import UTC, datetime, timedelta, timezone
+from ipaddress import IPv4Address
 
 import pytest
 from hypothesis import given
@@ -264,6 +265,15 @@ def test_config_secret_in_env_is_rejected_without_echoing_value():
     with pytest.raises(ConfigError) as e:
         load_settings({"AI_RES_CURSOR_HMAC_KEY": "topsecretvalue"})
     assert "topsecretvalue" not in str(e.value) and "_FILE" in str(e.value)
+
+
+def test_private_platform_listener_requires_one_explicit_address():
+    setting = "AI_RES_PLATFORM_LISTENER_BIND_HOST"
+    assert str(load_settings({}).platform_listener_bind_host) == "127.0.0.1"
+    assert str(load_settings({setting: "172.28.20.10"}).platform_listener_bind_host) == "172.28.20.10"
+    for address in (str(IPv4Address(0)), "8.8.8.8", "::", "platform-api", "169.254.0.1", "224.0.0.1"):
+        with pytest.raises(ConfigError, match="platform_listener_bind_host"):
+            load_settings({setting: address})
 
 
 def test_config_test_double_only_in_test_profile():

@@ -1,0 +1,67 @@
+# Adds a disposable storage fixture and probe to both the stock and protected Compose models.
+services:
+  postgres:
+    pull_policy: never
+    volumes: !override [./config/postgres/entrypoint.sh:/docker-config/entrypoint.sh:ro]
+    tmpfs:
+      - /var/lib/postgresql/data:uid=999,gid=999,mode=0700
+  postgres-provision: { pull_policy: never }
+  temporal-schema: { pull_policy: never }
+  temporal: { pull_policy: never }
+  temporal-namespace: { pull_policy: never }
+  cutover-probe:
+    image: ai-res/s20-compose-probe:local
+    pull_policy: never
+    user: "1000:1000"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    init: true
+    networks: [data, workflow]
+    working_dir: /repo/backend
+    environment:
+      PYTHONPATH: /repo/backend/src:/repo/backend
+    entrypoint: [python, -B, /probe/cutover_probe.py]
+    volumes:
+      - ../backend/src:/repo/backend/src:ro
+      - ../backend/tests:/repo/backend/tests:ro
+      - ./temporal_auth_poc/cutover_probe.py:/probe/cutover_probe.py:ro
+    tmpfs: ["/tmp:uid=1000,gid=1000,mode=0700"]
+    secrets:
+      - postgres_tls_ca_cert
+      - temporal_db_password
+      - temporal_frontend_ca
+      - temporal_operator_cert
+      - temporal_operator_key
+      - temporal_dispatcher_cert
+      - temporal_dispatcher_key
+      - temporal_manager_cert
+      - temporal_manager_key
+      - temporal_reconciliation_cert
+      - temporal_reconciliation_key
+    depends_on:
+      temporal-namespace: { condition: service_completed_successfully }
+
+secrets:
+  postgres_superuser_password: { file: "${G02_PROTECTED_DIR:?}/postgres_superuser_password" }
+  temporal_db_password: { file: "${G02_PROTECTED_DIR:?}/temporal_db_password" }
+  checkpointer_db_password: { file: "${G02_PROTECTED_DIR:?}/checkpointer_db_password" }
+  migrator_db_password: { file: "${G02_PROTECTED_DIR:?}/migrator_db_password" }
+  api_db_password: { file: "${G02_PROTECTED_DIR:?}/api_db_password" }
+  platform_api_db_password: { file: "${G02_PROTECTED_DIR:?}/platform_api_db_password" }
+  outbox_db_password: { file: "${G02_PROTECTED_DIR:?}/outbox_db_password" }
+  consumer_db_password: { file: "${G02_PROTECTED_DIR:?}/consumer_db_password" }
+  auditor_db_password: { file: "${G02_PROTECTED_DIR:?}/auditor_db_password" }
+  backup_db_password: { file: "${G02_PROTECTED_DIR:?}/backup_db_password" }
+  postgres_tls_ca_cert: { file: "${G02_PROTECTED_DIR:?}/postgres_tls_ca_cert" }
+  postgres_tls_server_cert: { file: "${G02_PROTECTED_DIR:?}/postgres_tls_server_cert" }
+  postgres_tls_server_key: { file: "${G02_PROTECTED_DIR:?}/postgres_tls_server_key" }
+  temporal_frontend_ca: { file: "${G02_PROTECTED_DIR:?}/temporal_frontend_ca" }
+  temporal_operator_cert: { file: "${G02_PROTECTED_DIR:?}/temporal_operator_cert" }
+  temporal_operator_key: { file: "${G02_PROTECTED_DIR:?}/temporal_operator_key" }
+  temporal_dispatcher_cert: { file: "${G02_PROTECTED_DIR:?}/temporal_dispatcher_cert" }
+  temporal_dispatcher_key: { file: "${G02_PROTECTED_DIR:?}/temporal_dispatcher_key" }
+  temporal_manager_cert: { file: "${G02_PROTECTED_DIR:?}/temporal_manager_cert" }
+  temporal_manager_key: { file: "${G02_PROTECTED_DIR:?}/temporal_manager_key" }
+  temporal_reconciliation_cert: { file: "${G02_PROTECTED_DIR:?}/temporal_reconciliation_cert" }
+  temporal_reconciliation_key: { file: "${G02_PROTECTED_DIR:?}/temporal_reconciliation_key" }

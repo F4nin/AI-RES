@@ -1,0 +1,114 @@
+# Run via python -m infra.temporal_auth_poc.compose_candidate from the repository root.
+services:
+  postgres:
+    extends: {file: compose.yaml, service: postgres}
+    networks: !reset []
+    network_mode: none
+    extra_hosts: ["postgres:127.0.0.1"]
+    pull_policy: never
+    volumes: !override
+      - ./config/postgres/entrypoint.sh:/docker-config/entrypoint.sh:ro
+    tmpfs:
+      - /var/lib/postgresql/data:uid=999,gid=999,mode=0700
+  postgres-provision:
+    extends: {file: compose.yaml, service: postgres-provision}
+    networks: !reset []
+    network_mode: service:postgres
+    pull_policy: never
+  temporal-schema:
+    extends: {file: compose.yaml, service: temporal-schema}
+    networks: !reset []
+    network_mode: service:postgres
+    pull_policy: never
+  migrate:
+    extends: {file: compose.yaml, service: migrate}
+    networks: !reset []
+    network_mode: service:postgres
+    build: !reset null
+    image: ai-res/s20-compose-probe:local
+    pull_policy: never
+    working_dir: /repo/backend
+    command: ["alembic", "-c", "/repo/backend/alembic.ini", "upgrade", "head"]
+    environment:
+      PYTHONPATH: /repo/backend/src
+      PYTHONDONTWRITEBYTECODE: "1"
+    volumes:
+      - ../backend/src:/repo/backend/src:ro
+      - ../backend/alembic.ini:/repo/backend/alembic.ini:ro
+  candidate-native:
+    image: ai-res/temporal-auth-poc-postgres:test
+    pull_policy: never
+    network_mode: service:postgres
+    user: "${G02_CANDIDATE_UID:?}:${G02_CANDIDATE_GID:?}"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      G02_NATIVE_COMPOSE_CANDIDATE: "1"
+      G02_NATIVE_POSTGRES_FIXTURE_DIR: /native
+      LOCALHOST_IP: 127.0.0.1
+    secrets: [postgres_tls_ca_cert]
+    volumes:
+      - "${G02_CANDIDATE_DIR:?}/native:/native:ro"
+      - "${G02_CANDIDATE_DIR:?}/native-user:/etc/passwd:ro"
+    tmpfs:
+      - /scratch:uid=${G02_CANDIDATE_UID:?},gid=${G02_CANDIDATE_GID:?},mode=0700
+    depends_on:
+      temporal-schema: { condition: service_completed_successfully }
+  candidate-probe:
+    image: ai-res/s20-compose-probe:local
+    pull_policy: never
+    network_mode: service:postgres
+    user: "${G02_CANDIDATE_UID:?}:${G02_CANDIDATE_GID:?}"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    init: true
+    working_dir: /repo/backend
+    environment:
+      PYTHONPATH: /repo/backend/src:/repo/infra/temporal_auth_poc
+      G02_NATIVE_COMPOSE_CANDIDATE: "1"
+    secrets:
+      - postgres_superuser_password
+      - postgres_tls_ca_cert
+      - temporal_db_password
+      - api_db_password
+      - platform_api_db_password
+    volumes:
+      - "${G02_CANDIDATE_DIR:?}/native:/native"
+      - ../backend/src:/repo/backend/src:ro
+      - ../backend/tests:/repo/backend/tests:ro
+      - ../backend/testkit:/repo/backend/testkit:ro
+      - ../backend/pyproject.toml:/repo/backend/pyproject.toml:ro
+      - ../contracts:/repo/contracts:ro
+      - ./temporal_auth_poc:/repo/infra/temporal_auth_poc:ro
+    tmpfs:
+      - /tmp:uid=${G02_CANDIDATE_UID:?},gid=${G02_CANDIDATE_GID:?},mode=0700
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      candidate-native: { condition: service_started }
+    command:
+      - python
+      - -B
+      - -m
+      - pytest
+      - -q
+      - --tb=short
+      - -p
+      - no:cacheprovider
+      - tests/integration/postgres/test_native_assigned_workflow.py::test_native_manager_workflow_with_platform_receipts[compose]
+
+secrets:
+  postgres_superuser_password: { file: "${G02_CANDIDATE_DIR:?}/postgres_superuser_password" }
+  temporal_db_password: { file: "${G02_CANDIDATE_DIR:?}/temporal_db_password" }
+  checkpointer_db_password: { file: "${G02_CANDIDATE_DIR:?}/checkpointer_db_password" }
+  migrator_db_password: { file: "${G02_CANDIDATE_DIR:?}/migrator_db_password" }
+  api_db_password: { file: "${G02_CANDIDATE_DIR:?}/api_db_password" }
+  platform_api_db_password: { file: "${G02_CANDIDATE_DIR:?}/platform_api_db_password" }
+  outbox_db_password: { file: "${G02_CANDIDATE_DIR:?}/outbox_db_password" }
+  consumer_db_password: { file: "${G02_CANDIDATE_DIR:?}/consumer_db_password" }
+  auditor_db_password: { file: "${G02_CANDIDATE_DIR:?}/auditor_db_password" }
+  backup_db_password: { file: "${G02_CANDIDATE_DIR:?}/backup_db_password" }
+  postgres_tls_ca_cert: { file: "${G02_CANDIDATE_DIR:?}/postgres_tls_ca_cert" }
+  postgres_tls_server_cert: { file: "${G02_CANDIDATE_DIR:?}/postgres_tls_server_cert" }
+  postgres_tls_server_key: { file: "${G02_CANDIDATE_DIR:?}/postgres_tls_server_key" }

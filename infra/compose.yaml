@@ -31,6 +31,7 @@ secrets:
   checkpointer_db_password: { file: ./secrets/runtime/checkpointer_db_password }
   migrator_db_password: { file: ./secrets/runtime/migrator_db_password }
   api_db_password: { file: ./secrets/runtime/api_db_password }
+  platform_api_db_password: { file: ./secrets/runtime/platform_api_db_password }
   outbox_db_password: { file: ./secrets/runtime/outbox_db_password }
   consumer_db_password: { file: ./secrets/runtime/consumer_db_password }
   auditor_db_password: { file: ./secrets/runtime/auditor_db_password }
@@ -305,6 +306,7 @@ services:
       - checkpointer_db_password
       - migrator_db_password
       - api_db_password
+      - platform_api_db_password
       - outbox_db_password
       - consumer_db_password
       - auditor_db_password

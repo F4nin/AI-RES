@@ -14,12 +14,15 @@
 -- ROLE ai_res_outbox_dispatcher LOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS SET idle_in_transaction_session_timeout=30s, lock_timeout=2s, search_path=pg_catalog, statement_timeout=15s
 -- ROLE ai_res_outbox_group NOLOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS
 -- ROLE ai_res_owner NOLOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS
+-- ROLE ai_res_platform_api LOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS SET idle_in_transaction_session_timeout=30s, lock_timeout=2s, search_path=pg_catalog, statement_timeout=15s
+-- ROLE ai_res_platform_api_group NOLOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS
 -- GRANT ai_res_api_group TO ai_res_api INHERIT=t SET=f
 -- GRANT ai_res_auditor_group TO ai_res_auditor INHERIT=t SET=f
 -- GRANT ai_res_consumer_group TO ai_res_event_consumer INHERIT=t SET=f
 -- GRANT ai_res_outbox_group TO ai_res_outbox_dispatcher INHERIT=t SET=f
 -- GRANT ai_res_owner TO ai_res_migrator INHERIT=f SET=t
--- DATABASE ACL ai_res_api=c/ai_res_owner,ai_res_auditor=c/ai_res_owner,ai_res_event_consumer=c/ai_res_owner,ai_res_migrator=c/ai_res_owner,ai_res_outbox_dispatcher=c/ai_res_owner,ai_res_owner=CTc/ai_res_owner
+-- GRANT ai_res_platform_api_group TO ai_res_platform_api INHERIT=t SET=f
+-- DATABASE ACL ai_res_api=c/ai_res_owner,ai_res_auditor=c/ai_res_owner,ai_res_event_consumer=c/ai_res_owner,ai_res_migrator=c/ai_res_owner,ai_res_outbox_dispatcher=c/ai_res_owner,ai_res_owner=CTc/ai_res_owner,ai_res_platform_api=c/ai_res_owner
 -- PARAMETER ACL app.migration_mode ai_res_owner=s/postgres,postgres=sA/postgres
 
 -- SCHEMA
@@ -234,6 +237,90 @@ END $$;
 
 ALTER FUNCTION artifacts.guard_publication_insert() OWNER TO ai_res_owner;
 
+CREATE FUNCTION audit.approve_assigned_start_replay(operation_ref uuid, event_ref uuid, expected_count integer, actor_ref uuid, session_ref uuid, request_ref uuid, audit_ref uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    SET "app.migration_mode" TO 'on'
+    AS $$
+        DECLARE
+            org uuid := NULLIF(current_setting('app.organization_id',true),'')::uuid;
+            prj uuid := NULLIF(current_setting('app.project_id',true),'')::uuid;
+            assignment_ref uuid;
+        BEGIN
+            PERFORM 1 FROM organization.memberships m
+            WHERE (m.organization_id,m.user_id)=(org,actor_ref) FOR SHARE;
+            IF EXISTS (
+                SELECT 1 FROM organization.memberships m
+                WHERE (m.organization_id,m.user_id)=(org,actor_ref) AND m.status<>'ACTIVE'
+            ) THEN
+                RETURN false;
+            END IF;
+            PERFORM 1 FROM iam.users u
+            WHERE (u.organization_id,u.id)=(org,actor_ref) AND u.status='ACTIVE' FOR SHARE;
+            IF NOT FOUND THEN
+                RETURN false;
+            END IF;
+            IF NOT EXISTS (
+                SELECT 1 FROM project.project_memberships m
+                WHERE m.organization_id=org AND m.project_id=prj AND m.user_id=actor_ref
+                  AND m.role_code='PROJECT_ADMIN' AND m.status='ACTIVE'
+                FOR SHARE
+            ) THEN
+                RETURN false;
+            END IF;
+            PERFORM 1 FROM iam.sessions s
+            WHERE (s.organization_id,s.user_id,s.id)=(org,actor_ref,session_ref)
+              AND s.revoked_at IS NULL AND s.mfa_verified_at IS NOT NULL
+              AND s.idle_expires_at>clock_timestamp() AND s.absolute_expires_at>clock_timestamp() FOR SHARE;
+            IF NOT FOUND THEN
+                RETURN false;
+            END IF;
+            SELECT a.id INTO assignment_ref FROM platform.operation_execution_assignments a
+            WHERE (a.organization_id,a.project_id,a.operation_id)=(org,prj,operation_ref)
+              AND a.revoked_at IS NULL FOR SHARE;
+            IF NOT FOUND THEN
+                RETURN false;
+            END IF;
+            PERFORM 1 FROM operations.operations o
+            WHERE (o.organization_id,o.project_id,o.id)=(org,prj,operation_ref)
+            FOR SHARE;
+            IF NOT FOUND THEN
+                RETURN false;
+            END IF;
+            PERFORM 1 FROM audit.outbox_events e
+            WHERE (e.organization_id,e.project_id,e.aggregate_id)=(org,prj,operation_ref)
+              AND e.event_id=event_ref AND e.destination='orchestration.operation-start'
+              AND e.status='QUARANTINED' AND e.replay_count=expected_count
+            FOR UPDATE;
+            IF NOT FOUND THEN
+                RETURN false;
+            END IF;
+            UPDATE audit.outbox_events e
+            SET status='PENDING', available_at=now(), attempt_count=0, replay_count=e.replay_count+1
+            FROM audit.inspect_assigned_start_replay(operation_ref) visible
+            WHERE (e.organization_id,e.project_id,e.aggregate_id)=(org,prj,operation_ref)
+              AND e.event_id=event_ref AND e.event_id=visible.event_id
+              AND e.destination='orchestration.operation-start' AND e.status='QUARANTINED'
+              AND e.replay_count=expected_count AND e.replay_count=visible.replay_count
+              AND EXISTS (
+                SELECT 1 FROM iam.sessions s WHERE s.id=session_ref
+                  AND s.idle_expires_at>clock_timestamp() AND s.absolute_expires_at>clock_timestamp()
+              );
+            IF NOT FOUND THEN
+                RETURN false;
+            END IF;
+            INSERT INTO audit.audit_events(
+                id,organization_id,project_id,occurred_at,actor_type,actor_id,action,object_type,object_id,result,correlation_id,details
+            ) VALUES (
+                audit_ref,org,prj,clock_timestamp(),'USER',actor_ref,'OPERATION_START_REPLAY_APPROVED','OPERATION',
+                operation_ref,'SUCCEEDED',request_ref,
+                jsonb_build_object('eventId',event_ref,'assignmentId',assignment_ref,'replayCount',expected_count+1)
+            );
+            RETURN true;
+        END $$;
+
+ALTER FUNCTION audit.approve_assigned_start_replay(operation_ref uuid, event_ref uuid, expected_count integer, actor_ref uuid, session_ref uuid, request_ref uuid, audit_ref uuid) OWNER TO ai_res_owner;
+
 CREATE FUNCTION audit.assert_checkpoint_advances() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -277,6 +364,21 @@ BEGIN  -- deferred to COMMIT: an outbox row without its event (or for another ag
     SELECT EXISTS (SELECT 1 FROM requirements.requirement_events e WHERE e.event_id = NEW.event_id AND e.requirement_id = NEW.aggregate_id
                     AND e.aggregate_sequence = NEW.aggregate_sequence AND e.event_type = NEW.event_type AND e.schema_version = NEW.schema_version) INTO found;
     expected_source := 'urn:aires:requirements'; expected_subject := 'requirements/' || NEW.aggregate_id::text;
+  ELSIF NEW.aggregate_type = 'MANAGER_INTERACTION' THEN
+    domain := true;
+    SELECT EXISTS (SELECT 1 FROM work.manager_interaction_events e WHERE e.event_id = NEW.event_id AND e.interaction_id = NEW.aggregate_id
+                    AND e.aggregate_sequence = NEW.aggregate_sequence AND e.event_type = NEW.event_type AND e.schema_version = NEW.schema_version) INTO found;
+    expected_source := 'urn:aires:manager-interactions'; expected_subject := 'manager-interactions/' || NEW.aggregate_id::text;
+  ELSIF NEW.aggregate_type = 'PLAN_VERSION' THEN
+    domain := true;
+    SELECT EXISTS (SELECT 1 FROM work.plan_version_events e WHERE e.event_id=NEW.event_id AND e.plan_version_id=NEW.aggregate_id
+                    AND e.aggregate_sequence=NEW.aggregate_sequence AND e.event_type=NEW.event_type AND e.schema_version=NEW.schema_version) INTO found;
+    expected_source := 'urn:aires:plan-versions'; expected_subject := 'plan-versions/' || NEW.aggregate_id::text;
+  ELSIF NEW.aggregate_type = 'TASK' THEN
+    domain := true;
+    SELECT EXISTS (SELECT 1 FROM work.task_events e WHERE e.event_id=NEW.event_id AND e.task_id=NEW.aggregate_id
+                    AND e.aggregate_sequence=NEW.aggregate_sequence AND e.event_type=NEW.event_type AND e.schema_version=NEW.schema_version) INTO found;
+    expected_source := 'urn:aires:tasks'; expected_subject := 'tasks/' || NEW.aggregate_id::text;
   ELSE
     RAISE EXCEPTION 'outbox row % has aggregate_type % without an event-table mapping: extend audit.assert_outbox_matches_event in the revision that adds it', NEW.id, NEW.aggregate_type
       USING ERRCODE = 'integrity_constraint_violation';
@@ -317,6 +419,81 @@ BEGIN  -- replay_count is a counter of controlled replays: it moves by exactly o
 END $$;
 
 ALTER FUNCTION audit.assert_replay_count_step() OWNER TO ai_res_owner;
+
+CREATE FUNCTION audit.authorize_assigned_delivery(row_ref uuid, owner_ref text, attempt integer, generation integer, namespace_ref text, request_nonce uuid, credential_expires timestamp with time zone, request_correlation uuid) RETURNS TABLE(decision text, id uuid, event_id uuid, destination text, aggregate_type text, aggregate_id uuid, aggregate_sequence bigint, event_type text, schema_version integer, envelope jsonb, attempt_count integer, replay_count integer, dispatch_namespace text, lease_until timestamp with time zone)
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    SET "app.migration_mode" TO 'on'
+    AS $$
+        DECLARE
+            leased audit.outbox_events%ROWTYPE;
+            result text;
+        BEGIN
+            INSERT INTO platform.platform_request_nonces(issuer,nonce,expires_at)
+            SELECT 'OUTBOX_DISPATCHER',request_nonce,credential_expires WHERE credential_expires>clock_timestamp()
+            ON CONFLICT DO NOTHING;
+            IF NOT FOUND OR credential_expires<=clock_timestamp() THEN
+                result := 'EXPIRED_OR_REPLAY';
+            ELSE
+                SELECT e.* INTO leased FROM audit.outbox_events e
+                WHERE e.id=row_ref AND e.status='IN_FLIGHT' AND e.lease_owner=owner_ref
+                  AND e.attempt_count=attempt AND e.replay_count=generation AND e.dispatch_namespace=namespace_ref
+                  AND e.dispatch_assignment_id IS NOT NULL AND e.lease_until>clock_timestamp()
+                  AND e.destination IN ('orchestration.operation-start','orchestration.operation-cancel')
+                FOR SHARE OF e;
+                result := CASE
+                    WHEN credential_expires<=clock_timestamp() THEN 'EXPIRED_OR_REPLAY'
+                    WHEN FOUND AND leased.lease_until>clock_timestamp() THEN 'AUTHORIZED'
+                    ELSE 'ASSIGNMENT_DENIED'
+                END;
+            END IF;
+            INSERT INTO platform.platform_auth_events(id,correlation_id,reason,action)
+            VALUES (gen_random_uuid(),request_correlation,result,'AUTHORIZE_ASSIGNED_DELIVERY');
+            IF result <> 'AUTHORIZED' THEN leased := NULL; END IF;
+            RETURN QUERY SELECT result,leased.id,leased.event_id,leased.destination,leased.aggregate_type,leased.aggregate_id,
+                leased.aggregate_sequence,leased.event_type,leased.schema_version,leased.envelope,leased.attempt_count,
+                leased.replay_count,leased.dispatch_namespace,leased.lease_until;
+        END $$;
+
+ALTER FUNCTION audit.authorize_assigned_delivery(row_ref uuid, owner_ref text, attempt integer, generation integer, namespace_ref text, request_nonce uuid, credential_expires timestamp with time zone, request_correlation uuid) OWNER TO ai_res_owner;
+
+CREATE FUNCTION audit.guard_assigned_start_quarantine() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+        BEGIN
+            IF current_user <> 'ai_res_owner' AND OLD.status='QUARANTINED'
+              AND OLD.destination='orchestration.operation-start'
+              AND (OLD.envelope #> '{data,refs}') @> '[{"resourceType":"OPERATION_EXECUTION_ASSIGNMENT"}]'::jsonb
+            THEN
+                RAISE EXCEPTION 'assigned Start requires audited replay approval' USING ERRCODE='insufficient_privilege';
+            END IF;
+            RETURN NEW;
+        END $$;
+
+ALTER FUNCTION audit.guard_assigned_start_quarantine() OWNER TO ai_res_owner;
+
+CREATE FUNCTION audit.inspect_assigned_start_replay(operation_ref uuid) RETURNS TABLE(event_id uuid, replay_count integer)
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    SET "app.migration_mode" TO 'on'
+    AS $$
+            SELECT e.event_id,e.replay_count
+            FROM audit.outbox_events e
+            JOIN platform.operation_execution_assignments a
+              ON (a.organization_id,a.project_id,a.operation_id,a.id,a.namespace)
+                =(e.organization_id,e.project_id,e.aggregate_id,e.dispatch_assignment_id,e.dispatch_namespace)
+            JOIN operations.operations o
+              ON (o.organization_id,o.project_id,o.id)=(a.organization_id,a.project_id,a.operation_id)
+            WHERE e.aggregate_id=operation_ref AND e.aggregate_type='OPERATION' AND e.aggregate_sequence=1
+              AND e.event_type='operation.accepted' AND e.destination='orchestration.operation-start'
+              AND e.status='QUARANTINED' AND a.revoked_at IS NULL
+              AND (o.status='ACCEPTED' OR a.workflow_run_id IS NOT NULL)
+              AND e.organization_id=NULLIF(current_setting('app.organization_id',true),'')::uuid
+              AND e.project_id=NULLIF(current_setting('app.project_id',true),'')::uuid
+        $$;
+
+ALTER FUNCTION audit.inspect_assigned_start_replay(operation_ref uuid) OWNER TO ai_res_owner;
 
 CREATE FUNCTION context.assert_package_version_complete() RETURNS trigger
     LANGUAGE plpgsql
@@ -640,6 +817,101 @@ END $_$;
 
 ALTER FUNCTION platform.assert_version_number_contiguous() OWNER TO ai_res_owner;
 
+CREATE FUNCTION platform.bound_workflow_task_command_binding(oid uuid, rid uuid, ns text, q text, digest bytea) RETURNS TABLE(assignment_id uuid, workflow_type text, workflow_contract_version integer, input_digest bytea, operation_status text)
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    SET "app.migration_mode" TO 'on'
+    AS $$
+            SELECT c.assignment_id,c.workflow_type,c.workflow_contract_version,a.input_digest,o.status::text
+            FROM platform.bound_workflow_task_context(oid,rid,ns,q,digest) c
+            JOIN platform.operation_execution_assignments a ON a.id=c.assignment_id
+            JOIN operations.operations o ON o.id=a.operation_id AND o.organization_id=a.organization_id AND o.project_id=a.project_id
+        $$;
+
+ALTER FUNCTION platform.bound_workflow_task_command_binding(oid uuid, rid uuid, ns text, q text, digest bytea) OWNER TO ai_res_owner;
+
+CREATE FUNCTION platform.bound_workflow_task_context(oid uuid, rid uuid, ns text, q text, digest bytea) RETURNS TABLE(assignment_id uuid, workflow_type text, workflow_contract_version integer)
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    SET "app.migration_mode" TO 'on'
+    AS $$
+            SELECT a.id,a.workflow_type,a.workflow_contract_version
+            FROM platform.operation_execution_assignments a
+            JOIN platform.task_issuance_receipts r ON r.operation_id=a.operation_id AND r.workflow_run_id=a.workflow_run_id
+            WHERE a.operation_id=oid AND a.workflow_run_id=rid AND a.namespace=ns AND a.task_queue=q AND a.revoked_at IS NULL
+              AND r.token_digest=digest AND r.principal='MANAGER_RUNTIME' AND r.namespace=ns AND r.queue=q AND r.task_kind='WORKFLOW'
+              AND a.task_queue='ai-res-manager' AND a.workflow_type IN ('ManagerIntakeWorkflow','PlanExecutionWorkflow')
+            FOR SHARE OF a
+        $$;
+
+ALTER FUNCTION platform.bound_workflow_task_context(oid uuid, rid uuid, ns text, q text, digest bytea) OWNER TO ai_res_owner;
+
+CREATE FUNCTION platform.capture_manager_epic_context(oid uuid, aid uuid, rid uuid) RETURNS TABLE(context_id uuid, epic_state jsonb)
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    SET "app.migration_mode" TO 'on'
+    AS $$
+        DECLARE
+            binding record;
+            intake record;
+        BEGIN
+            SELECT * INTO binding FROM platform.lock_manager_epic_context_assignment(oid,'manager.read_input');
+            IF NOT FOUND OR binding.assignment_id IS DISTINCT FROM aid OR binding.workflow_run_id IS DISTINCT FROM rid
+            THEN RETURN; END IF;
+
+            SELECT i.id AS interaction_id,i.epic_id,o.row_version INTO intake
+            FROM operations.operations o
+            JOIN work.manager_interactions i ON (i.organization_id,i.project_id,i.operation_id)=(o.organization_id,o.project_id,o.id)
+            WHERE (o.organization_id,o.project_id,o.id)=(binding.organization_id,binding.project_id,oid)
+              AND o.operation_type='MANAGER_MESSAGE' AND o.status='RUNNING'
+            FOR NO KEY UPDATE OF o;
+            IF NOT FOUND THEN RETURN; END IF;
+
+            IF NOT EXISTS (SELECT 1 FROM platform.manager_epic_context_versions c WHERE c.operation_id=oid) THEN
+                INSERT INTO platform.manager_epic_context_versions
+                    (id,organization_id,project_id,interaction_id,operation_id,assignment_id,workflow_run_id,epic_state)
+                SELECT gen_random_uuid(),e.organization_id,e.project_id,intake.interaction_id,oid,aid,rid,
+                       jsonb_build_object('epicVersion',e.row_version,'epicStatus',e.status,
+                           'operationVersion',intake.row_version,'operationStatus','RUNNING',
+                           'questionSequence',COALESCE(q.sequence,0),'hasOpenQuestion',COALESCE(q.is_open,false),
+                           'planVersion',p.version_number,'planDecision',p.decision,'taskCounts',COALESCE(t.counts,'{}'::jsonb))
+                FROM work.epics e
+                LEFT JOIN LATERAL (
+                    SELECT j.sequence,j.event_kind='PROPOSED' AS is_open FROM work.manager_question_journal j
+                    WHERE (j.organization_id,j.project_id,j.epic_id)=(e.organization_id,e.project_id,e.id)
+                    ORDER BY j.sequence DESC LIMIT 1
+                ) q ON true
+                LEFT JOIN LATERAL (
+                    SELECT v.version_number,d.decision FROM work.plans pl
+                    JOIN work.plan_versions v ON (v.organization_id,v.project_id,v.plan_id,v.version_number)
+                        =(pl.organization_id,pl.project_id,pl.id,pl.last_version)
+                    LEFT JOIN governance.plan_version_decisions d ON (d.organization_id,d.project_id,d.plan_version_id)
+                        =(v.organization_id,v.project_id,v.id)
+                    WHERE (pl.organization_id,pl.project_id,pl.epic_id)=(e.organization_id,e.project_id,e.id)
+                ) p ON true
+                LEFT JOIN LATERAL (
+                    SELECT jsonb_object_agg(status,task_count) AS counts FROM (
+                        SELECT task.status,count(*) AS task_count FROM work.tasks task
+                        WHERE (task.organization_id,task.project_id,task.epic_id)=(e.organization_id,e.project_id,e.id)
+                        GROUP BY task.status
+                    ) totals
+                ) t ON true
+                WHERE (e.organization_id,e.project_id,e.id)=(binding.organization_id,binding.project_id,intake.epic_id)
+                ON CONFLICT (operation_id) DO NOTHING;
+            END IF;
+            RETURN QUERY SELECT c.id,c.epic_state FROM platform.manager_epic_context_versions c
+            WHERE (c.organization_id,c.project_id,c.interaction_id,c.operation_id,c.assignment_id,c.workflow_run_id)
+                =(binding.organization_id,binding.project_id,intake.interaction_id,oid,aid,rid);
+            IF FOUND THEN
+                INSERT INTO audit.audit_events(id,organization_id,project_id,occurred_at,actor_type,action,object_type,
+                                               object_id,result,correlation_id,details)
+                VALUES (gen_random_uuid(),binding.organization_id,binding.project_id,clock_timestamp(),'SERVICE',
+                        'MANAGER_INPUT_READ','OPERATION',oid,'SUCCEEDED',binding.correlation_id,'{}'::jsonb);
+            END IF;
+        END $$;
+
+ALTER FUNCTION platform.capture_manager_epic_context(oid uuid, aid uuid, rid uuid) OWNER TO ai_res_owner;
+
 CREATE FUNCTION platform.fence_model_profile_lifecycle() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path TO 'pg_catalog'
@@ -908,6 +1180,22 @@ END $$;
 
 ALTER FUNCTION platform.keep_non_decreasing() OWNER TO ai_res_owner;
 
+CREATE FUNCTION platform.keep_operation_assignment_binding() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+        BEGIN
+            IF OLD.revoked_at IS NOT NULL
+                OR (OLD.workflow_run_id IS NOT NULL AND NEW.workflow_run_id IS DISTINCT FROM OLD.workflow_run_id)
+                OR (OLD.start_admitted AND NOT NEW.start_admitted)
+            THEN
+                RAISE EXCEPTION 'operation assignment is immutable after binding/revocation' USING ERRCODE = 'integrity_constraint_violation';
+            END IF;
+            RETURN NEW;
+        END $$;
+
+ALTER FUNCTION platform.keep_operation_assignment_binding() OWNER TO ai_res_owner;
+
 CREATE FUNCTION platform.keep_terminal_status() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -919,6 +1207,128 @@ BEGIN  -- TG_ARGV[0] = terminal status of a `status` column (REVOKED): it can be
 END $$;
 
 ALTER FUNCTION platform.keep_terminal_status() OWNER TO ai_res_owner;
+
+CREATE FUNCTION platform.lock_manager_epic_context_assignment(oid uuid, expected_action text) RETURNS TABLE(assignment_id uuid, workflow_run_id uuid, organization_id uuid, project_id uuid, correlation_id uuid)
+    LANGUAGE sql
+    SET search_path TO 'pg_catalog'
+    AS $$
+            SELECT a.id,a.workflow_run_id,a.organization_id,a.project_id,a.correlation_id
+            FROM platform.operation_execution_assignments a
+            WHERE a.operation_id=oid AND a.revoked_at IS NULL AND a.workflow_type='ManagerIntakeWorkflow'
+              AND expected_action=ANY(a.allowed_actions) AND expected_action=current_setting('app.platform_action',true)
+              AND a.organization_id=NULLIF(current_setting('app.organization_id',true),'')::uuid
+              AND a.project_id=NULLIF(current_setting('app.project_id',true),'')::uuid
+              AND oid=NULLIF(current_setting('app.platform_operation_id',true),'')::uuid
+              AND a.id=NULLIF(current_setting('app.platform_assignment_id',true),'')::uuid
+              AND a.workflow_run_id=NULLIF(current_setting('app.platform_workflow_run_id',true),'')::uuid
+            FOR SHARE OF a
+        $$;
+
+ALTER FUNCTION platform.lock_manager_epic_context_assignment(oid uuid, expected_action text) OWNER TO ai_res_owner;
+
+CREATE FUNCTION platform.manager_epic_context_matches_draft(oid uuid, cid uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    SET "app.migration_mode" TO 'on'
+    AS $$
+        DECLARE
+            binding record;
+            issued record;
+        BEGIN
+            SELECT * INTO binding FROM platform.lock_manager_epic_context_assignment(oid,'manager.record_draft');
+            IF NOT FOUND THEN RETURN false; END IF;
+
+            PERFORM 1 FROM operations.operations o
+            WHERE (o.organization_id,o.project_id,o.id)=(binding.organization_id,binding.project_id,oid)
+              AND o.operation_type='MANAGER_MESSAGE' AND o.status IN ('RUNNING','SUCCEEDED')
+            FOR NO KEY UPDATE;
+            IF NOT FOUND THEN RETURN false; END IF;
+
+            SELECT c.id,c.assignment_id,c.workflow_run_id INTO issued
+            FROM platform.manager_epic_context_versions c WHERE c.operation_id=oid;
+            IF NOT FOUND THEN RETURN cid IS NULL; END IF;
+            RETURN (issued.id,issued.assignment_id,issued.workflow_run_id)
+                IS NOT DISTINCT FROM (cid,binding.assignment_id,binding.workflow_run_id);
+        END $$;
+
+ALTER FUNCTION platform.manager_epic_context_matches_draft(oid uuid, cid uuid) OWNER TO ai_res_owner;
+
+CREATE FUNCTION platform.matches_bound_execution_status(oid uuid, rid uuid, ns text) RETURNS boolean
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    SET "app.migration_mode" TO 'on'
+    AS $$
+            SELECT EXISTS (
+                SELECT 1 FROM platform.operation_execution_assignments a
+                JOIN operations.operations o ON (o.organization_id,o.project_id,o.id)=(a.organization_id,a.project_id,a.operation_id)
+                WHERE a.operation_id=oid AND a.workflow_run_id=rid AND a.namespace=ns AND a.revoked_at IS NULL
+                  AND a.task_queue='ai-res-manager' AND a.workflow_contract_version=1
+                  AND (o.operation_type,a.workflow_type) IN (
+                      ('MANAGER_MESSAGE','ManagerIntakeWorkflow'),('PLAN_EXECUTION','PlanExecutionWorkflow')
+                  )
+                  AND o.status IN ('ACCEPTED','QUEUED','RUNNING','WAITING_FOR_HUMAN','WAITING_FOR_DEPENDENCY','RETRYING','CANCEL_REQUESTED')
+            )
+        $$;
+
+ALTER FUNCTION platform.matches_bound_execution_status(oid uuid, rid uuid, ns text) OWNER TO ai_res_owner;
+
+CREATE FUNCTION platform.matches_bound_manager_task(oid uuid, rid uuid, ns text, queue text) RETURNS boolean
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    SET "app.migration_mode" TO 'on'
+    AS $$
+            SELECT EXISTS (
+                SELECT 1 FROM platform.operation_execution_assignments a
+                WHERE a.operation_id=oid AND a.workflow_run_id=rid AND a.namespace=ns AND a.task_queue=queue
+                  AND a.task_queue='ai-res-manager' AND a.workflow_type IN ('ManagerIntakeWorkflow','PlanExecutionWorkflow')
+                  AND a.revoked_at IS NULL
+                FOR SHARE OF a
+            )
+        $$;
+
+ALTER FUNCTION platform.matches_bound_manager_task(oid uuid, rid uuid, ns text, queue text) OWNER TO ai_res_owner;
+
+CREATE FUNCTION platform.matches_operation_dispatch(aid uuid, wid text, wtype text, ns text, queue text, major integer, digest bytea) RETURNS boolean
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    SET "app.migration_mode" TO 'on'
+    AS $$
+            SELECT EXISTS (
+                SELECT 1 FROM platform.operation_execution_assignments a
+                JOIN operations.operations o ON (o.organization_id,o.project_id,o.id)=(a.organization_id,a.project_id,a.operation_id)
+                WHERE a.id=aid AND a.workflow_id=wid AND a.workflow_type=wtype AND a.namespace=ns AND a.task_queue=queue
+                  AND a.workflow_contract_version=major AND a.input_digest=digest AND a.revoked_at IS NULL
+                  AND a.start_admitted AND a.workflow_run_id IS NULL AND o.status='ACCEPTED' AND a.task_queue='ai-res-manager'
+                  AND ((o.operation_type='MANAGER_MESSAGE' AND a.workflow_type='ManagerIntakeWorkflow')
+                    OR (o.operation_type='PLAN_EXECUTION' AND a.workflow_type='PlanExecutionWorkflow'))
+                  AND EXISTS (
+                      SELECT 1 FROM audit.outbox_events e WHERE e.aggregate_id=o.id AND e.organization_id=o.organization_id
+                        AND e.project_id=o.project_id AND e.aggregate_type='OPERATION'
+                        AND e.event_type='operation.accepted' AND e.destination='orchestration.operation-start'
+                        AND e.status IN ('PENDING','IN_FLIGHT')
+                        AND e.envelope #> '{data,refs}' @> jsonb_build_array(
+                            jsonb_build_object('resourceType','OPERATION_EXECUTION_ASSIGNMENT','resourceId',a.id::text))
+                  )
+            )
+        $$;
+
+ALTER FUNCTION platform.matches_operation_dispatch(aid uuid, wid text, wtype text, ns text, queue text, major integer, digest bytea) OWNER TO ai_res_owner;
+
+CREATE FUNCTION platform.matches_reconciliation_describe(oid uuid, rid uuid, ns text) RETURNS boolean
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    SET "app.migration_mode" TO 'on'
+    AS $$
+            SELECT EXISTS (
+                SELECT 1 FROM platform.operation_execution_assignments a
+                JOIN operations.operations o ON (o.organization_id,o.project_id,o.id)=(a.organization_id,a.project_id,a.operation_id)
+                WHERE a.operation_id=oid AND a.workflow_run_id=rid AND a.namespace=ns AND a.revoked_at IS NULL
+                  AND a.task_queue='ai-res-manager' AND a.workflow_type='ManagerIntakeWorkflow' AND a.workflow_contract_version=1
+                  AND o.operation_type='MANAGER_MESSAGE' AND o.status IN ('ACCEPTED','QUEUED')
+            )
+        $$;
+
+ALTER FUNCTION platform.matches_reconciliation_describe(oid uuid, rid uuid, ns text) OWNER TO ai_res_owner;
 
 CREATE FUNCTION platform.owner_identity_snapshot(o uuid, u uuid, sid uuid, p uuid, d uuid) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
@@ -1004,6 +1414,20 @@ END $$;
 
 ALTER FUNCTION platform.require_initial_state() OWNER TO ai_res_owner;
 
+CREATE FUNCTION platform.resolve_operation_assignment(aid uuid, oid uuid, wid text, rid uuid, action text) RETURNS TABLE(organization_id uuid, project_id uuid, correlation_id uuid)
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'pg_catalog'
+    SET "app.migration_mode" TO 'on'
+    AS $$
+            SELECT a.organization_id, a.project_id, a.correlation_id
+            FROM platform.operation_execution_assignments a
+            WHERE a.id = aid AND a.operation_id = oid AND a.workflow_id = wid AND a.workflow_run_id = rid
+              AND a.revoked_at IS NULL AND action = ANY(a.allowed_actions)
+            FOR SHARE OF a
+        $$;
+
+ALTER FUNCTION platform.resolve_operation_assignment(aid uuid, oid uuid, wid text, rid uuid, action text) OWNER TO ai_res_owner;
+
 CREATE FUNCTION platform.touch_row() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -1066,6 +1490,44 @@ BEGIN  -- ADR-012: a Task is created only inside an active, non-terminal Operati
 END $$;
 
 ALTER FUNCTION work.require_open_operation() OWNER TO ai_res_owner;
+
+CREATE FUNCTION work.require_platform_plan_item() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM work.plan_item_tasks m
+                JOIN work.plan_executions e ON e.operation_id=m.operation_id
+                JOIN governance.plan_version_decisions d ON d.id=e.decision_id AND d.plan_version_id=e.plan_version_id
+                WHERE m.operation_id=NEW.operation_id AND m.task_id=NEW.id
+                  AND d.decision='APPROVE' AND m.item_id=ANY(d.approved_items)
+            ) THEN
+                RAISE EXCEPTION 'Task needs an approved PlanItem mapping' USING ERRCODE='integrity_constraint_violation';
+            END IF;
+            RETURN NULL;
+        END $$;
+
+ALTER FUNCTION work.require_platform_plan_item() OWNER TO ai_res_owner;
+
+CREATE FUNCTION work.require_unsealed_interaction() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog'
+    AS $$
+        BEGIN
+            PERFORM 1 FROM work.manager_interactions i
+            WHERE i.id=NEW.interaction_id AND i.organization_id=NEW.organization_id AND i.project_id=NEW.project_id
+            FOR NO KEY UPDATE;
+            IF NOT FOUND OR EXISTS (
+                SELECT 1 FROM work.manager_interaction_events e
+                WHERE e.interaction_id=NEW.interaction_id
+            ) THEN
+                RAISE EXCEPTION 'Manager interaction attachments are sealed' USING ERRCODE='integrity_constraint_violation';
+            END IF;
+            RETURN NEW;
+        END $$;
+
+ALTER FUNCTION work.require_unsealed_interaction() OWNER TO ai_res_owner;
 
 SET default_table_access_method = heap;
 
@@ -1193,6 +1655,35 @@ CREATE TABLE agents.worker_runs (
 ALTER TABLE ONLY agents.worker_runs FORCE ROW LEVEL SECURITY;
 
 ALTER TABLE agents.worker_runs OWNER TO ai_res_owner;
+
+CREATE TABLE agents.worker_tool_grants (
+    id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    project_id uuid NOT NULL,
+    worker_run_id uuid NOT NULL,
+    identity_id uuid NOT NULL,
+    environment text NOT NULL,
+    tool_id text NOT NULL,
+    tool_version text NOT NULL,
+    contract_version text NOT NULL,
+    operation text NOT NULL,
+    resource_type text NOT NULL,
+    resource_id uuid NOT NULL,
+    classification text NOT NULL,
+    permission_scope text NOT NULL,
+    allowed_model_profiles text[] NOT NULL,
+    budget_ref uuid NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    revoked_at timestamp with time zone,
+    rate_minute timestamp with time zone,
+    rate_count integer DEFAULT 0 NOT NULL,
+    CONSTRAINT ck_worker_tool_grant_rate_count CHECK ((rate_count >= 0)),
+    CONSTRAINT ck_worker_tool_grant_rate_window CHECK (((rate_minute IS NULL) = (rate_count = 0)))
+);
+
+ALTER TABLE ONLY agents.worker_tool_grants FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE agents.worker_tool_grants OWNER TO ai_res_owner;
 
 CREATE TABLE artifacts.artifact_events (
     event_id uuid NOT NULL,
@@ -1430,6 +1921,10 @@ CREATE TABLE audit.outbox_events (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     published_at timestamp with time zone,
     replay_count integer DEFAULT 0 NOT NULL,
+    dispatch_assignment_id uuid,
+    dispatch_namespace text,
+    CONSTRAINT ck_outbox_assigned_route_resolved CHECK (((dispatch_namespace IS NOT NULL) OR (status = ANY (ARRAY['QUARANTINED'::text, 'PUBLISHED'::text])) OR (destination <> ALL (ARRAY['orchestration.operation-start'::text, 'orchestration.operation-cancel'::text])) OR (NOT COALESCE(((envelope #> '{data,refs}'::text[]) @> '[{"resourceType": "OPERATION_EXECUTION_ASSIGNMENT"}]'::jsonb), false)))),
+    CONSTRAINT ck_outbox_dispatch_route CHECK ((((dispatch_assignment_id IS NULL) AND (dispatch_namespace IS NULL)) OR ((dispatch_assignment_id IS NOT NULL) AND (dispatch_namespace IS NOT NULL) AND (dispatch_namespace ~ '^[a-z0-9][a-z0-9-]{0,62}$'::text) AND (aggregate_type = 'OPERATION'::text) AND (((destination = 'orchestration.operation-start'::text) AND (event_type = 'operation.accepted'::text) AND (aggregate_sequence = 1)) OR ((destination = 'orchestration.operation-cancel'::text) AND (event_type = 'operation.cancel_requested'::text))) AND (jsonb_array_length(jsonb_path_query_array(envelope, '$."data"."refs"[*]?(@."resourceType" == "OPERATION_EXECUTION_ASSIGNMENT")'::jsonpath)) = 1) AND COALESCE(((envelope #> '{data,refs}'::text[]) @> jsonb_build_array(jsonb_build_object('resourceType', 'OPERATION_EXECUTION_ASSIGNMENT', 'resourceId', (dispatch_assignment_id)::text))), false)))),
     CONSTRAINT ck_outbox_events_aggregate_sequence CHECK ((aggregate_sequence > 0)),
     CONSTRAINT ck_outbox_events_attempt_count CHECK ((attempt_count >= 0)),
     CONSTRAINT ck_outbox_events_destination CHECK (((length(destination) >= 1) AND (length(destination) <= 200))),
@@ -1948,6 +2443,44 @@ CREATE TABLE governance.change_requests (
 ALTER TABLE ONLY governance.change_requests FORCE ROW LEVEL SECURITY;
 
 ALTER TABLE governance.change_requests OWNER TO ai_res_owner;
+
+CREATE TABLE governance.manager_proposal_decisions (
+    id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    project_id uuid NOT NULL,
+    proposal_version_id uuid NOT NULL,
+    content_hash bytea NOT NULL,
+    approver_id uuid NOT NULL,
+    decision text NOT NULL,
+    comment text,
+    decided_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    CONSTRAINT manager_proposal_decisions_comment_check CHECK ((length(comment) <= 20000)),
+    CONSTRAINT manager_proposal_decisions_decision_check CHECK ((decision = ANY (ARRAY['APPROVE'::text, 'REJECT'::text, 'REQUEST_CHANGES'::text])))
+);
+
+ALTER TABLE ONLY governance.manager_proposal_decisions FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE governance.manager_proposal_decisions OWNER TO ai_res_owner;
+
+CREATE TABLE governance.plan_version_decisions (
+    id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    project_id uuid NOT NULL,
+    plan_version_id uuid NOT NULL,
+    content_hash bytea NOT NULL,
+    approver_id uuid NOT NULL,
+    decision text NOT NULL,
+    approved_items uuid[] NOT NULL,
+    comment text,
+    decided_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    CONSTRAINT plan_version_decisions_approved_items_check CHECK ((array_position(approved_items, NULL::uuid) IS NULL)),
+    CONSTRAINT plan_version_decisions_check CHECK (((decision = 'APPROVE'::text) = (cardinality(approved_items) > 0))),
+    CONSTRAINT plan_version_decisions_decision_check CHECK ((decision = ANY (ARRAY['APPROVE'::text, 'REJECT'::text, 'REQUEST_CHANGES'::text])))
+);
+
+ALTER TABLE ONLY governance.plan_version_decisions FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE governance.plan_version_decisions OWNER TO ai_res_owner;
 
 CREATE TABLE governance.reviews (
     id uuid NOT NULL,
@@ -2615,6 +3148,23 @@ ALTER TABLE ONLY platform.llm_poc_settlements FORCE ROW LEVEL SECURITY;
 
 ALTER TABLE platform.llm_poc_settlements OWNER TO ai_res_owner;
 
+CREATE TABLE platform.manager_epic_context_versions (
+    id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    project_id uuid NOT NULL,
+    interaction_id uuid NOT NULL,
+    operation_id uuid NOT NULL,
+    assignment_id uuid NOT NULL,
+    workflow_run_id uuid NOT NULL,
+    epic_state jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    CONSTRAINT manager_epic_context_versions_epic_state_check CHECK ((jsonb_typeof(epic_state) = 'object'::text))
+);
+
+ALTER TABLE ONLY platform.manager_epic_context_versions FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE platform.manager_epic_context_versions OWNER TO ai_res_owner;
+
 CREATE TABLE platform.model_admission_audit (
     id uuid NOT NULL,
     profile_id uuid NOT NULL,
@@ -2786,6 +3336,125 @@ CREATE TABLE platform.model_profiles (
 );
 
 ALTER TABLE platform.model_profiles OWNER TO ai_res_owner;
+
+CREATE TABLE platform.operation_execution_assignments (
+    id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    project_id uuid NOT NULL,
+    operation_id uuid NOT NULL,
+    workflow_id text NOT NULL,
+    workflow_type text NOT NULL,
+    namespace text NOT NULL,
+    task_queue text NOT NULL,
+    workflow_contract_version integer NOT NULL,
+    input_digest bytea NOT NULL,
+    correlation_id uuid NOT NULL,
+    allowed_actions text[] NOT NULL,
+    workflow_run_id uuid,
+    created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    revoked_at timestamp with time zone,
+    start_admitted boolean DEFAULT false NOT NULL,
+    CONSTRAINT ck_operation_assignment_actions CHECK (((cardinality(allowed_actions) > 0) AND (array_position(allowed_actions, NULL::text) IS NULL) AND
+CASE workflow_type
+    WHEN 'ManagerIntakeWorkflow'::text THEN (allowed_actions <@ ARRAY['operation.acknowledge_start'::text, 'operation.record_failure'::text, 'operation.confirm_cancellation'::text, 'manager.read_input'::text, 'manager.record_draft'::text])
+    WHEN 'PlanExecutionWorkflow'::text THEN (allowed_actions <@ ARRAY['operation.acknowledge_start'::text, 'operation.record_failure'::text, 'operation.confirm_cancellation'::text, 'plan.materialize_tasks'::text])
+    ELSE (allowed_actions <@ ARRAY['operation.acknowledge_start'::text, 'operation.record_failure'::text, 'operation.confirm_cancellation'::text])
+END)),
+    CONSTRAINT ck_operation_assignment_digest CHECK ((octet_length(input_digest) = 32)),
+    CONSTRAINT ck_operation_assignment_workflow_id CHECK ((workflow_id = ('operation-'::text || (operation_id)::text)))
+);
+
+ALTER TABLE ONLY platform.operation_execution_assignments FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE platform.operation_execution_assignments OWNER TO ai_res_owner;
+
+CREATE TABLE platform.platform_auth_events (
+    id uuid NOT NULL,
+    correlation_id uuid NOT NULL,
+    reason text NOT NULL,
+    occurred_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    action text,
+    CONSTRAINT ck_platform_auth_reason CHECK (((((reason = ANY (ARRAY['INVALID_CREDENTIAL'::text, 'EXPIRED_OR_REPLAY'::text, 'ASSIGNMENT_DENIED'::text, 'INVALID_REQUEST'::text])) AND (action IS NULL)) OR ((reason = 'AUTHORIZED'::text) AND (action = ANY (ARRAY['AUTHORIZE_START'::text, 'REGISTER_TASK'::text, 'CHECK_TASK'::text, 'AUTHORIZE_RECONCILIATION_DESCRIBE'::text, 'AUTHORIZE_BOUND_STATUS'::text, 'AUTHORIZE_BOUND_CANCEL'::text]))) OR ((action = 'AUTHORIZE_ASSIGNED_DELIVERY'::text) AND (reason = ANY (ARRAY['AUTHORIZED'::text, 'EXPIRED_OR_REPLAY'::text, 'ASSIGNMENT_DENIED'::text])))) IS TRUE))
+);
+
+ALTER TABLE ONLY platform.platform_auth_events FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE platform.platform_auth_events OWNER TO ai_res_owner;
+
+CREATE TABLE platform.platform_request_nonces (
+    issuer text NOT NULL,
+    nonce uuid NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    recorded_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    CONSTRAINT ck_platform_nonce_issuer CHECK ((issuer = ANY (ARRAY['MANAGER_RUNTIME'::text, 'TEMPORAL_AUTH_CONTROL'::text, 'OUTBOX_DISPATCHER'::text])))
+);
+
+ALTER TABLE ONLY platform.platform_request_nonces FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE platform.platform_request_nonces OWNER TO ai_res_owner;
+
+CREATE TABLE platform.task_issuance_receipts (
+    token_digest bytea NOT NULL,
+    principal text NOT NULL,
+    namespace text NOT NULL,
+    queue text NOT NULL,
+    task_kind text NOT NULL,
+    operation_id uuid NOT NULL,
+    workflow_run_id uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    CONSTRAINT task_issuance_receipts_check CHECK ((((principal = 'MANAGER_RUNTIME'::text) AND (queue = 'ai-res-manager'::text) AND (task_kind = ANY (ARRAY['WORKFLOW'::text, 'ACTIVITY'::text]))) OR ((principal = 'WORKER_RUNTIME'::text) AND (queue = 'ai-res-workers'::text) AND (task_kind = 'ACTIVITY'::text)))),
+    CONSTRAINT task_issuance_receipts_namespace_check CHECK ((namespace ~ '^[a-z0-9][a-z0-9-]{0,62}$'::text)),
+    CONSTRAINT task_issuance_receipts_token_digest_check CHECK ((octet_length(token_digest) = 32))
+);
+
+ALTER TABLE ONLY platform.task_issuance_receipts FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE platform.task_issuance_receipts OWNER TO ai_res_owner;
+
+CREATE TABLE project.notification_deliveries (
+    organization_id uuid NOT NULL,
+    project_id uuid NOT NULL,
+    recipient_id uuid NOT NULL,
+    id uuid NOT NULL,
+    mandatory boolean NOT NULL,
+    cutoff_at timestamp with time zone NOT NULL,
+    published_at timestamp with time zone,
+    CONSTRAINT ck_notification_mandatory_published CHECK (((NOT mandatory) OR (published_at IS NOT NULL)))
+);
+
+ALTER TABLE ONLY project.notification_deliveries FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE project.notification_deliveries OWNER TO ai_res_owner;
+
+CREATE TABLE project.notification_events (
+    organization_id uuid NOT NULL,
+    project_id uuid NOT NULL,
+    recipient_id uuid NOT NULL,
+    event_id uuid NOT NULL,
+    operation_id uuid NOT NULL,
+    proposal_version_id uuid,
+    occurred_at timestamp with time zone NOT NULL,
+    delivery_id uuid NOT NULL,
+    CONSTRAINT ck_notification_single_failure CHECK (((proposal_version_id IS NOT NULL) OR (delivery_id = event_id)))
+);
+
+ALTER TABLE ONLY project.notification_events FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE project.notification_events OWNER TO ai_res_owner;
+
+CREATE TABLE project.notification_preferences (
+    organization_id uuid NOT NULL,
+    project_id uuid NOT NULL,
+    recipient_id uuid NOT NULL,
+    interval_seconds integer NOT NULL,
+    row_version bigint NOT NULL,
+    CONSTRAINT ck_notification_interval CHECK ((interval_seconds > 0)),
+    CONSTRAINT ck_notification_preference_version CHECK ((row_version >= 2))
+);
+
+ALTER TABLE ONLY project.notification_preferences FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE project.notification_preferences OWNER TO ai_res_owner;
 
 CREATE TABLE project.project_events (
     event_id uuid NOT NULL,
@@ -3208,6 +3877,197 @@ ALTER TABLE ONLY work.epics FORCE ROW LEVEL SECURITY;
 
 ALTER TABLE work.epics OWNER TO ai_res_owner;
 
+CREATE TABLE work.manager_interaction_attachments (
+    organization_id uuid NOT NULL,
+    project_id uuid NOT NULL,
+    interaction_id uuid NOT NULL,
+    ordinal integer NOT NULL,
+    source_version_id uuid NOT NULL,
+    CONSTRAINT ck_manager_attachment_ordinal CHECK ((ordinal >= 0))
+);
+
+ALTER TABLE ONLY work.manager_interaction_attachments FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE work.manager_interaction_attachments OWNER TO ai_res_owner;
+
+CREATE TABLE work.manager_interaction_events (
+    event_id uuid NOT NULL,
+    interaction_id uuid NOT NULL,
+    aggregate_sequence bigint NOT NULL,
+    aggregate_version bigint NOT NULL,
+    event_type text NOT NULL,
+    schema_version integer NOT NULL,
+    source text NOT NULL,
+    subject text NOT NULL,
+    occurred_at timestamp with time zone NOT NULL,
+    correlation_id uuid NOT NULL,
+    causation_id uuid,
+    actor_type text NOT NULL,
+    actor_id uuid,
+    reason_code text,
+    from_status text,
+    to_status text,
+    data jsonb NOT NULL,
+    CONSTRAINT manager_interaction_events_actor_type_check CHECK ((actor_type = ANY (ARRAY['USER'::text, 'MANAGER'::text, 'SERVICE'::text]))),
+    CONSTRAINT manager_interaction_events_aggregate_sequence_check CHECK ((aggregate_sequence > 0)),
+    CONSTRAINT manager_interaction_events_aggregate_version_check CHECK ((aggregate_version > 0)),
+    CONSTRAINT manager_interaction_events_event_type_check CHECK ((event_type = ANY (ARRAY['manager.interaction.received'::text, 'manager.question.proposed'::text]))),
+    CONSTRAINT manager_interaction_events_schema_version_check CHECK ((schema_version = 1))
+);
+
+ALTER TABLE ONLY work.manager_interaction_events FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE work.manager_interaction_events OWNER TO ai_res_owner;
+
+CREATE TABLE work.manager_interactions (
+    id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    project_id uuid NOT NULL,
+    epic_id uuid NOT NULL,
+    operation_id uuid NOT NULL,
+    author_id uuid NOT NULL,
+    message text NOT NULL,
+    expected_response_mode text,
+    created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    row_version bigint DEFAULT 1 NOT NULL,
+    last_event_sequence bigint DEFAULT 0 NOT NULL,
+    CONSTRAINT ck_manager_message_length CHECK (((length(message) >= 1) AND (length(message) <= 20000))),
+    CONSTRAINT ck_manager_response_mode CHECK ((expected_response_mode = ANY (ARRAY['NORMAL'::text, 'PROPOSE_PLAN'::text, 'CLARIFICATION'::text, 'REVIEW_RESULT'::text]))),
+    CONSTRAINT manager_interactions_last_event_sequence_check CHECK ((last_event_sequence >= 0)),
+    CONSTRAINT manager_interactions_row_version_check CHECK ((row_version > 0))
+);
+
+ALTER TABLE ONLY work.manager_interactions FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE work.manager_interactions OWNER TO ai_res_owner;
+
+CREATE TABLE work.manager_proposal_versions (
+    id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    project_id uuid NOT NULL,
+    interaction_id uuid NOT NULL,
+    goal text,
+    scope text,
+    primary_question text,
+    content_hash bytea NOT NULL,
+    created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    context_version_id uuid,
+    CONSTRAINT manager_proposal_versions_content_hash_check CHECK ((octet_length(content_hash) = 32)),
+    CONSTRAINT manager_proposal_versions_goal_check CHECK ((length(goal) <= 20000)),
+    CONSTRAINT manager_proposal_versions_primary_question_check CHECK ((length(primary_question) <= 20000)),
+    CONSTRAINT manager_proposal_versions_scope_check CHECK ((length(scope) <= 20000))
+);
+
+ALTER TABLE ONLY work.manager_proposal_versions FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE work.manager_proposal_versions OWNER TO ai_res_owner;
+
+CREATE TABLE work.manager_question_journal (
+    organization_id uuid NOT NULL,
+    project_id uuid NOT NULL,
+    epic_id uuid NOT NULL,
+    sequence bigint NOT NULL,
+    interaction_id uuid NOT NULL,
+    question_id uuid NOT NULL,
+    event_kind text NOT NULL,
+    topic text,
+    disposition text,
+    CONSTRAINT manager_question_journal_check CHECK (((((event_kind = 'PROPOSED'::text) AND ((length(topic) >= 1) AND (length(topic) <= 128)) AND (disposition IS NULL)) OR ((event_kind = 'RESOLVED'::text) AND (topic IS NULL) AND (disposition = ANY (ARRAY['ANSWERED'::text, 'UNKNOWN'::text])))) IS TRUE)),
+    CONSTRAINT manager_question_journal_sequence_check CHECK ((sequence > 0))
+);
+
+ALTER TABLE ONLY work.manager_question_journal FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE work.manager_question_journal OWNER TO ai_res_owner;
+
+CREATE TABLE work.plan_executions (
+    organization_id uuid NOT NULL,
+    project_id uuid NOT NULL,
+    operation_id uuid NOT NULL,
+    plan_version_id uuid NOT NULL,
+    decision_id uuid NOT NULL
+);
+
+ALTER TABLE ONLY work.plan_executions FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE work.plan_executions OWNER TO ai_res_owner;
+
+CREATE TABLE work.plan_item_tasks (
+    organization_id uuid NOT NULL,
+    project_id uuid NOT NULL,
+    operation_id uuid NOT NULL,
+    item_id uuid NOT NULL,
+    task_id uuid NOT NULL
+);
+
+ALTER TABLE ONLY work.plan_item_tasks FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE work.plan_item_tasks OWNER TO ai_res_owner;
+
+CREATE TABLE work.plan_version_events (
+    event_id uuid NOT NULL,
+    plan_version_id uuid NOT NULL,
+    aggregate_sequence bigint NOT NULL,
+    aggregate_version bigint NOT NULL,
+    event_type text NOT NULL,
+    schema_version integer NOT NULL,
+    source text NOT NULL,
+    subject text NOT NULL,
+    occurred_at timestamp with time zone NOT NULL,
+    correlation_id uuid NOT NULL,
+    causation_id uuid,
+    actor_type text NOT NULL,
+    actor_id uuid,
+    reason_code text,
+    from_status text,
+    to_status text,
+    data jsonb NOT NULL,
+    CONSTRAINT plan_version_events_actor_type_check CHECK ((actor_type = ANY (ARRAY['USER'::text, 'MANAGER'::text, 'SERVICE'::text, 'SYSTEM'::text]))),
+    CONSTRAINT plan_version_events_aggregate_sequence_check CHECK ((aggregate_sequence > 0)),
+    CONSTRAINT plan_version_events_aggregate_version_check CHECK ((aggregate_version > 0)),
+    CONSTRAINT plan_version_events_event_type_check CHECK ((event_type = ANY (ARRAY['plan.version.proposed'::text, 'plan.version.approved'::text, 'plan.version.rejected'::text]))),
+    CONSTRAINT plan_version_events_schema_version_check CHECK ((schema_version = 1))
+);
+
+ALTER TABLE ONLY work.plan_version_events FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE work.plan_version_events OWNER TO ai_res_owner;
+
+CREATE TABLE work.plan_versions (
+    id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    project_id uuid NOT NULL,
+    plan_id uuid NOT NULL,
+    version_number integer NOT NULL,
+    content_hash bytea NOT NULL,
+    snapshot jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    row_version bigint DEFAULT 1 NOT NULL,
+    last_event_sequence bigint DEFAULT 0 NOT NULL,
+    CONSTRAINT plan_versions_content_hash_check CHECK ((octet_length(content_hash) = 32)),
+    CONSTRAINT plan_versions_last_event_sequence_check CHECK ((last_event_sequence >= 0)),
+    CONSTRAINT plan_versions_row_version_check CHECK ((row_version > 0)),
+    CONSTRAINT plan_versions_snapshot_check CHECK ((jsonb_typeof(snapshot) = 'object'::text)),
+    CONSTRAINT plan_versions_version_number_check CHECK ((version_number > 0))
+);
+
+ALTER TABLE ONLY work.plan_versions FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE work.plan_versions OWNER TO ai_res_owner;
+
+CREATE TABLE work.plans (
+    id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    project_id uuid NOT NULL,
+    epic_id uuid NOT NULL,
+    last_version integer DEFAULT 0 NOT NULL,
+    CONSTRAINT plans_last_version_check CHECK ((last_version >= 0))
+);
+
+ALTER TABLE ONLY work.plans FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE work.plans OWNER TO ai_res_owner;
+
 CREATE TABLE work.task_dependencies (
     id uuid NOT NULL,
     organization_id uuid NOT NULL,
@@ -3224,6 +4084,35 @@ CREATE TABLE work.task_dependencies (
 ALTER TABLE ONLY work.task_dependencies FORCE ROW LEVEL SECURITY;
 
 ALTER TABLE work.task_dependencies OWNER TO ai_res_owner;
+
+CREATE TABLE work.task_events (
+    event_id uuid NOT NULL,
+    task_id uuid NOT NULL,
+    aggregate_sequence bigint NOT NULL,
+    aggregate_version bigint NOT NULL,
+    event_type text NOT NULL,
+    schema_version integer NOT NULL,
+    source text NOT NULL,
+    subject text NOT NULL,
+    occurred_at timestamp with time zone NOT NULL,
+    correlation_id uuid NOT NULL,
+    causation_id uuid,
+    actor_type text NOT NULL,
+    actor_id uuid,
+    reason_code text,
+    from_status text,
+    to_status text,
+    data jsonb NOT NULL,
+    CONSTRAINT task_events_actor_type_check CHECK ((actor_type = ANY (ARRAY['USER'::text, 'MANAGER'::text, 'SERVICE'::text, 'SYSTEM'::text]))),
+    CONSTRAINT task_events_aggregate_sequence_check CHECK ((aggregate_sequence > 0)),
+    CONSTRAINT task_events_aggregate_version_check CHECK ((aggregate_version > 0)),
+    CONSTRAINT task_events_event_type_check CHECK ((event_type = 'task.created'::text)),
+    CONSTRAINT task_events_schema_version_check CHECK ((schema_version = 1))
+);
+
+ALTER TABLE ONLY work.task_events FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE work.task_events OWNER TO ai_res_owner;
 
 CREATE TABLE work.task_requirements (
     organization_id uuid NOT NULL,
@@ -3260,13 +4149,15 @@ CREATE TABLE work.tasks (
     row_version bigint DEFAULT 1 NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    last_event_sequence bigint DEFAULT 0 NOT NULL,
     CONSTRAINT ck_tasks_acceptance_criteria CHECK ((jsonb_typeof(acceptance_criteria) = 'array'::text)),
     CONSTRAINT ck_tasks_derived_not_self CHECK (((derived_from_task_id IS NULL) OR (derived_from_task_id <> id))),
     CONSTRAINT ck_tasks_initiator_type CHECK ((initiator_type = ANY (ARRAY['USER'::text, 'SYSTEM'::text, 'MANAGER'::text, 'SERVICE'::text]))),
     CONSTRAINT ck_tasks_row_version CHECK ((row_version > 0)),
     CONSTRAINT ck_tasks_status CHECK ((status ~ '^[A-Z][A-Z_]*$'::text)),
     CONSTRAINT ck_tasks_task_type CHECK ((task_type ~ '^[A-Z][A-Z_]*$'::text)),
-    CONSTRAINT ck_tasks_title CHECK (((length(btrim(title)) >= 1) AND (length(btrim(title)) <= 240)))
+    CONSTRAINT ck_tasks_title CHECK (((length(btrim(title)) >= 1) AND (length(btrim(title)) <= 240))),
+    CONSTRAINT tasks_last_event_sequence_check CHECK ((last_event_sequence >= 0))
 );
 
 ALTER TABLE ONLY work.tasks FORCE ROW LEVEL SECURITY;
@@ -3287,6 +4178,9 @@ ALTER TABLE ONLY agents.worker_run_events
 
 ALTER TABLE ONLY agents.worker_runs
     ADD CONSTRAINT pk_worker_runs PRIMARY KEY (id);
+
+ALTER TABLE ONLY agents.worker_tool_grants
+    ADD CONSTRAINT pk_worker_tool_grants PRIMARY KEY (id);
 
 ALTER TABLE ONLY agents.worker_definition_versions
     ADD CONSTRAINT uq_worker_definition_versions_worker_definition_id_version UNIQUE (worker_definition_id, version);
@@ -3447,6 +4341,9 @@ ALTER TABLE ONLY execution.readiness_evaluations
 ALTER TABLE ONLY execution.readiness_evaluations
     ADD CONSTRAINT uq_readiness_evaluations_worker_run_id_id UNIQUE (worker_run_id, id);
 
+ALTER TABLE ONLY governance.manager_proposal_decisions
+    ADD CONSTRAINT manager_proposal_decisions_proposal_version_id_key UNIQUE (proposal_version_id);
+
 ALTER TABLE ONLY governance.approvals
     ADD CONSTRAINT pk_approvals PRIMARY KEY (id);
 
@@ -3464,6 +4361,9 @@ ALTER TABLE ONLY governance.change_request_events
 
 ALTER TABLE ONLY governance.change_requests
     ADD CONSTRAINT pk_change_requests PRIMARY KEY (id);
+
+ALTER TABLE ONLY governance.manager_proposal_decisions
+    ADD CONSTRAINT pk_manager_proposal_decisions PRIMARY KEY (id);
 
 ALTER TABLE ONLY governance.reviews
     ADD CONSTRAINT pk_reviews PRIMARY KEY (id);
@@ -3488,6 +4388,15 @@ ALTER TABLE ONLY governance.rule_versions
 
 ALTER TABLE ONLY governance.rules
     ADD CONSTRAINT pk_rules PRIMARY KEY (id);
+
+ALTER TABLE ONLY governance.plan_version_decisions
+    ADD CONSTRAINT plan_version_decisions_organization_id_project_id_plan_vers_key UNIQUE (organization_id, project_id, plan_version_id, id);
+
+ALTER TABLE ONLY governance.plan_version_decisions
+    ADD CONSTRAINT plan_version_decisions_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY governance.plan_version_decisions
+    ADD CONSTRAINT plan_version_decisions_plan_version_id_key UNIQUE (plan_version_id);
 
 ALTER TABLE ONLY governance.baseline_events
     ADD CONSTRAINT uq_baseline_events_baseline_id_aggregate_sequence UNIQUE (baseline_id, aggregate_sequence);
@@ -3609,6 +4518,15 @@ ALTER TABLE ONLY organization.memberships
 ALTER TABLE ONLY platform.alembic_version
     ADD CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num);
 
+ALTER TABLE ONLY platform.manager_epic_context_versions
+    ADD CONSTRAINT manager_epic_context_versions_operation_id_key UNIQUE (operation_id);
+
+ALTER TABLE ONLY platform.manager_epic_context_versions
+    ADD CONSTRAINT manager_epic_context_versions_organization_id_project_id_in_key UNIQUE (organization_id, project_id, interaction_id, id);
+
+ALTER TABLE ONLY platform.manager_epic_context_versions
+    ADD CONSTRAINT manager_epic_context_versions_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY platform.bootstrap_state
     ADD CONSTRAINT pk_bootstrap_state PRIMARY KEY (singleton);
 
@@ -3651,6 +4569,21 @@ ALTER TABLE ONLY platform.model_admission_versions
 ALTER TABLE ONLY platform.model_profiles
     ADD CONSTRAINT pk_model_profiles PRIMARY KEY (id);
 
+ALTER TABLE ONLY platform.operation_execution_assignments
+    ADD CONSTRAINT pk_operation_execution_assignments PRIMARY KEY (id);
+
+ALTER TABLE ONLY platform.platform_auth_events
+    ADD CONSTRAINT pk_platform_auth_events PRIMARY KEY (id);
+
+ALTER TABLE ONLY platform.platform_request_nonces
+    ADD CONSTRAINT pk_platform_request_nonces PRIMARY KEY (issuer, nonce);
+
+ALTER TABLE ONLY platform.task_issuance_receipts
+    ADD CONSTRAINT task_issuance_receipts_pkey PRIMARY KEY (token_digest);
+
+ALTER TABLE ONLY platform.operation_execution_assignments
+    ADD CONSTRAINT uq_assignment_dispatch_route UNIQUE (organization_id, project_id, operation_id, id, namespace);
+
 ALTER TABLE ONLY platform.idempotency_records
     ADD CONSTRAINT uq_idempotency_records_organization_id_scope_type_scope_id_key_ UNIQUE (organization_id, scope_type, scope_id, key_digest);
 
@@ -3689,6 +4622,18 @@ ALTER TABLE ONLY platform.model_admission_calls
 
 ALTER TABLE ONLY platform.model_profiles
     ADD CONSTRAINT uq_model_profiles_profile_key_profile_version UNIQUE (profile_key, profile_version);
+
+ALTER TABLE ONLY platform.operation_execution_assignments
+    ADD CONSTRAINT uq_operation_execution_assignment UNIQUE (operation_id);
+
+ALTER TABLE ONLY project.notification_deliveries
+    ADD CONSTRAINT pk_notification_deliveries PRIMARY KEY (organization_id, project_id, recipient_id, id);
+
+ALTER TABLE ONLY project.notification_events
+    ADD CONSTRAINT pk_notification_events PRIMARY KEY (organization_id, project_id, recipient_id, event_id);
+
+ALTER TABLE ONLY project.notification_preferences
+    ADD CONSTRAINT pk_notification_preferences PRIMARY KEY (organization_id, project_id, recipient_id);
 
 ALTER TABLE ONLY project.project_events
     ADD CONSTRAINT pk_project_events PRIMARY KEY (event_id);
@@ -3792,11 +4737,38 @@ ALTER TABLE ONLY traceability.object_types
 ALTER TABLE ONLY traceability.traceability_links
     ADD CONSTRAINT pk_traceability_links PRIMARY KEY (id);
 
+ALTER TABLE ONLY work.manager_interaction_events
+    ADD CONSTRAINT manager_interaction_events_interaction_id_aggregate_sequenc_key UNIQUE (interaction_id, aggregate_sequence);
+
+ALTER TABLE ONLY work.manager_proposal_versions
+    ADD CONSTRAINT manager_proposal_versions_interaction_id_key UNIQUE (interaction_id);
+
+ALTER TABLE ONLY work.manager_proposal_versions
+    ADD CONSTRAINT manager_proposal_versions_organization_id_project_id_id_con_key UNIQUE (organization_id, project_id, id, content_hash);
+
+ALTER TABLE ONLY work.manager_question_journal
+    ADD CONSTRAINT manager_question_journal_interaction_id_event_kind_key UNIQUE (interaction_id, event_kind);
+
+ALTER TABLE ONLY work.manager_question_journal
+    ADD CONSTRAINT manager_question_journal_pkey PRIMARY KEY (organization_id, project_id, epic_id, sequence);
+
 ALTER TABLE ONLY work.epic_events
     ADD CONSTRAINT pk_epic_events PRIMARY KEY (event_id);
 
 ALTER TABLE ONLY work.epics
     ADD CONSTRAINT pk_epics PRIMARY KEY (id);
+
+ALTER TABLE ONLY work.manager_interaction_attachments
+    ADD CONSTRAINT pk_manager_interaction_attachments PRIMARY KEY (interaction_id, ordinal);
+
+ALTER TABLE ONLY work.manager_interaction_events
+    ADD CONSTRAINT pk_manager_interaction_events PRIMARY KEY (event_id);
+
+ALTER TABLE ONLY work.manager_interactions
+    ADD CONSTRAINT pk_manager_interactions PRIMARY KEY (id);
+
+ALTER TABLE ONLY work.manager_proposal_versions
+    ADD CONSTRAINT pk_manager_proposals PRIMARY KEY (id);
 
 ALTER TABLE ONLY work.task_dependencies
     ADD CONSTRAINT pk_task_dependencies PRIMARY KEY (id);
@@ -3807,11 +4779,65 @@ ALTER TABLE ONLY work.task_requirements
 ALTER TABLE ONLY work.tasks
     ADD CONSTRAINT pk_tasks PRIMARY KEY (id);
 
+ALTER TABLE ONLY work.plan_executions
+    ADD CONSTRAINT plan_executions_decision_id_key UNIQUE (decision_id);
+
+ALTER TABLE ONLY work.plan_executions
+    ADD CONSTRAINT plan_executions_organization_id_project_id_operation_id_key UNIQUE (organization_id, project_id, operation_id);
+
+ALTER TABLE ONLY work.plan_executions
+    ADD CONSTRAINT plan_executions_pkey PRIMARY KEY (operation_id);
+
+ALTER TABLE ONLY work.plan_item_tasks
+    ADD CONSTRAINT plan_item_tasks_pkey PRIMARY KEY (operation_id, item_id);
+
+ALTER TABLE ONLY work.plan_item_tasks
+    ADD CONSTRAINT plan_item_tasks_task_id_key UNIQUE (task_id);
+
+ALTER TABLE ONLY work.plan_version_events
+    ADD CONSTRAINT plan_version_events_pkey PRIMARY KEY (event_id);
+
+ALTER TABLE ONLY work.plan_version_events
+    ADD CONSTRAINT plan_version_events_plan_version_id_aggregate_sequence_key UNIQUE (plan_version_id, aggregate_sequence);
+
+ALTER TABLE ONLY work.plan_versions
+    ADD CONSTRAINT plan_versions_organization_id_project_id_id_content_hash_key UNIQUE (organization_id, project_id, id, content_hash);
+
+ALTER TABLE ONLY work.plan_versions
+    ADD CONSTRAINT plan_versions_organization_id_project_id_id_key UNIQUE (organization_id, project_id, id);
+
+ALTER TABLE ONLY work.plan_versions
+    ADD CONSTRAINT plan_versions_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY work.plan_versions
+    ADD CONSTRAINT plan_versions_plan_id_version_number_key UNIQUE (plan_id, version_number);
+
+ALTER TABLE ONLY work.plans
+    ADD CONSTRAINT plans_organization_id_project_id_epic_id_key UNIQUE (organization_id, project_id, epic_id);
+
+ALTER TABLE ONLY work.plans
+    ADD CONSTRAINT plans_organization_id_project_id_id_key UNIQUE (organization_id, project_id, id);
+
+ALTER TABLE ONLY work.plans
+    ADD CONSTRAINT plans_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY work.task_events
+    ADD CONSTRAINT task_events_pkey PRIMARY KEY (event_id);
+
+ALTER TABLE ONLY work.task_events
+    ADD CONSTRAINT task_events_task_id_aggregate_sequence_key UNIQUE (task_id, aggregate_sequence);
+
 ALTER TABLE ONLY work.epic_events
     ADD CONSTRAINT uq_epic_events_epic_id_aggregate_sequence UNIQUE (epic_id, aggregate_sequence);
 
 ALTER TABLE ONLY work.epics
     ADD CONSTRAINT uq_epics_organization_id_project_id_id UNIQUE (organization_id, project_id, id);
+
+ALTER TABLE ONLY work.manager_interactions
+    ADD CONSTRAINT uq_manager_interaction_operation UNIQUE (operation_id);
+
+ALTER TABLE ONLY work.manager_interactions
+    ADD CONSTRAINT uq_manager_interaction_tenant UNIQUE (organization_id, project_id, id);
 
 ALTER TABLE ONLY work.task_dependencies
     ADD CONSTRAINT uq_task_dependencies_task_id_depends_on_task_id UNIQUE (task_id, depends_on_task_id);
@@ -3836,6 +4862,8 @@ CREATE INDEX ix_worker_runs_schedulable ON agents.worker_runs USING btree (statu
 CREATE INDEX ix_worker_runs_task_id_created_at ON agents.worker_runs USING btree (task_id, created_at DESC);
 
 CREATE INDEX ix_worker_runs_worker_definition_version_id ON agents.worker_runs USING btree (worker_definition_version_id);
+
+CREATE INDEX ix_worker_tool_grants_run ON agents.worker_tool_grants USING btree (organization_id, project_id, worker_run_id);
 
 CREATE INDEX ix_artifact_events_artifact_id_occurred_at ON artifacts.artifact_events USING btree (artifact_id, occurred_at DESC);
 
@@ -3862,6 +4890,8 @@ CREATE INDEX ix_outbox_events_claim_pending ON audit.outbox_events USING btree (
 CREATE INDEX ix_outbox_events_pending ON audit.outbox_events USING btree (available_at, created_at) WHERE (status = ANY (ARRAY['PENDING'::text, 'IN_FLIGHT'::text]));
 
 CREATE INDEX ix_outbox_events_quarantined ON audit.outbox_events USING btree (created_at) WHERE (status = 'QUARANTINED'::text);
+
+CREATE INDEX ix_outbox_protected_route ON audit.outbox_events USING btree (dispatch_namespace, created_at, aggregate_sequence) WHERE ((dispatch_namespace IS NOT NULL) AND (status = ANY (ARRAY['PENDING'::text, 'IN_FLIGHT'::text])));
 
 CREATE INDEX ix_context_package_items_artifact_version_id ON context.context_package_items USING btree (artifact_version_id) WHERE (artifact_version_id IS NOT NULL);
 
@@ -4013,6 +5043,8 @@ CREATE INDEX ix_extraction_records_operation_id ON knowledge.extraction_records 
 
 CREATE INDEX ix_extraction_records_source_version_id ON knowledge.extraction_records USING btree (source_version_id);
 
+CREATE INDEX ix_manager_operations_notification_candidates ON operations.operations USING btree (organization_id, project_id, initiator_id, id) WHERE ((operation_type = 'MANAGER_MESSAGE'::text) AND (status = ANY (ARRAY['FAILED'::text, 'SUCCEEDED'::text])));
+
 CREATE INDEX ix_operation_events_operation_id_occurred_at ON operations.operation_events USING btree (operation_id, occurred_at DESC);
 
 CREATE INDEX ix_operations_active_status ON operations.operations USING btree (status, updated_at) WHERE (status <> ALL (ARRAY['SUCCEEDED'::text, 'PARTIALLY_SUCCEEDED'::text, 'FAILED'::text, 'CANCELLED'::text]));
@@ -4045,7 +5077,15 @@ CREATE UNIQUE INDEX ix_mcall_single_flight ON platform.model_admission_calls USI
 
 CREATE INDEX ix_model_profiles_approved_by ON platform.model_profiles USING btree (approved_by);
 
+CREATE INDEX ix_notification_deliveries_mandatory ON project.notification_deliveries USING btree (organization_id, project_id, recipient_id, published_at DESC, id DESC) WHERE mandatory;
+
+CREATE INDEX ix_notification_deliveries_published ON project.notification_deliveries USING btree (organization_id, project_id, recipient_id, published_at DESC, id DESC) WHERE (published_at IS NOT NULL);
+
+CREATE INDEX ix_notification_events_delivery ON project.notification_events USING btree (organization_id, project_id, recipient_id, delivery_id, occurred_at DESC, event_id DESC);
+
 CREATE INDEX ix_project_events_project_id_occurred_at ON project.project_events USING btree (project_id, occurred_at DESC);
+
+CREATE UNIQUE INDEX uq_notification_active_digest ON project.notification_deliveries USING btree (organization_id, project_id, recipient_id) WHERE (published_at IS NULL);
 
 CREATE INDEX ix_requirement_epics_epic_id ON requirements.requirement_epics USING btree (epic_id);
 
@@ -4070,6 +5110,12 @@ CREATE INDEX ix_traceability_links_target ON traceability.traceability_links USI
 CREATE UNIQUE INDEX uq_traceability_links_live ON traceability.traceability_links USING btree (project_id, source_object_type, source_object_id, target_object_type, target_object_id, link_type) WHERE (status = ANY (ARRAY['PROPOSED'::text, 'CONFIRMED'::text]));
 
 CREATE INDEX ix_epic_events_epic_id_occurred_at ON work.epic_events USING btree (epic_id, occurred_at DESC);
+
+CREATE INDEX ix_manager_attachment_version ON work.manager_interaction_attachments USING btree (organization_id, project_id, source_version_id);
+
+CREATE INDEX ix_manager_interactions_epic ON work.manager_interactions USING btree (organization_id, project_id, epic_id, created_at, id);
+
+CREATE INDEX ix_manager_interactions_notification_recipients ON work.manager_interactions USING btree (organization_id, project_id, author_id);
 
 CREATE INDEX ix_task_dependencies_depends_on_task_id ON work.task_dependencies USING btree (depends_on_task_id);
 
@@ -4151,6 +5197,8 @@ CREATE TRIGGER trg_validation_reports_append_only BEFORE DELETE OR UPDATE ON art
 
 CREATE TRIGGER trg_validation_reports_no_truncate BEFORE TRUNCATE ON artifacts.validation_reports FOR EACH STATEMENT EXECUTE FUNCTION platform.reject_modification();
 
+CREATE TRIGGER trg_assigned_start_quarantine BEFORE UPDATE ON audit.outbox_events FOR EACH ROW EXECUTE FUNCTION audit.guard_assigned_start_quarantine();
+
 CREATE TRIGGER trg_audit_events_append_only BEFORE DELETE OR UPDATE ON audit.audit_events FOR EACH ROW EXECUTE FUNCTION platform.reject_modification();
 
 CREATE TRIGGER trg_audit_events_no_truncate BEFORE TRUNCATE ON audit.audit_events FOR EACH STATEMENT EXECUTE FUNCTION platform.reject_modification();
@@ -4160,6 +5208,8 @@ CREATE TRIGGER trg_inbox_checkpoints_advance BEFORE UPDATE ON audit.inbox_checkp
 CREATE TRIGGER trg_inbox_checkpoints_immutable_columns BEFORE UPDATE ON audit.inbox_checkpoints FOR EACH ROW EXECUTE FUNCTION platform.keep_columns_immutable('consumer_name', 'aggregate_type', 'aggregate_id');
 
 CREATE TRIGGER trg_inbox_messages_immutable_columns BEFORE UPDATE ON audit.inbox_messages FOR EACH ROW EXECUTE FUNCTION platform.keep_columns_immutable('id', 'consumer_name', 'event_id', 'aggregate_type', 'aggregate_id', 'aggregate_sequence', 'payload_hash', 'received_at');
+
+CREATE TRIGGER trg_outbox_dispatch_route_immutable BEFORE UPDATE ON audit.outbox_events FOR EACH ROW EXECUTE FUNCTION platform.keep_columns_immutable('dispatch_assignment_id', 'dispatch_namespace');
 
 CREATE TRIGGER trg_outbox_events_immutable_columns BEFORE UPDATE ON audit.outbox_events FOR EACH ROW EXECUTE FUNCTION platform.keep_columns_immutable('id', 'organization_id', 'project_id', 'event_id', 'destination', 'aggregate_type', 'aggregate_id', 'aggregate_sequence', 'event_type', 'schema_version', 'envelope', 'created_at');
 
@@ -4274,6 +5324,10 @@ CREATE TRIGGER trg_change_requests_immutable_columns BEFORE UPDATE ON governance
 CREATE CONSTRAINT TRIGGER trg_change_requests_sequence AFTER INSERT OR UPDATE OF last_event_sequence ON governance.change_requests DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION platform.assert_event_sequence_contiguous('id', 'governance.change_requests', 'governance.change_request_events', 'change_request_id');
 
 CREATE TRIGGER trg_change_requests_touch BEFORE UPDATE ON governance.change_requests FOR EACH ROW EXECUTE FUNCTION platform.touch_row();
+
+CREATE TRIGGER trg_manager_proposal_decisions_immutable BEFORE DELETE OR UPDATE ON governance.manager_proposal_decisions FOR EACH ROW EXECUTE FUNCTION platform.reject_modification();
+
+CREATE TRIGGER trg_plan_version_decisions_immutable BEFORE DELETE OR UPDATE ON governance.plan_version_decisions FOR EACH ROW EXECUTE FUNCTION platform.reject_modification();
 
 CREATE TRIGGER trg_reviews_append_only BEFORE DELETE OR UPDATE ON governance.reviews FOR EACH ROW EXECUTE FUNCTION platform.reject_modification();
 
@@ -4425,6 +5479,10 @@ CREATE TRIGGER trg_mac_guard BEFORE UPDATE ON platform.model_admission_controls 
 
 CREATE TRIGGER trg_mac_reapproval_generation BEFORE UPDATE ON platform.model_admission_controls FOR EACH ROW EXECUTE FUNCTION platform.guard_admission_reapproval_generation();
 
+CREATE TRIGGER trg_manager_epic_context_immutable BEFORE DELETE OR UPDATE ON platform.manager_epic_context_versions FOR EACH ROW EXECUTE FUNCTION platform.reject_modification();
+
+CREATE TRIGGER trg_manager_epic_context_no_truncate BEFORE TRUNCATE ON platform.manager_epic_context_versions FOR EACH STATEMENT EXECUTE FUNCTION platform.reject_modification();
+
 CREATE TRIGGER trg_mcall_guard BEFORE INSERT OR UPDATE ON platform.model_admission_calls FOR EACH ROW EXECUTE FUNCTION platform.guard_model_admission_call();
 
 CREATE TRIGGER trg_model_admission_audit_append_only BEFORE DELETE OR UPDATE ON platform.model_admission_audit FOR EACH ROW EXECUTE FUNCTION platform.reject_modification();
@@ -4456,6 +5514,14 @@ CREATE TRIGGER trg_model_profiles_guard BEFORE INSERT OR DELETE OR UPDATE ON pla
 CREATE TRIGGER trg_model_profiles_lifecycle_fence BEFORE UPDATE ON platform.model_profiles FOR EACH ROW EXECUTE FUNCTION platform.fence_model_profile_lifecycle();
 
 CREATE TRIGGER trg_model_profiles_no_truncate BEFORE TRUNCATE ON platform.model_profiles FOR EACH STATEMENT EXECUTE FUNCTION platform.reject_modification();
+
+CREATE TRIGGER trg_operation_assignment_binding BEFORE UPDATE ON platform.operation_execution_assignments FOR EACH ROW EXECUTE FUNCTION platform.keep_operation_assignment_binding();
+
+CREATE TRIGGER trg_task_issuance_receipts_immutable BEFORE DELETE OR UPDATE ON platform.task_issuance_receipts FOR EACH ROW EXECUTE FUNCTION platform.reject_modification();
+
+CREATE TRIGGER trg_notification_delivery_publish_once BEFORE UPDATE ON project.notification_deliveries FOR EACH ROW EXECUTE FUNCTION platform.forbid_unset('published_at');
+
+CREATE TRIGGER trg_notification_events_immutable BEFORE DELETE OR UPDATE ON project.notification_events FOR EACH ROW EXECUTE FUNCTION platform.reject_modification();
 
 CREATE TRIGGER trg_project_events_append_only BEFORE DELETE OR UPDATE ON project.project_events FOR EACH ROW EXECUTE FUNCTION platform.reject_modification();
 
@@ -4563,9 +5629,49 @@ CREATE CONSTRAINT TRIGGER trg_epics_sequence AFTER INSERT OR UPDATE OF last_even
 
 CREATE TRIGGER trg_epics_touch BEFORE UPDATE ON work.epics FOR EACH ROW EXECUTE FUNCTION platform.touch_row();
 
+CREATE TRIGGER trg_manager_interaction_attachments_immutable BEFORE DELETE OR UPDATE ON work.manager_interaction_attachments FOR EACH ROW EXECUTE FUNCTION platform.reject_modification();
+
+CREATE TRIGGER trg_manager_interaction_attachments_sealed BEFORE INSERT ON work.manager_interaction_attachments FOR EACH ROW EXECUTE FUNCTION work.require_unsealed_interaction();
+
+CREATE TRIGGER trg_manager_interaction_body_immutable BEFORE UPDATE ON work.manager_interactions FOR EACH ROW EXECUTE FUNCTION platform.keep_columns_immutable('id', 'organization_id', 'project_id', 'epic_id', 'operation_id', 'author_id', 'message', 'expected_response_mode', 'created_at');
+
+CREATE TRIGGER trg_manager_interaction_events_immutable BEFORE DELETE OR UPDATE ON work.manager_interaction_events FOR EACH ROW EXECUTE FUNCTION platform.reject_modification();
+
+CREATE CONSTRAINT TRIGGER trg_manager_interaction_events_sequence AFTER INSERT ON work.manager_interaction_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION platform.assert_event_sequence_contiguous('interaction_id', 'work.manager_interactions', 'work.manager_interaction_events', 'interaction_id');
+
+CREATE TRIGGER trg_manager_interactions_no_delete BEFORE DELETE ON work.manager_interactions FOR EACH ROW EXECUTE FUNCTION platform.reject_modification();
+
+CREATE CONSTRAINT TRIGGER trg_manager_interactions_sequence AFTER INSERT OR UPDATE OF last_event_sequence ON work.manager_interactions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION platform.assert_event_sequence_contiguous('id', 'work.manager_interactions', 'work.manager_interaction_events', 'interaction_id');
+
+CREATE TRIGGER trg_manager_proposal_versions_immutable BEFORE DELETE OR UPDATE ON work.manager_proposal_versions FOR EACH ROW EXECUTE FUNCTION platform.reject_modification();
+
+CREATE TRIGGER trg_manager_question_journal_immutable BEFORE DELETE OR UPDATE ON work.manager_question_journal FOR EACH ROW EXECUTE FUNCTION platform.reject_modification();
+
+CREATE TRIGGER trg_plan_executions_immutable BEFORE DELETE OR UPDATE ON work.plan_executions FOR EACH ROW EXECUTE FUNCTION platform.reject_modification();
+
+CREATE TRIGGER trg_plan_item_tasks_immutable BEFORE DELETE OR UPDATE ON work.plan_item_tasks FOR EACH ROW EXECUTE FUNCTION platform.reject_modification();
+
+CREATE TRIGGER trg_plan_version_events_immutable BEFORE DELETE OR UPDATE ON work.plan_version_events FOR EACH ROW EXECUTE FUNCTION platform.reject_modification();
+
+CREATE CONSTRAINT TRIGGER trg_plan_version_events_sequence AFTER INSERT ON work.plan_version_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION platform.assert_event_sequence_contiguous('plan_version_id', 'work.plan_versions', 'work.plan_version_events', 'plan_version_id');
+
+CREATE TRIGGER trg_plan_versions_content_immutable BEFORE UPDATE ON work.plan_versions FOR EACH ROW EXECUTE FUNCTION platform.keep_columns_immutable('id', 'organization_id', 'project_id', 'plan_id', 'version_number', 'content_hash', 'snapshot', 'created_at');
+
+CREATE TRIGGER trg_plan_versions_no_delete BEFORE DELETE ON work.plan_versions FOR EACH ROW EXECUTE FUNCTION platform.reject_modification();
+
+CREATE CONSTRAINT TRIGGER trg_plan_versions_sequence AFTER INSERT OR UPDATE OF last_event_sequence ON work.plan_versions DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION platform.assert_event_sequence_contiguous('id', 'work.plan_versions', 'work.plan_version_events', 'plan_version_id');
+
+CREATE TRIGGER trg_task_events_immutable BEFORE DELETE OR UPDATE ON work.task_events FOR EACH ROW EXECUTE FUNCTION platform.reject_modification();
+
+CREATE CONSTRAINT TRIGGER trg_task_events_sequence AFTER INSERT ON work.task_events DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION platform.assert_event_sequence_contiguous('task_id', 'work.tasks', 'work.task_events', 'task_id');
+
+CREATE CONSTRAINT TRIGGER trg_task_platform_plan_item AFTER INSERT ON work.tasks DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN ((CURRENT_USER = 'ai_res_platform_api'::name)) EXECUTE FUNCTION work.require_platform_plan_item();
+
 CREATE TRIGGER trg_tasks_immutable_columns BEFORE UPDATE ON work.tasks FOR EACH ROW EXECUTE FUNCTION platform.keep_columns_immutable('id', 'organization_id', 'project_id', 'operation_id', 'epic_id', 'derived_from_task_id', 'initiator_type', 'initiator_id', 'created_at');
 
 CREATE TRIGGER trg_tasks_require_open_operation BEFORE INSERT ON work.tasks FOR EACH ROW EXECUTE FUNCTION work.require_open_operation();
+
+CREATE CONSTRAINT TRIGGER trg_tasks_sequence AFTER INSERT OR UPDATE OF last_event_sequence ON work.tasks DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION platform.assert_event_sequence_contiguous('id', 'work.tasks', 'work.task_events', 'task_id');
 
 CREATE TRIGGER trg_tasks_touch BEFORE UPDATE ON work.tasks FOR EACH ROW EXECUTE FUNCTION platform.touch_row();
 
@@ -4592,6 +5698,9 @@ ALTER TABLE ONLY agents.worker_runs
 
 ALTER TABLE ONLY agents.worker_runs
     ADD CONSTRAINT fk_worker_runs_worker_definition_version_id FOREIGN KEY (worker_definition_version_id) REFERENCES agents.worker_definition_versions(id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY agents.worker_tool_grants
+    ADD CONSTRAINT fk_worker_tool_grant_run FOREIGN KEY (organization_id, project_id, worker_run_id) REFERENCES agents.worker_runs(organization_id, project_id, id) ON DELETE RESTRICT;
 
 ALTER TABLE ONLY artifacts.artifact_events
     ADD CONSTRAINT fk_artifact_events_artifact_id_artifacts FOREIGN KEY (artifact_id) REFERENCES artifacts.artifacts(id) ON DELETE RESTRICT;
@@ -4637,6 +5746,9 @@ ALTER TABLE ONLY audit.inbox_checkpoints
 
 ALTER TABLE ONLY audit.inbox_messages
     ADD CONSTRAINT fk_inbox_messages_aggregate_type_aggregate_types FOREIGN KEY (aggregate_type) REFERENCES audit.aggregate_types(code) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY audit.outbox_events
+    ADD CONSTRAINT fk_outbox_dispatch_route FOREIGN KEY (organization_id, project_id, aggregate_id, dispatch_assignment_id, dispatch_namespace) REFERENCES platform.operation_execution_assignments(organization_id, project_id, operation_id, id, namespace) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED;
 
 ALTER TABLE ONLY audit.outbox_events
     ADD CONSTRAINT fk_outbox_events_aggregate_type_aggregate_types FOREIGN KEY (aggregate_type) REFERENCES audit.aggregate_types(code) ON DELETE RESTRICT;
@@ -4887,6 +5999,18 @@ ALTER TABLE ONLY governance.rules
 ALTER TABLE ONLY governance.rules
     ADD CONSTRAINT fk_rules_organization_id_project_id_projects FOREIGN KEY (organization_id, project_id) REFERENCES project.projects(organization_id, id) ON DELETE RESTRICT;
 
+ALTER TABLE ONLY governance.manager_proposal_decisions
+    ADD CONSTRAINT manager_proposal_decisions_organization_id_approver_id_fkey FOREIGN KEY (organization_id, approver_id) REFERENCES iam.users(organization_id, id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY governance.manager_proposal_decisions
+    ADD CONSTRAINT manager_proposal_decisions_organization_id_project_id_prop_fkey FOREIGN KEY (organization_id, project_id, proposal_version_id, content_hash) REFERENCES work.manager_proposal_versions(organization_id, project_id, id, content_hash) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY governance.plan_version_decisions
+    ADD CONSTRAINT plan_version_decisions_organization_id_approver_id_fkey FOREIGN KEY (organization_id, approver_id) REFERENCES iam.users(organization_id, id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY governance.plan_version_decisions
+    ADD CONSTRAINT plan_version_decisions_organization_id_project_id_plan_ver_fkey FOREIGN KEY (organization_id, project_id, plan_version_id, content_hash) REFERENCES work.plan_versions(organization_id, project_id, id, content_hash) ON DELETE RESTRICT;
+
 ALTER TABLE ONLY iam.credentials
     ADD CONSTRAINT fk_credentials_organization_id_user_id_users FOREIGN KEY (organization_id, user_id) REFERENCES iam.users(organization_id, id) ON DELETE RESTRICT;
 
@@ -4983,6 +6107,42 @@ ALTER TABLE ONLY platform.model_admission_calls
 ALTER TABLE ONLY platform.model_profiles
     ADD CONSTRAINT fk_model_profiles_approved_by_users FOREIGN KEY (approved_by) REFERENCES iam.users(id) ON DELETE RESTRICT;
 
+ALTER TABLE ONLY platform.operation_execution_assignments
+    ADD CONSTRAINT fk_operation_assignment_operation FOREIGN KEY (organization_id, project_id, operation_id) REFERENCES operations.operations(organization_id, project_id, id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY platform.manager_epic_context_versions
+    ADD CONSTRAINT manager_epic_context_versions_assignment_id_fkey FOREIGN KEY (assignment_id) REFERENCES platform.operation_execution_assignments(id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY platform.manager_epic_context_versions
+    ADD CONSTRAINT manager_epic_context_versions_organization_id_project_id_i_fkey FOREIGN KEY (organization_id, project_id, interaction_id) REFERENCES work.manager_interactions(organization_id, project_id, id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY platform.manager_epic_context_versions
+    ADD CONSTRAINT manager_epic_context_versions_organization_id_project_id_o_fkey FOREIGN KEY (organization_id, project_id, operation_id) REFERENCES operations.operations(organization_id, project_id, id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY project.notification_deliveries
+    ADD CONSTRAINT fk_notification_delivery_project FOREIGN KEY (organization_id, project_id) REFERENCES project.projects(organization_id, id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY project.notification_deliveries
+    ADD CONSTRAINT fk_notification_delivery_recipient FOREIGN KEY (organization_id, recipient_id) REFERENCES iam.users(organization_id, id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY project.notification_events
+    ADD CONSTRAINT fk_notification_event_delivery FOREIGN KEY (organization_id, project_id, recipient_id, delivery_id) REFERENCES project.notification_deliveries(organization_id, project_id, recipient_id, id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY project.notification_events
+    ADD CONSTRAINT fk_notification_event_operation FOREIGN KEY (organization_id, project_id, operation_id) REFERENCES operations.operations(organization_id, project_id, id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY project.notification_events
+    ADD CONSTRAINT fk_notification_event_proposal FOREIGN KEY (proposal_version_id) REFERENCES work.manager_proposal_versions(id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY project.notification_events
+    ADD CONSTRAINT fk_notification_event_source FOREIGN KEY (event_id) REFERENCES operations.operation_events(event_id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY project.notification_preferences
+    ADD CONSTRAINT fk_notification_preference_project FOREIGN KEY (organization_id, project_id) REFERENCES project.projects(organization_id, id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY project.notification_preferences
+    ADD CONSTRAINT fk_notification_preference_recipient FOREIGN KEY (organization_id, recipient_id) REFERENCES iam.users(organization_id, id) ON DELETE RESTRICT;
+
 ALTER TABLE ONLY project.project_events
     ADD CONSTRAINT fk_project_events_project_id_projects FOREIGN KEY (project_id) REFERENCES project.projects(id) ON DELETE RESTRICT;
 
@@ -5070,6 +6230,21 @@ ALTER TABLE ONLY work.epics
 ALTER TABLE ONLY work.epics
     ADD CONSTRAINT fk_epics_organization_id_project_id_projects FOREIGN KEY (organization_id, project_id) REFERENCES project.projects(organization_id, id) ON DELETE RESTRICT;
 
+ALTER TABLE ONLY work.manager_interaction_attachments
+    ADD CONSTRAINT fk_manager_attachment_interaction FOREIGN KEY (organization_id, project_id, interaction_id) REFERENCES work.manager_interactions(organization_id, project_id, id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY work.manager_interaction_attachments
+    ADD CONSTRAINT fk_manager_attachment_version FOREIGN KEY (organization_id, project_id, source_version_id) REFERENCES sources.source_versions(organization_id, project_id, id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY work.manager_interactions
+    ADD CONSTRAINT fk_manager_interaction_author FOREIGN KEY (organization_id, author_id) REFERENCES iam.users(organization_id, id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY work.manager_interactions
+    ADD CONSTRAINT fk_manager_interaction_epic FOREIGN KEY (organization_id, project_id, epic_id) REFERENCES work.epics(organization_id, project_id, id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY work.manager_interactions
+    ADD CONSTRAINT fk_manager_interaction_operation FOREIGN KEY (organization_id, project_id, operation_id) REFERENCES operations.operations(organization_id, project_id, id) ON DELETE RESTRICT;
+
 ALTER TABLE ONLY work.task_dependencies
     ADD CONSTRAINT fk_task_dependencies_depends_on_task_id_tasks FOREIGN KEY (organization_id, project_id, depends_on_task_id) REFERENCES work.tasks(organization_id, project_id, id) ON DELETE RESTRICT;
 
@@ -5097,6 +6272,45 @@ ALTER TABLE ONLY work.tasks
 ALTER TABLE ONLY work.tasks
     ADD CONSTRAINT fk_tasks_owner_user_id_users FOREIGN KEY (organization_id, owner_user_id) REFERENCES iam.users(organization_id, id) ON DELETE RESTRICT;
 
+ALTER TABLE ONLY work.manager_interaction_events
+    ADD CONSTRAINT manager_interaction_events_interaction_id_fkey FOREIGN KEY (interaction_id) REFERENCES work.manager_interactions(id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY work.manager_proposal_versions
+    ADD CONSTRAINT manager_proposal_versions_organization_id_project_id_inte_fkey1 FOREIGN KEY (organization_id, project_id, interaction_id, context_version_id) REFERENCES platform.manager_epic_context_versions(organization_id, project_id, interaction_id, id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY work.manager_proposal_versions
+    ADD CONSTRAINT manager_proposal_versions_organization_id_project_id_inter_fkey FOREIGN KEY (organization_id, project_id, interaction_id) REFERENCES work.manager_interactions(organization_id, project_id, id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY work.manager_question_journal
+    ADD CONSTRAINT manager_question_journal_organization_id_project_id_epic_i_fkey FOREIGN KEY (organization_id, project_id, epic_id) REFERENCES work.epics(organization_id, project_id, id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY work.manager_question_journal
+    ADD CONSTRAINT manager_question_journal_organization_id_project_id_intera_fkey FOREIGN KEY (organization_id, project_id, interaction_id) REFERENCES work.manager_interactions(organization_id, project_id, id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY work.plan_executions
+    ADD CONSTRAINT plan_executions_organization_id_project_id_operation_id_fkey FOREIGN KEY (organization_id, project_id, operation_id) REFERENCES operations.operations(organization_id, project_id, id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY work.plan_executions
+    ADD CONSTRAINT plan_executions_organization_id_project_id_plan_version_id_fkey FOREIGN KEY (organization_id, project_id, plan_version_id, decision_id) REFERENCES governance.plan_version_decisions(organization_id, project_id, plan_version_id, id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY work.plan_item_tasks
+    ADD CONSTRAINT plan_item_tasks_organization_id_project_id_operation_id_fkey FOREIGN KEY (organization_id, project_id, operation_id) REFERENCES work.plan_executions(organization_id, project_id, operation_id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY work.plan_item_tasks
+    ADD CONSTRAINT plan_item_tasks_organization_id_project_id_operation_id_ta_fkey FOREIGN KEY (organization_id, project_id, operation_id, task_id) REFERENCES work.tasks(organization_id, project_id, operation_id, id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY work.plan_version_events
+    ADD CONSTRAINT plan_version_events_plan_version_id_fkey FOREIGN KEY (plan_version_id) REFERENCES work.plan_versions(id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY work.plan_versions
+    ADD CONSTRAINT plan_versions_organization_id_project_id_plan_id_fkey FOREIGN KEY (organization_id, project_id, plan_id) REFERENCES work.plans(organization_id, project_id, id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY work.plans
+    ADD CONSTRAINT plans_organization_id_project_id_epic_id_fkey FOREIGN KEY (organization_id, project_id, epic_id) REFERENCES work.epics(organization_id, project_id, id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY work.task_events
+    ADD CONSTRAINT task_events_task_id_fkey FOREIGN KEY (task_id) REFERENCES work.tasks(id) ON DELETE RESTRICT;
+
 CREATE POLICY p_worker_results_owner_migration ON agents.worker_results TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
 
 CREATE POLICY p_worker_results_tenant_scope ON agents.worker_results TO ai_res_api_group USING (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid))) WITH CHECK (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid)));
@@ -5111,13 +6325,21 @@ CREATE POLICY p_worker_run_events_tenant_scope ON agents.worker_run_events TO ai
 
 CREATE POLICY p_worker_runs_owner_migration ON agents.worker_runs TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
 
+CREATE POLICY p_worker_runs_platform_bound ON agents.worker_runs FOR SELECT TO ai_res_platform_api_group USING (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid) AND (operation_id = (NULLIF(current_setting('app.platform_operation_id'::text, true), ''::text))::uuid)));
+
 CREATE POLICY p_worker_runs_tenant_scope ON agents.worker_runs TO ai_res_api_group USING (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid))) WITH CHECK (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid)));
+
+CREATE POLICY p_worker_tool_grants_migration ON agents.worker_tool_grants TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
+
+CREATE POLICY p_worker_tool_grants_tenant ON agents.worker_tool_grants TO ai_res_api_group USING (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid)));
 
 ALTER TABLE agents.worker_results ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE agents.worker_run_events ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE agents.worker_runs ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE agents.worker_tool_grants ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE artifacts.artifact_events ENABLE ROW LEVEL SECURITY;
 
@@ -5167,6 +6389,8 @@ CREATE POLICY p_audit_events_auditor_select ON audit.audit_events FOR SELECT TO 
 
 CREATE POLICY p_audit_events_owner_migration ON audit.audit_events TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
 
+CREATE POLICY p_audit_platform_bound ON audit.audit_events FOR INSERT TO ai_res_platform_api_group WITH CHECK (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid) AND (object_type = 'OPERATION'::text) AND (object_id = (NULLIF(current_setting('app.platform_operation_id'::text, true), ''::text))::uuid)));
+
 CREATE POLICY p_inbox_checkpoints_consumer_all ON audit.inbox_checkpoints TO ai_res_consumer_group USING (true) WITH CHECK (true);
 
 CREATE POLICY p_inbox_checkpoints_owner_migration ON audit.inbox_checkpoints TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
@@ -5182,6 +6406,12 @@ CREATE POLICY p_outbox_events_dispatcher_select ON audit.outbox_events FOR SELEC
 CREATE POLICY p_outbox_events_dispatcher_update ON audit.outbox_events FOR UPDATE TO ai_res_outbox_group USING (true) WITH CHECK (true);
 
 CREATE POLICY p_outbox_events_owner_migration ON audit.outbox_events TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
+
+CREATE POLICY p_outbox_platform_bound ON audit.outbox_events FOR INSERT TO ai_res_platform_api_group WITH CHECK (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid) AND (aggregate_type = 'OPERATION'::text) AND (aggregate_id = (NULLIF(current_setting('app.platform_operation_id'::text, true), ''::text))::uuid)));
+
+CREATE POLICY p_task_outbox_platform ON audit.outbox_events FOR INSERT TO ai_res_platform_api_group WITH CHECK (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid) AND (current_setting('app.platform_action'::text, true) = 'plan.materialize_tasks'::text) AND (aggregate_type = 'TASK'::text) AND (EXISTS ( SELECT 1
+   FROM work.tasks t
+  WHERE ((t.id = outbox_events.aggregate_id) AND (t.operation_id = (NULLIF(current_setting('app.platform_operation_id'::text, true), ''::text))::uuid))))));
 
 ALTER TABLE context.context_package_items ENABLE ROW LEVEL SECURITY;
 
@@ -5275,6 +6505,8 @@ ALTER TABLE governance.change_request_events ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE governance.change_requests ENABLE ROW LEVEL SECURITY;
 
+ALTER TABLE governance.manager_proposal_decisions ENABLE ROW LEVEL SECURITY;
+
 CREATE POLICY p_approvals_owner_migration ON governance.approvals TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
 
 CREATE POLICY p_approvals_tenant_scope ON governance.approvals TO ai_res_api_group USING (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid))) WITH CHECK (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid)));
@@ -5306,6 +6538,18 @@ CREATE POLICY p_change_request_events_tenant_scope ON governance.change_request_
 CREATE POLICY p_change_requests_owner_migration ON governance.change_requests TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
 
 CREATE POLICY p_change_requests_tenant_scope ON governance.change_requests TO ai_res_api_group USING (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid))) WITH CHECK (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid)));
+
+CREATE POLICY p_manager_proposal_decisions_migration ON governance.manager_proposal_decisions TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
+
+CREATE POLICY p_manager_proposal_decisions_tenant ON governance.manager_proposal_decisions TO ai_res_api_group USING (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid)));
+
+CREATE POLICY p_plan_version_decisions_migration ON governance.plan_version_decisions TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
+
+CREATE POLICY p_plan_version_decisions_platform ON governance.plan_version_decisions FOR SELECT TO ai_res_platform_api_group USING (((current_setting('app.platform_action'::text, true) = 'plan.materialize_tasks'::text) AND (EXISTS ( SELECT 1
+   FROM work.plan_executions e
+  WHERE (e.decision_id = plan_version_decisions.id)))));
+
+CREATE POLICY p_plan_version_decisions_tenant ON governance.plan_version_decisions TO ai_res_api_group USING (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid)));
 
 CREATE POLICY p_reviews_owner_migration ON governance.reviews TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
 
@@ -5356,6 +6600,8 @@ CREATE POLICY p_rules_owner_migration ON governance.rules TO ai_res_owner USING 
 CREATE POLICY p_rules_read ON governance.rules FOR SELECT TO ai_res_api_group USING (((level = 'SYSTEM'::text) OR ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND ((project_id IS NULL) OR (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid)))));
 
 CREATE POLICY p_rules_update ON governance.rules FOR UPDATE TO ai_res_api_group USING (((level <> 'SYSTEM'::text) AND (organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND ((project_id IS NULL) OR (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid)))) WITH CHECK (((level <> 'SYSTEM'::text) AND (organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND ((project_id IS NULL) OR (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid))));
+
+ALTER TABLE governance.plan_version_decisions ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE governance.reviews ENABLE ROW LEVEL SECURITY;
 
@@ -5419,7 +6665,13 @@ ALTER TABLE operations.operation_events ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE operations.operations ENABLE ROW LEVEL SECURITY;
 
+CREATE POLICY p_operation_event_sequence_platform ON operations.operation_events FOR SELECT TO ai_res_platform_api_group USING (((operation_id = (NULLIF(current_setting('app.platform_operation_id'::text, true), ''::text))::uuid) AND (EXISTS ( SELECT 1
+   FROM operations.operations o
+  WHERE (o.id = operation_events.operation_id)))));
+
 CREATE POLICY p_operation_events_owner_migration ON operations.operation_events TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
+
+CREATE POLICY p_operation_events_platform_bound ON operations.operation_events FOR INSERT TO ai_res_platform_api_group WITH CHECK ((operation_id = (NULLIF(current_setting('app.platform_operation_id'::text, true), ''::text))::uuid));
 
 CREATE POLICY p_operation_events_tenant_scope ON operations.operation_events TO ai_res_api_group USING ((EXISTS ( SELECT 1
    FROM operations.operations o
@@ -5428,6 +6680,8 @@ CREATE POLICY p_operation_events_tenant_scope ON operations.operation_events TO 
   WHERE ((o.id = operation_events.operation_id) AND (o.organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (o.project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid)))));
 
 CREATE POLICY p_operations_owner_migration ON operations.operations TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
+
+CREATE POLICY p_operations_platform_bound ON operations.operations TO ai_res_platform_api_group USING (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid) AND (id = (NULLIF(current_setting('app.platform_operation_id'::text, true), ''::text))::uuid))) WITH CHECK (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid) AND (id = (NULLIF(current_setting('app.platform_operation_id'::text, true), ''::text))::uuid)));
 
 CREATE POLICY p_operations_tenant_scope ON operations.operations TO ai_res_api_group USING (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid))) WITH CHECK (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid)));
 
@@ -5457,6 +6711,8 @@ ALTER TABLE platform.llm_poc_budget_audit ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE platform.llm_poc_settlements ENABLE ROW LEVEL SECURITY;
 
+ALTER TABLE platform.manager_epic_context_versions ENABLE ROW LEVEL SECURITY;
+
 ALTER TABLE platform.model_admission_audit ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE platform.model_admission_calls ENABLE ROW LEVEL SECURITY;
@@ -5468,6 +6724,8 @@ ALTER TABLE platform.model_admission_decisions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE platform.model_admission_operators ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE platform.model_admission_versions ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE platform.operation_execution_assignments ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY p_bootstrap_state_owner_migration ON platform.bootstrap_state TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
 
@@ -5507,6 +6765,8 @@ CREATE POLICY p_llm_poc_settlements_owner_migration ON platform.llm_poc_settleme
 
 CREATE POLICY p_llm_poc_settlements_read ON platform.llm_poc_settlements FOR SELECT TO ai_res_api_group USING ((account_id = (NULLIF(current_setting('app.llm_poc_budget_id'::text, true), ''::text))::uuid));
 
+CREATE POLICY p_manager_epic_context_owner ON platform.manager_epic_context_versions TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
+
 CREATE POLICY p_model_admission_audit_owner_migration ON platform.model_admission_audit TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
 
 CREATE POLICY p_model_admission_audit_read ON platform.model_admission_audit FOR SELECT TO ai_res_api_group USING ((profile_id = (NULLIF(current_setting('app.model_profile_id'::text, true), ''::text))::uuid));
@@ -5534,6 +6794,46 @@ CREATE POLICY p_model_admission_operators_owner_migration ON platform.model_admi
 CREATE POLICY p_model_admission_versions_owner_migration ON platform.model_admission_versions TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
 
 CREATE POLICY p_model_admission_versions_read ON platform.model_admission_versions FOR SELECT TO ai_res_api_group USING ((profile_id = (NULLIF(current_setting('app.model_profile_id'::text, true), ''::text))::uuid));
+
+CREATE POLICY p_operation_assignments_api_tenant ON platform.operation_execution_assignments TO ai_res_api_group USING (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid)));
+
+CREATE POLICY p_operation_assignments_owner_migration ON platform.operation_execution_assignments TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
+
+CREATE POLICY p_platform_auth_events_admin ON platform.platform_auth_events TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
+
+CREATE POLICY p_platform_auth_events_insert ON platform.platform_auth_events FOR INSERT TO ai_res_platform_api_group WITH CHECK (((((reason = ANY (ARRAY['INVALID_CREDENTIAL'::text, 'EXPIRED_OR_REPLAY'::text, 'ASSIGNMENT_DENIED'::text, 'INVALID_REQUEST'::text])) AND (action IS NULL)) OR ((reason = 'AUTHORIZED'::text) AND (action = ANY (ARRAY['AUTHORIZE_START'::text, 'REGISTER_TASK'::text, 'CHECK_TASK'::text, 'AUTHORIZE_RECONCILIATION_DESCRIBE'::text, 'AUTHORIZE_BOUND_STATUS'::text, 'AUTHORIZE_BOUND_CANCEL'::text])))) IS TRUE));
+
+CREATE POLICY p_platform_nonces_migration ON platform.platform_request_nonces TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
+
+CREATE POLICY p_platform_nonces_platform_insert ON platform.platform_request_nonces FOR INSERT TO ai_res_platform_api_group WITH CHECK (((issuer = ANY (ARRAY['MANAGER_RUNTIME'::text, 'TEMPORAL_AUTH_CONTROL'::text])) AND (expires_at > clock_timestamp())));
+
+CREATE POLICY p_task_issuance_receipts_control ON platform.task_issuance_receipts TO ai_res_platform_api_group USING ((current_setting('app.platform_action'::text, true) = ANY (ARRAY['auth.task_issue'::text, 'auth.task_check'::text]))) WITH CHECK ((current_setting('app.platform_action'::text, true) = 'auth.task_issue'::text));
+
+CREATE POLICY p_task_issuance_receipts_migration ON platform.task_issuance_receipts TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
+
+ALTER TABLE platform.platform_auth_events ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE platform.platform_request_nonces ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE platform.task_issuance_receipts ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE project.notification_deliveries ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE project.notification_events ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE project.notification_preferences ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY p_notification_deliveries_migration ON project.notification_deliveries TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
+
+CREATE POLICY p_notification_deliveries_scope ON project.notification_deliveries TO ai_res_api_group USING (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid) AND (recipient_id = (NULLIF(current_setting('app.notification_recipient_id'::text, true), ''::text))::uuid))) WITH CHECK (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid) AND (recipient_id = (NULLIF(current_setting('app.notification_recipient_id'::text, true), ''::text))::uuid)));
+
+CREATE POLICY p_notification_events_migration ON project.notification_events TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
+
+CREATE POLICY p_notification_events_scope ON project.notification_events TO ai_res_api_group USING (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid) AND (recipient_id = (NULLIF(current_setting('app.notification_recipient_id'::text, true), ''::text))::uuid))) WITH CHECK (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid) AND (recipient_id = (NULLIF(current_setting('app.notification_recipient_id'::text, true), ''::text))::uuid)));
+
+CREATE POLICY p_notification_preferences_migration ON project.notification_preferences TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
+
+CREATE POLICY p_notification_preferences_scope ON project.notification_preferences TO ai_res_api_group USING (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid) AND (recipient_id = (NULLIF(current_setting('app.notification_recipient_id'::text, true), ''::text))::uuid))) WITH CHECK (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid) AND (recipient_id = (NULLIF(current_setting('app.notification_recipient_id'::text, true), ''::text))::uuid)));
 
 CREATE POLICY p_project_events_owner_migration ON project.project_events TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
 
@@ -5623,6 +6923,16 @@ ALTER TABLE work.epic_events ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE work.epics ENABLE ROW LEVEL SECURITY;
 
+ALTER TABLE work.manager_interaction_attachments ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE work.manager_interaction_events ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE work.manager_interactions ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE work.manager_proposal_versions ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE work.manager_question_journal ENABLE ROW LEVEL SECURITY;
+
 CREATE POLICY p_epic_events_owner_migration ON work.epic_events TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
 
 CREATE POLICY p_epic_events_tenant_scope ON work.epic_events TO ai_res_api_group USING ((EXISTS ( SELECT 1
@@ -5635,9 +6945,94 @@ CREATE POLICY p_epics_owner_migration ON work.epics TO ai_res_owner USING ((COAL
 
 CREATE POLICY p_epics_tenant_scope ON work.epics TO ai_res_api_group USING (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid))) WITH CHECK (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid)));
 
+CREATE POLICY p_manager_interaction_attachments_migration ON work.manager_interaction_attachments TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
+
+CREATE POLICY p_manager_interaction_attachments_tenant ON work.manager_interaction_attachments TO ai_res_api_group USING (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid)));
+
+CREATE POLICY p_manager_interaction_events_migration ON work.manager_interaction_events TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
+
+CREATE POLICY p_manager_interaction_events_tenant ON work.manager_interaction_events TO ai_res_api_group USING ((EXISTS ( SELECT 1
+   FROM work.manager_interactions p
+  WHERE (p.id = manager_interaction_events.interaction_id))));
+
+CREATE POLICY p_manager_interactions_migration ON work.manager_interactions TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
+
+CREATE POLICY p_manager_interactions_platform ON work.manager_interactions FOR SELECT TO ai_res_platform_api_group USING (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid) AND (operation_id = (NULLIF(current_setting('app.platform_operation_id'::text, true), ''::text))::uuid) AND (current_setting('app.platform_action'::text, true) = ANY (ARRAY['manager.read_input'::text, 'manager.record_draft'::text]))));
+
+CREATE POLICY p_manager_interactions_tenant ON work.manager_interactions TO ai_res_api_group USING (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid)));
+
+CREATE POLICY p_manager_proposal_versions_migration ON work.manager_proposal_versions TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
+
+CREATE POLICY p_manager_proposal_versions_tenant ON work.manager_proposal_versions TO ai_res_api_group USING (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid)));
+
+CREATE POLICY p_manager_proposals_context ON work.manager_proposal_versions AS RESTRICTIVE FOR INSERT TO ai_res_platform_api_group WITH CHECK (platform.manager_epic_context_matches_draft((NULLIF(current_setting('app.platform_operation_id'::text, true), ''::text))::uuid, context_version_id));
+
+CREATE POLICY p_manager_proposals_platform ON work.manager_proposal_versions TO ai_res_platform_api_group USING (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid) AND (current_setting('app.platform_action'::text, true) = 'manager.record_draft'::text) AND (EXISTS ( SELECT 1
+   FROM work.manager_interactions i
+  WHERE ((i.id = manager_proposal_versions.interaction_id) AND (i.operation_id = (NULLIF(current_setting('app.platform_operation_id'::text, true), ''::text))::uuid))))));
+
+CREATE POLICY p_manager_question_journal_migration ON work.manager_question_journal TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
+
+CREATE POLICY p_manager_question_journal_tenant ON work.manager_question_journal TO ai_res_api_group USING (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid) AND (EXISTS ( SELECT 1
+   FROM work.manager_interactions i
+  WHERE ((i.id = manager_question_journal.interaction_id) AND (i.epic_id = manager_question_journal.epic_id))))));
+
+CREATE POLICY p_plan_executions_migration ON work.plan_executions TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
+
+CREATE POLICY p_plan_executions_platform ON work.plan_executions FOR SELECT TO ai_res_platform_api_group USING (((current_setting('app.platform_action'::text, true) = 'plan.materialize_tasks'::text) AND (organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid) AND (operation_id = (NULLIF(current_setting('app.platform_operation_id'::text, true), ''::text))::uuid)));
+
+CREATE POLICY p_plan_executions_tenant ON work.plan_executions TO ai_res_api_group USING (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid)));
+
+CREATE POLICY p_plan_item_tasks_migration ON work.plan_item_tasks TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
+
+CREATE POLICY p_plan_item_tasks_platform ON work.plan_item_tasks TO ai_res_platform_api_group USING (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid) AND (current_setting('app.platform_action'::text, true) = 'plan.materialize_tasks'::text) AND (operation_id = (NULLIF(current_setting('app.platform_operation_id'::text, true), ''::text))::uuid))) WITH CHECK (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid) AND (current_setting('app.platform_action'::text, true) = 'plan.materialize_tasks'::text) AND (operation_id = (NULLIF(current_setting('app.platform_operation_id'::text, true), ''::text))::uuid) AND (EXISTS ( SELECT 1
+   FROM (work.plan_executions e
+     JOIN governance.plan_version_decisions d ON ((d.id = e.decision_id)))
+  WHERE ((e.operation_id = (NULLIF(current_setting('app.platform_operation_id'::text, true), ''::text))::uuid) AND (d.decision = 'APPROVE'::text) AND (plan_item_tasks.item_id = ANY (d.approved_items)))))));
+
+CREATE POLICY p_plan_item_tasks_tenant ON work.plan_item_tasks TO ai_res_api_group USING (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid)));
+
+CREATE POLICY p_plan_version_events_migration ON work.plan_version_events TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
+
+CREATE POLICY p_plan_version_events_tenant ON work.plan_version_events TO ai_res_api_group USING ((EXISTS ( SELECT 1
+   FROM work.plan_versions p
+  WHERE (p.id = plan_version_events.plan_version_id))));
+
+CREATE POLICY p_plan_versions_migration ON work.plan_versions TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
+
+CREATE POLICY p_plan_versions_platform ON work.plan_versions FOR SELECT TO ai_res_platform_api_group USING (((current_setting('app.platform_action'::text, true) = 'plan.materialize_tasks'::text) AND (EXISTS ( SELECT 1
+   FROM work.plan_executions e
+  WHERE (e.plan_version_id = plan_versions.id)))));
+
+CREATE POLICY p_plan_versions_tenant ON work.plan_versions TO ai_res_api_group USING (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid)));
+
+CREATE POLICY p_plans_migration ON work.plans TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
+
+CREATE POLICY p_plans_platform ON work.plans FOR SELECT TO ai_res_platform_api_group USING (((current_setting('app.platform_action'::text, true) = 'plan.materialize_tasks'::text) AND (EXISTS ( SELECT 1
+   FROM work.plan_versions v
+  WHERE (v.plan_id = plans.id)))));
+
+CREATE POLICY p_plans_tenant ON work.plans TO ai_res_api_group USING (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid)));
+
 CREATE POLICY p_task_dependencies_owner_migration ON work.task_dependencies TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
 
+CREATE POLICY p_task_dependencies_platform ON work.task_dependencies FOR INSERT TO ai_res_platform_api_group WITH CHECK (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid) AND (current_setting('app.platform_action'::text, true) = 'plan.materialize_tasks'::text) AND (EXISTS ( SELECT 1
+   FROM work.tasks t
+  WHERE ((t.id = task_dependencies.task_id) AND (t.operation_id = (NULLIF(current_setting('app.platform_operation_id'::text, true), ''::text))::uuid)))) AND (EXISTS ( SELECT 1
+   FROM work.tasks t
+  WHERE ((t.id = task_dependencies.depends_on_task_id) AND (t.operation_id = (NULLIF(current_setting('app.platform_operation_id'::text, true), ''::text))::uuid))))));
+
 CREATE POLICY p_task_dependencies_tenant_scope ON work.task_dependencies TO ai_res_api_group USING (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid))) WITH CHECK (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid)));
+
+CREATE POLICY p_task_events_migration ON work.task_events TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
+
+CREATE POLICY p_task_events_platform ON work.task_events TO ai_res_platform_api_group USING (((current_setting('app.platform_action'::text, true) = 'plan.materialize_tasks'::text) AND (EXISTS ( SELECT 1
+   FROM work.tasks t
+  WHERE ((t.id = task_events.task_id) AND (t.operation_id = (NULLIF(current_setting('app.platform_operation_id'::text, true), ''::text))::uuid))))));
+
+CREATE POLICY p_task_events_tenant ON work.task_events TO ai_res_api_group USING ((EXISTS ( SELECT 1
+   FROM work.tasks p
+  WHERE (p.id = task_events.task_id))));
 
 CREATE POLICY p_task_requirements_owner_migration ON work.task_requirements TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
 
@@ -5645,9 +7040,23 @@ CREATE POLICY p_task_requirements_tenant_scope ON work.task_requirements TO ai_r
 
 CREATE POLICY p_tasks_owner_migration ON work.tasks TO ai_res_owner USING ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.migration_mode'::text, true), ''::text) = 'on'::text));
 
+CREATE POLICY p_tasks_platform ON work.tasks TO ai_res_platform_api_group USING (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid) AND (current_setting('app.platform_action'::text, true) = 'plan.materialize_tasks'::text) AND (operation_id = (NULLIF(current_setting('app.platform_operation_id'::text, true), ''::text))::uuid) AND (status = 'PROPOSED'::text)));
+
 CREATE POLICY p_tasks_tenant_scope ON work.tasks TO ai_res_api_group USING (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid))) WITH CHECK (((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid) AND (project_id = (NULLIF(current_setting('app.project_id'::text, true), ''::text))::uuid)));
 
+ALTER TABLE work.plan_executions ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE work.plan_item_tasks ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE work.plan_version_events ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE work.plan_versions ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE work.plans ENABLE ROW LEVEL SECURITY;
+
 ALTER TABLE work.task_dependencies ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE work.task_events ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE work.task_requirements ENABLE ROW LEVEL SECURITY;
 
@@ -5656,6 +7065,7 @@ ALTER TABLE work.tasks ENABLE ROW LEVEL SECURITY;
 GRANT USAGE ON SCHEMA agents TO ai_res_api_group;
 GRANT USAGE ON SCHEMA agents TO ai_res_outbox_group;
 GRANT USAGE ON SCHEMA agents TO ai_res_consumer_group;
+GRANT USAGE ON SCHEMA agents TO ai_res_platform_api_group;
 
 GRANT USAGE ON SCHEMA artifacts TO ai_res_api_group;
 
@@ -5663,6 +7073,7 @@ GRANT USAGE ON SCHEMA audit TO ai_res_api_group;
 GRANT USAGE ON SCHEMA audit TO ai_res_outbox_group;
 GRANT USAGE ON SCHEMA audit TO ai_res_consumer_group;
 GRANT USAGE ON SCHEMA audit TO ai_res_auditor_group;
+GRANT USAGE ON SCHEMA audit TO ai_res_platform_api_group;
 
 GRANT USAGE ON SCHEMA context TO ai_res_api_group;
 
@@ -5672,6 +7083,7 @@ GRANT USAGE ON SCHEMA execution TO ai_res_api_group;
 GRANT USAGE ON SCHEMA execution TO ai_res_consumer_group;
 
 GRANT USAGE ON SCHEMA governance TO ai_res_api_group;
+GRANT USAGE ON SCHEMA governance TO ai_res_platform_api_group;
 
 GRANT USAGE ON SCHEMA iam TO ai_res_api_group;
 
@@ -5682,11 +7094,13 @@ GRANT USAGE ON SCHEMA knowledge TO ai_res_api_group;
 GRANT USAGE ON SCHEMA operations TO ai_res_api_group;
 GRANT USAGE ON SCHEMA operations TO ai_res_outbox_group;
 GRANT USAGE ON SCHEMA operations TO ai_res_consumer_group;
+GRANT USAGE ON SCHEMA operations TO ai_res_platform_api_group;
 
 GRANT USAGE ON SCHEMA organization TO ai_res_api_group;
 
 GRANT USAGE ON SCHEMA platform TO ai_res_api_group;
 GRANT USAGE ON SCHEMA platform TO ai_res_model_admission_operator;
+GRANT USAGE ON SCHEMA platform TO ai_res_platform_api_group;
 
 GRANT USAGE ON SCHEMA project TO ai_res_api_group;
 
@@ -5699,6 +7113,7 @@ GRANT USAGE ON SCHEMA sources TO ai_res_api_group;
 GRANT USAGE ON SCHEMA traceability TO ai_res_api_group;
 
 GRANT USAGE ON SCHEMA work TO ai_res_api_group;
+GRANT USAGE ON SCHEMA work TO ai_res_platform_api_group;
 
 REVOKE ALL ON FUNCTION agents.assert_worker_run_started_ready() FROM PUBLIC;
 
@@ -5712,11 +7127,22 @@ REVOKE ALL ON FUNCTION agents.require_started_open_run() FROM PUBLIC;
 
 REVOKE ALL ON FUNCTION artifacts.guard_publication_insert() FROM PUBLIC;
 
+REVOKE ALL ON FUNCTION audit.approve_assigned_start_replay(operation_ref uuid, event_ref uuid, expected_count integer, actor_ref uuid, session_ref uuid, request_ref uuid, audit_ref uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION audit.approve_assigned_start_replay(operation_ref uuid, event_ref uuid, expected_count integer, actor_ref uuid, session_ref uuid, request_ref uuid, audit_ref uuid) TO ai_res_api_group;
+
 REVOKE ALL ON FUNCTION audit.assert_checkpoint_advances() FROM PUBLIC;
 
 REVOKE ALL ON FUNCTION audit.assert_outbox_matches_event() FROM PUBLIC;
 
 REVOKE ALL ON FUNCTION audit.assert_replay_count_step() FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION audit.authorize_assigned_delivery(row_ref uuid, owner_ref text, attempt integer, generation integer, namespace_ref text, request_nonce uuid, credential_expires timestamp with time zone, request_correlation uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION audit.authorize_assigned_delivery(row_ref uuid, owner_ref text, attempt integer, generation integer, namespace_ref text, request_nonce uuid, credential_expires timestamp with time zone, request_correlation uuid) TO ai_res_api_group;
+
+REVOKE ALL ON FUNCTION audit.guard_assigned_start_quarantine() FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION audit.inspect_assigned_start_replay(operation_ref uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION audit.inspect_assigned_start_replay(operation_ref uuid) TO ai_res_api_group;
 
 REVOKE ALL ON FUNCTION context.assert_package_version_complete() FROM PUBLIC;
 
@@ -5753,6 +7179,15 @@ REVOKE ALL ON FUNCTION platform.assert_event_sequence_contiguous() FROM PUBLIC;
 
 REVOKE ALL ON FUNCTION platform.assert_version_number_contiguous() FROM PUBLIC;
 
+REVOKE ALL ON FUNCTION platform.bound_workflow_task_command_binding(oid uuid, rid uuid, ns text, q text, digest bytea) FROM PUBLIC;
+GRANT ALL ON FUNCTION platform.bound_workflow_task_command_binding(oid uuid, rid uuid, ns text, q text, digest bytea) TO ai_res_platform_api_group;
+
+REVOKE ALL ON FUNCTION platform.bound_workflow_task_context(oid uuid, rid uuid, ns text, q text, digest bytea) FROM PUBLIC;
+GRANT ALL ON FUNCTION platform.bound_workflow_task_context(oid uuid, rid uuid, ns text, q text, digest bytea) TO ai_res_platform_api_group;
+
+REVOKE ALL ON FUNCTION platform.capture_manager_epic_context(oid uuid, aid uuid, rid uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION platform.capture_manager_epic_context(oid uuid, aid uuid, rid uuid) TO ai_res_platform_api_group;
+
 REVOKE ALL ON FUNCTION platform.fence_model_profile_lifecycle() FROM PUBLIC;
 
 REVOKE ALL ON FUNCTION platform.finish_llm_poc_settlement() FROM PUBLIC;
@@ -5781,7 +7216,26 @@ REVOKE ALL ON FUNCTION platform.keep_columns_immutable() FROM PUBLIC;
 
 REVOKE ALL ON FUNCTION platform.keep_non_decreasing() FROM PUBLIC;
 
+REVOKE ALL ON FUNCTION platform.keep_operation_assignment_binding() FROM PUBLIC;
+
 REVOKE ALL ON FUNCTION platform.keep_terminal_status() FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION platform.lock_manager_epic_context_assignment(oid uuid, expected_action text) FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION platform.manager_epic_context_matches_draft(oid uuid, cid uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION platform.manager_epic_context_matches_draft(oid uuid, cid uuid) TO ai_res_platform_api_group;
+
+REVOKE ALL ON FUNCTION platform.matches_bound_execution_status(oid uuid, rid uuid, ns text) FROM PUBLIC;
+GRANT ALL ON FUNCTION platform.matches_bound_execution_status(oid uuid, rid uuid, ns text) TO ai_res_platform_api_group;
+
+REVOKE ALL ON FUNCTION platform.matches_bound_manager_task(oid uuid, rid uuid, ns text, queue text) FROM PUBLIC;
+GRANT ALL ON FUNCTION platform.matches_bound_manager_task(oid uuid, rid uuid, ns text, queue text) TO ai_res_platform_api_group;
+
+REVOKE ALL ON FUNCTION platform.matches_operation_dispatch(aid uuid, wid text, wtype text, ns text, queue text, major integer, digest bytea) FROM PUBLIC;
+GRANT ALL ON FUNCTION platform.matches_operation_dispatch(aid uuid, wid text, wtype text, ns text, queue text, major integer, digest bytea) TO ai_res_platform_api_group;
+
+REVOKE ALL ON FUNCTION platform.matches_reconciliation_describe(oid uuid, rid uuid, ns text) FROM PUBLIC;
+GRANT ALL ON FUNCTION platform.matches_reconciliation_describe(oid uuid, rid uuid, ns text) TO ai_res_platform_api_group;
 
 REVOKE ALL ON FUNCTION platform.owner_identity_snapshot(o uuid, u uuid, sid uuid, p uuid, d uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION platform.owner_identity_snapshot(o uuid, u uuid, sid uuid, p uuid, d uuid) TO ai_res_model_admission_operator;
@@ -5790,6 +7244,9 @@ REVOKE ALL ON FUNCTION platform.reject_modification() FROM PUBLIC;
 
 REVOKE ALL ON FUNCTION platform.require_initial_state() FROM PUBLIC;
 
+REVOKE ALL ON FUNCTION platform.resolve_operation_assignment(aid uuid, oid uuid, wid text, rid uuid, action text) FROM PUBLIC;
+GRANT ALL ON FUNCTION platform.resolve_operation_assignment(aid uuid, oid uuid, wid text, rid uuid, action text) TO ai_res_platform_api_group;
+
 REVOKE ALL ON FUNCTION platform.touch_row() FROM PUBLIC;
 
 REVOKE ALL ON FUNCTION sources.guard_source_version_insert() FROM PUBLIC;
@@ -5797,6 +7254,10 @@ REVOKE ALL ON FUNCTION sources.guard_source_version_insert() FROM PUBLIC;
 REVOKE ALL ON FUNCTION traceability.assert_endpoint_exists() FROM PUBLIC;
 
 REVOKE ALL ON FUNCTION work.require_open_operation() FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION work.require_platform_plan_item() FROM PUBLIC;
+
+REVOKE ALL ON FUNCTION work.require_unsealed_interaction() FROM PUBLIC;
 
 GRANT SELECT ON TABLE agents.worker_definition_versions TO ai_res_api_group;
 
@@ -5807,6 +7268,16 @@ GRANT SELECT,INSERT ON TABLE agents.worker_results TO ai_res_api_group;
 GRANT SELECT,INSERT ON TABLE agents.worker_run_events TO ai_res_api_group;
 
 GRANT SELECT,INSERT,UPDATE ON TABLE agents.worker_runs TO ai_res_api_group;
+
+GRANT SELECT(operation_id) ON TABLE agents.worker_runs TO ai_res_platform_api_group;
+
+GRANT SELECT(status) ON TABLE agents.worker_runs TO ai_res_platform_api_group;
+
+GRANT SELECT ON TABLE agents.worker_tool_grants TO ai_res_api_group;
+
+GRANT UPDATE(rate_minute) ON TABLE agents.worker_tool_grants TO ai_res_api_group;
+
+GRANT UPDATE(rate_count) ON TABLE agents.worker_tool_grants TO ai_res_api_group;
 
 GRANT SELECT,INSERT ON TABLE artifacts.artifact_events TO ai_res_api_group;
 
@@ -5824,6 +7295,7 @@ GRANT SELECT,INSERT ON TABLE artifacts.validation_reports TO ai_res_api_group;
 
 GRANT INSERT ON TABLE audit.audit_events TO ai_res_api_group;
 GRANT SELECT ON TABLE audit.audit_events TO ai_res_auditor_group;
+GRANT INSERT ON TABLE audit.audit_events TO ai_res_platform_api_group;
 
 GRANT SELECT,INSERT ON TABLE audit.inbox_checkpoints TO ai_res_consumer_group;
 
@@ -5841,6 +7313,7 @@ GRANT UPDATE(error_code) ON TABLE audit.inbox_messages TO ai_res_consumer_group;
 
 GRANT INSERT ON TABLE audit.outbox_events TO ai_res_api_group;
 GRANT SELECT ON TABLE audit.outbox_events TO ai_res_outbox_group;
+GRANT INSERT ON TABLE audit.outbox_events TO ai_res_platform_api_group;
 
 GRANT UPDATE(status) ON TABLE audit.outbox_events TO ai_res_outbox_group;
 
@@ -5894,6 +7367,18 @@ GRANT SELECT,INSERT ON TABLE governance.change_request_events TO ai_res_api_grou
 
 GRANT SELECT,INSERT,UPDATE ON TABLE governance.change_requests TO ai_res_api_group;
 
+GRANT SELECT,INSERT ON TABLE governance.manager_proposal_decisions TO ai_res_api_group;
+
+GRANT SELECT,INSERT ON TABLE governance.plan_version_decisions TO ai_res_api_group;
+
+GRANT SELECT(id) ON TABLE governance.plan_version_decisions TO ai_res_platform_api_group;
+
+GRANT SELECT(plan_version_id) ON TABLE governance.plan_version_decisions TO ai_res_platform_api_group;
+
+GRANT SELECT(decision) ON TABLE governance.plan_version_decisions TO ai_res_platform_api_group;
+
+GRANT SELECT(approved_items) ON TABLE governance.plan_version_decisions TO ai_res_platform_api_group;
+
 GRANT SELECT,INSERT ON TABLE governance.reviews TO ai_res_api_group;
 
 GRANT SELECT,INSERT ON TABLE governance.rule_evaluations TO ai_res_api_group;
@@ -5927,10 +7412,45 @@ GRANT SELECT,INSERT,UPDATE ON TABLE iam.users TO ai_res_api_group;
 GRANT SELECT,INSERT,UPDATE ON TABLE knowledge.extraction_records TO ai_res_api_group;
 
 GRANT SELECT,INSERT ON TABLE operations.operation_events TO ai_res_api_group;
+GRANT INSERT ON TABLE operations.operation_events TO ai_res_platform_api_group;
+
+GRANT SELECT(event_id) ON TABLE operations.operation_events TO ai_res_platform_api_group;
+
+GRANT SELECT(operation_id) ON TABLE operations.operation_events TO ai_res_platform_api_group;
+
+GRANT SELECT(aggregate_sequence) ON TABLE operations.operation_events TO ai_res_platform_api_group;
+
+GRANT SELECT(event_type) ON TABLE operations.operation_events TO ai_res_platform_api_group;
+
+GRANT SELECT(schema_version) ON TABLE operations.operation_events TO ai_res_platform_api_group;
 
 GRANT SELECT ON TABLE operations.operation_types TO ai_res_api_group;
 
 GRANT SELECT,INSERT,UPDATE ON TABLE operations.operations TO ai_res_api_group;
+
+GRANT SELECT(id) ON TABLE operations.operations TO ai_res_platform_api_group;
+
+GRANT SELECT(organization_id) ON TABLE operations.operations TO ai_res_platform_api_group;
+
+GRANT SELECT(project_id) ON TABLE operations.operations TO ai_res_platform_api_group;
+
+GRANT SELECT(operation_type) ON TABLE operations.operations TO ai_res_platform_api_group;
+
+GRANT SELECT(status),UPDATE(status) ON TABLE operations.operations TO ai_res_platform_api_group;
+
+GRANT UPDATE(workflow_id) ON TABLE operations.operations TO ai_res_platform_api_group;
+
+GRANT UPDATE(result_ref) ON TABLE operations.operations TO ai_res_platform_api_group;
+
+GRANT UPDATE(problem_ref) ON TABLE operations.operations TO ai_res_platform_api_group;
+
+GRANT UPDATE(started_at) ON TABLE operations.operations TO ai_res_platform_api_group;
+
+GRANT SELECT(completed_at),UPDATE(completed_at) ON TABLE operations.operations TO ai_res_platform_api_group;
+
+GRANT SELECT(last_event_sequence),UPDATE(last_event_sequence) ON TABLE operations.operations TO ai_res_platform_api_group;
+
+GRANT SELECT(row_version),UPDATE(row_version) ON TABLE operations.operations TO ai_res_platform_api_group;
 
 GRANT SELECT,INSERT,UPDATE ON TABLE organization.memberships TO ai_res_api_group;
 
@@ -6044,6 +7564,78 @@ GRANT SELECT ON TABLE platform.model_admission_versions TO ai_res_api_group;
 
 GRANT SELECT ON TABLE platform.model_profiles TO ai_res_api_group;
 
+GRANT SELECT ON TABLE platform.operation_execution_assignments TO ai_res_api_group;
+
+GRANT INSERT(id) ON TABLE platform.operation_execution_assignments TO ai_res_api_group;
+
+GRANT INSERT(organization_id) ON TABLE platform.operation_execution_assignments TO ai_res_api_group;
+
+GRANT INSERT(project_id) ON TABLE platform.operation_execution_assignments TO ai_res_api_group;
+
+GRANT INSERT(operation_id) ON TABLE platform.operation_execution_assignments TO ai_res_api_group;
+
+GRANT INSERT(workflow_id) ON TABLE platform.operation_execution_assignments TO ai_res_api_group;
+
+GRANT INSERT(workflow_type) ON TABLE platform.operation_execution_assignments TO ai_res_api_group;
+
+GRANT INSERT(namespace) ON TABLE platform.operation_execution_assignments TO ai_res_api_group;
+
+GRANT INSERT(task_queue) ON TABLE platform.operation_execution_assignments TO ai_res_api_group;
+
+GRANT INSERT(workflow_contract_version) ON TABLE platform.operation_execution_assignments TO ai_res_api_group;
+
+GRANT INSERT(input_digest) ON TABLE platform.operation_execution_assignments TO ai_res_api_group;
+
+GRANT INSERT(correlation_id) ON TABLE platform.operation_execution_assignments TO ai_res_api_group;
+
+GRANT INSERT(allowed_actions) ON TABLE platform.operation_execution_assignments TO ai_res_api_group;
+
+GRANT UPDATE(workflow_run_id) ON TABLE platform.operation_execution_assignments TO ai_res_api_group;
+
+GRANT UPDATE(revoked_at) ON TABLE platform.operation_execution_assignments TO ai_res_api_group;
+
+GRANT UPDATE(start_admitted) ON TABLE platform.operation_execution_assignments TO ai_res_api_group;
+
+GRANT INSERT(id) ON TABLE platform.platform_auth_events TO ai_res_platform_api_group;
+
+GRANT INSERT(correlation_id) ON TABLE platform.platform_auth_events TO ai_res_platform_api_group;
+
+GRANT INSERT(reason) ON TABLE platform.platform_auth_events TO ai_res_platform_api_group;
+
+GRANT INSERT(action) ON TABLE platform.platform_auth_events TO ai_res_platform_api_group;
+
+GRANT INSERT(issuer) ON TABLE platform.platform_request_nonces TO ai_res_platform_api_group;
+
+GRANT INSERT(nonce) ON TABLE platform.platform_request_nonces TO ai_res_platform_api_group;
+
+GRANT INSERT(expires_at) ON TABLE platform.platform_request_nonces TO ai_res_platform_api_group;
+
+GRANT SELECT(token_digest),INSERT(token_digest) ON TABLE platform.task_issuance_receipts TO ai_res_platform_api_group;
+
+GRANT SELECT(principal),INSERT(principal) ON TABLE platform.task_issuance_receipts TO ai_res_platform_api_group;
+
+GRANT SELECT(namespace),INSERT(namespace) ON TABLE platform.task_issuance_receipts TO ai_res_platform_api_group;
+
+GRANT SELECT(queue),INSERT(queue) ON TABLE platform.task_issuance_receipts TO ai_res_platform_api_group;
+
+GRANT SELECT(task_kind),INSERT(task_kind) ON TABLE platform.task_issuance_receipts TO ai_res_platform_api_group;
+
+GRANT SELECT(operation_id),INSERT(operation_id) ON TABLE platform.task_issuance_receipts TO ai_res_platform_api_group;
+
+GRANT SELECT(workflow_run_id),INSERT(workflow_run_id) ON TABLE platform.task_issuance_receipts TO ai_res_platform_api_group;
+
+GRANT SELECT,INSERT ON TABLE project.notification_deliveries TO ai_res_api_group;
+
+GRANT UPDATE(published_at) ON TABLE project.notification_deliveries TO ai_res_api_group;
+
+GRANT SELECT,INSERT ON TABLE project.notification_events TO ai_res_api_group;
+
+GRANT SELECT,INSERT ON TABLE project.notification_preferences TO ai_res_api_group;
+
+GRANT UPDATE(interval_seconds) ON TABLE project.notification_preferences TO ai_res_api_group;
+
+GRANT UPDATE(row_version) ON TABLE project.notification_preferences TO ai_res_api_group;
+
 GRANT SELECT,INSERT ON TABLE project.project_events TO ai_res_api_group;
 
 GRANT SELECT,INSERT,UPDATE ON TABLE project.project_memberships TO ai_res_api_group;
@@ -6080,11 +7672,158 @@ GRANT SELECT,INSERT ON TABLE work.epic_events TO ai_res_api_group;
 
 GRANT SELECT,INSERT,UPDATE ON TABLE work.epics TO ai_res_api_group;
 
+GRANT SELECT,INSERT ON TABLE work.manager_interaction_attachments TO ai_res_api_group;
+
+GRANT SELECT,INSERT ON TABLE work.manager_interaction_events TO ai_res_api_group;
+
+GRANT SELECT,INSERT ON TABLE work.manager_interactions TO ai_res_api_group;
+
+GRANT SELECT(id) ON TABLE work.manager_interactions TO ai_res_platform_api_group;
+
+GRANT SELECT(organization_id) ON TABLE work.manager_interactions TO ai_res_platform_api_group;
+
+GRANT SELECT(project_id) ON TABLE work.manager_interactions TO ai_res_platform_api_group;
+
+GRANT SELECT(operation_id) ON TABLE work.manager_interactions TO ai_res_platform_api_group;
+
+GRANT SELECT(message) ON TABLE work.manager_interactions TO ai_res_platform_api_group;
+
+GRANT UPDATE(row_version) ON TABLE work.manager_interactions TO ai_res_api_group;
+
+GRANT UPDATE(last_event_sequence) ON TABLE work.manager_interactions TO ai_res_api_group;
+
+GRANT SELECT,INSERT ON TABLE work.manager_proposal_versions TO ai_res_api_group;
+
+GRANT SELECT(id),INSERT(id) ON TABLE work.manager_proposal_versions TO ai_res_platform_api_group;
+
+GRANT INSERT(organization_id) ON TABLE work.manager_proposal_versions TO ai_res_platform_api_group;
+
+GRANT INSERT(project_id) ON TABLE work.manager_proposal_versions TO ai_res_platform_api_group;
+
+GRANT SELECT(interaction_id),INSERT(interaction_id) ON TABLE work.manager_proposal_versions TO ai_res_platform_api_group;
+
+GRANT INSERT(goal) ON TABLE work.manager_proposal_versions TO ai_res_platform_api_group;
+
+GRANT INSERT(scope) ON TABLE work.manager_proposal_versions TO ai_res_platform_api_group;
+
+GRANT INSERT(primary_question) ON TABLE work.manager_proposal_versions TO ai_res_platform_api_group;
+
+GRANT SELECT(content_hash),INSERT(content_hash) ON TABLE work.manager_proposal_versions TO ai_res_platform_api_group;
+
+GRANT INSERT(context_version_id) ON TABLE work.manager_proposal_versions TO ai_res_platform_api_group;
+
+GRANT SELECT,INSERT ON TABLE work.manager_question_journal TO ai_res_api_group;
+
+GRANT SELECT,INSERT ON TABLE work.plan_executions TO ai_res_api_group;
+
+GRANT SELECT(organization_id) ON TABLE work.plan_executions TO ai_res_platform_api_group;
+
+GRANT SELECT(project_id) ON TABLE work.plan_executions TO ai_res_platform_api_group;
+
+GRANT SELECT(operation_id) ON TABLE work.plan_executions TO ai_res_platform_api_group;
+
+GRANT SELECT(plan_version_id) ON TABLE work.plan_executions TO ai_res_platform_api_group;
+
+GRANT SELECT(decision_id) ON TABLE work.plan_executions TO ai_res_platform_api_group;
+
+GRANT SELECT,INSERT ON TABLE work.plan_item_tasks TO ai_res_api_group;
+
+GRANT INSERT(organization_id) ON TABLE work.plan_item_tasks TO ai_res_platform_api_group;
+
+GRANT INSERT(project_id) ON TABLE work.plan_item_tasks TO ai_res_platform_api_group;
+
+GRANT SELECT(operation_id),INSERT(operation_id) ON TABLE work.plan_item_tasks TO ai_res_platform_api_group;
+
+GRANT SELECT(item_id),INSERT(item_id) ON TABLE work.plan_item_tasks TO ai_res_platform_api_group;
+
+GRANT SELECT(task_id),INSERT(task_id) ON TABLE work.plan_item_tasks TO ai_res_platform_api_group;
+
+GRANT SELECT,INSERT ON TABLE work.plan_version_events TO ai_res_api_group;
+
+GRANT SELECT,INSERT ON TABLE work.plan_versions TO ai_res_api_group;
+
+GRANT SELECT(id) ON TABLE work.plan_versions TO ai_res_platform_api_group;
+
+GRANT SELECT(plan_id) ON TABLE work.plan_versions TO ai_res_platform_api_group;
+
+GRANT SELECT(snapshot) ON TABLE work.plan_versions TO ai_res_platform_api_group;
+
+GRANT UPDATE(row_version) ON TABLE work.plan_versions TO ai_res_api_group;
+
+GRANT UPDATE(last_event_sequence) ON TABLE work.plan_versions TO ai_res_api_group;
+
+GRANT SELECT,INSERT ON TABLE work.plans TO ai_res_api_group;
+
+GRANT SELECT(id) ON TABLE work.plans TO ai_res_platform_api_group;
+
+GRANT SELECT(epic_id) ON TABLE work.plans TO ai_res_platform_api_group;
+
+GRANT UPDATE(last_version) ON TABLE work.plans TO ai_res_api_group;
+
 GRANT SELECT,INSERT ON TABLE work.task_dependencies TO ai_res_api_group;
+
+GRANT INSERT(id) ON TABLE work.task_dependencies TO ai_res_platform_api_group;
+
+GRANT INSERT(organization_id) ON TABLE work.task_dependencies TO ai_res_platform_api_group;
+
+GRANT INSERT(project_id) ON TABLE work.task_dependencies TO ai_res_platform_api_group;
+
+GRANT INSERT(task_id) ON TABLE work.task_dependencies TO ai_res_platform_api_group;
+
+GRANT INSERT(depends_on_task_id) ON TABLE work.task_dependencies TO ai_res_platform_api_group;
+
+GRANT INSERT(created_by) ON TABLE work.task_dependencies TO ai_res_platform_api_group;
+
+GRANT SELECT,INSERT ON TABLE work.task_events TO ai_res_api_group;
+GRANT INSERT ON TABLE work.task_events TO ai_res_platform_api_group;
+
+GRANT SELECT(event_id) ON TABLE work.task_events TO ai_res_platform_api_group;
+
+GRANT SELECT(task_id) ON TABLE work.task_events TO ai_res_platform_api_group;
+
+GRANT SELECT(aggregate_sequence) ON TABLE work.task_events TO ai_res_platform_api_group;
+
+GRANT SELECT(event_type) ON TABLE work.task_events TO ai_res_platform_api_group;
+
+GRANT SELECT(schema_version) ON TABLE work.task_events TO ai_res_platform_api_group;
 
 GRANT SELECT,INSERT ON TABLE work.task_requirements TO ai_res_api_group;
 
 GRANT SELECT,INSERT,UPDATE ON TABLE work.tasks TO ai_res_api_group;
+
+GRANT SELECT(id),INSERT(id) ON TABLE work.tasks TO ai_res_platform_api_group;
+
+GRANT INSERT(organization_id) ON TABLE work.tasks TO ai_res_platform_api_group;
+
+GRANT INSERT(project_id) ON TABLE work.tasks TO ai_res_platform_api_group;
+
+GRANT SELECT(operation_id),INSERT(operation_id) ON TABLE work.tasks TO ai_res_platform_api_group;
+
+GRANT SELECT(epic_id),INSERT(epic_id) ON TABLE work.tasks TO ai_res_platform_api_group;
+
+GRANT SELECT(derived_from_task_id),INSERT(derived_from_task_id) ON TABLE work.tasks TO ai_res_platform_api_group;
+
+GRANT INSERT(task_type) ON TABLE work.tasks TO ai_res_platform_api_group;
+
+GRANT SELECT(title),INSERT(title) ON TABLE work.tasks TO ai_res_platform_api_group;
+
+GRANT INSERT(description) ON TABLE work.tasks TO ai_res_platform_api_group;
+
+GRANT INSERT(acceptance_criteria) ON TABLE work.tasks TO ai_res_platform_api_group;
+
+GRANT SELECT(status),INSERT(status) ON TABLE work.tasks TO ai_res_platform_api_group;
+
+GRANT INSERT(priority) ON TABLE work.tasks TO ai_res_platform_api_group;
+
+GRANT INSERT(initiator_type) ON TABLE work.tasks TO ai_res_platform_api_group;
+
+GRANT INSERT(initiator_id) ON TABLE work.tasks TO ai_res_platform_api_group;
+
+GRANT INSERT(created_by) ON TABLE work.tasks TO ai_res_platform_api_group;
+
+GRANT SELECT(row_version),UPDATE(row_version) ON TABLE work.tasks TO ai_res_platform_api_group;
+
+GRANT SELECT(last_event_sequence),UPDATE(last_event_sequence) ON TABLE work.tasks TO ai_res_platform_api_group;
 
 ALTER DEFAULT PRIVILEGES FOR ROLE ai_res_owner REVOKE ALL ON TYPES FROM PUBLIC;
 
