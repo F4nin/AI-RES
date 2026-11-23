@@ -100,6 +100,17 @@ class ReadQueries:
     async def get_task(self, task_id: UUID) -> Row | None:
         return await self._one("SELECT id, project_id, epic_id, title, status, priority, row_version FROM work.tasks WHERE id = :i", {"i": task_id})
 
+    async def get_plan_version(self, version_id: UUID) -> Row | None:
+        return await self._one(
+            "SELECT v.id, v.plan_id, v.project_id, p.epic_id, v.version_number AS row_version, v.content_hash, v.snapshot "
+            "FROM work.plan_versions v JOIN work.plans p ON p.id = v.plan_id WHERE v.id = :i", {"i": version_id})
+
+    async def get_manager_proposal(self, version_id: UUID) -> Row | None:
+        return await self._one(
+            "SELECT p.id, p.project_id, i.epic_id, i.operation_id, p.interaction_id, p.content_hash, p.goal, p.scope, p.primary_question, 1 AS row_version "
+            "FROM work.manager_proposal_versions p JOIN work.manager_interactions i ON (i.organization_id,i.project_id,i.id)=(p.organization_id,p.project_id,p.interaction_id) "
+            "WHERE p.id=:i", {"i": version_id})
+
     # -- requirements -----------------------------------------------------------------------------------------------------------------------------
     async def list_requirements(self, project_id: UUID, limit: int, after: list[Any] | None) -> Slice:
         n, rid = parse_num_keyset(after)
@@ -160,8 +171,9 @@ class ReadQueries:
             "WITH RECURSIVE chain AS (SELECT o.id, o.parent_operation_id, 0 AS depth FROM operations.operations o WHERE o.id = :i "
             "UNION ALL SELECT p.id, p.parent_operation_id, c.depth + 1 FROM operations.operations p JOIN chain c ON p.id = c.parent_operation_id WHERE c.depth < 16) "
             "SELECT o.id, o.organization_id, o.project_id, o.parent_operation_id, o.operation_type, o.status, o.initiator_type, o.initiator_id, o.correlation_id, "
-            "o.created_at, o.started_at, o.completed_at, o.result_ref, o.problem_ref, o.row_version, o.progress_snapshot, "
-            "(SELECT id FROM chain ORDER BY depth DESC LIMIT 1) AS root_operation_id FROM operations.operations o WHERE o.id = :i", {"i": operation_id})
+            "o.created_at, o.started_at, o.completed_at, o.result_ref, o.problem_ref, o.row_version, o.progress_snapshot, i.epic_id, "
+            "(SELECT id FROM chain ORDER BY depth DESC LIMIT 1) AS root_operation_id FROM operations.operations o "
+            "LEFT JOIN work.manager_interactions i ON i.operation_id = o.id WHERE o.id = :i", {"i": operation_id})
 
     # -- project resolution for by-id GETs --------------------------------------------------------------------------------------------------------
     async def exists_in_project(self, table: str, object_id: UUID, project_id: UUID) -> bool:
@@ -170,4 +182,4 @@ class ReadQueries:
         return await self._one(f"SELECT 1 AS x FROM {table} WHERE id = :i AND project_id = :p", {"i": object_id, "p": project_id}) is not None  # noqa: S608 - allowlisted constant
 
 
-_PROJECT_SCOPED_TABLES = frozenset({"work.epics", "work.tasks", "requirements.requirements", "artifacts.artifacts", "agents.worker_runs", "operations.operations", "sources.uploads"})
+_PROJECT_SCOPED_TABLES = frozenset({"work.epics", "work.tasks", "work.plan_versions", "work.manager_proposal_versions", "requirements.requirements", "artifacts.artifacts", "agents.worker_runs", "operations.operations", "sources.uploads"})

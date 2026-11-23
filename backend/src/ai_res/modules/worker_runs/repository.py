@@ -81,6 +81,19 @@ class WorkerRunRepository:
         r = (await self._s.execute(text(f"SELECT {_COLUMNS} FROM agents.worker_runs WHERE id = :id"), {"id": run_id})).mappings().first()  # noqa: S608
         return None if r is None else WorkerRunRow(**r)
 
+    async def is_tool_call_active(self, run_id: UUID, *, definition_version_id: UUID, worker_role: str) -> bool:
+        """Confirm the exact registered role and a still-running Gate-backed run."""
+        row = await self._s.execute(text("""
+            SELECT r.id FROM agents.worker_runs r
+            JOIN agents.worker_definition_versions v ON v.id = r.worker_definition_version_id
+            JOIN agents.worker_definitions d ON d.id = v.worker_definition_id
+            WHERE r.id = :id AND r.status = 'RUNNING' AND r.started_with_readiness_evaluation_id IS NOT NULL
+              AND r.worker_definition_version_id = :definition_version_id AND d.worker_role = :worker_role
+              AND (r.deadline_at IS NULL OR r.deadline_at > clock_timestamp())
+            FOR SHARE OF r
+        """), {"id": run_id, "definition_version_id": definition_version_id, "worker_role": worker_role})
+        return row.scalar_one_or_none() is not None
+
     async def transition(self, row: WorkerRunRow, to_status: str, spec: EventSpec, **changes: Any) -> AppendedEvent:
         validate_transition_spec(row.status, to_status, spec, changes)
         values: dict[str, Any] = {"status": to_status, **changes}

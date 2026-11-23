@@ -1,7 +1,7 @@
 # AI RES — Реестр проектной документации
 
 **Версия:** 4.1  
-**Дата актуализации:** 2026-11-17 (редакция NCP-16)
+**Дата актуализации:** 2026-11-17 (редакция NCP-16 и дополнение OD-19/NCP-14 от 2026-11-18)
 **Назначение:** единая точка определения актуальных документов, статусов и связей. Реестр описывает фактические файлы, а не просто планируемые артефакты.
 
 ## 1. Правила управления документами
@@ -23,7 +23,7 @@
 | DOC-003 | Жизненный цикл требований | `AI_RES_Requirements_Lifecycle_v2.7.md` | BASELINED | Requirements lifecycle normative model; implementation pending |
 | DOC-004 | UX | `AI_RES_UX_Concept_v1.2.md` | BASELINED | Web Project Workspace and Manager interaction modes |
 | DOC-005 | Модель данных | `AI_RES_Domain_Model_and_Data_Architecture_v1.9.md` | BASELINED | Domain model and persistence boundaries; runtime validation pending |
-| DOC-006 | API и взаимодействия | `AI_RES_API_and_Interaction_Contracts_v1.10.md` | BASELINED | Current API and interaction contract; implementation pending |
+| DOC-006 | API и взаимодействия | `AI_RES_API_and_Interaction_Contracts_v1.10.md` | BASELINED | Current public/API interaction contract; internal Platform API supplement DOC-084 |
 | DOC-007 | Worker contracts | `AI_RES_Worker_Contracts_v1.1.schema.json` | WORKING | JSON Schema |
 | DOC-008 | Domain events | `AI_RES_Domain_Events_AsyncAPI_v1.6.yaml` | BASELINED | Current AsyncAPI event schema; runtime delivery not verified |
 | DOC-009 | MVP scope | `AI_RES_MVP_Capability_Matrix_v3.3.md` | BASELINED | Canonical MVP/post-MVP scope; supersedes v3.2 |
@@ -78,7 +78,7 @@
 | DOC-065 | PostgreSQL design DDL | `AI_RES_PostgreSQL_Physical_Model_v1.0.sql` | WORKING | Design DDL snapshot; convert to Alembic revisions before deployment |
 | DOC-066 | Проверка физической модели PostgreSQL | `AI_RES_PostgreSQL_Physical_Model_Verification_v1.0.md` | WORKING | Статическая проверка; PostgreSQL runtime не запускался |
 | DOC-067 | Пакет PostgreSQL Physical Model | `AI_RES_PostgreSQL_Physical_Model_Package_v1.0.zip` | WORKING | Архив design docs/DDL/verification; не самостоятельный источник требований |
-| DOC-068 | Стратегия миграций и модель доступа PostgreSQL | `AI_RES_PostgreSQL_Migration_and_Access_Strategy_v1.1.md` | BASELINED | Alembic, expand/backfill/validate/contract, role separation, RLS and runbook |
+| DOC-068 | Стратегия миграций и модель доступа PostgreSQL | `AI_RES_PostgreSQL_Migration_and_Access_Strategy_v1.7.md` | BASELINED | Alembic, RLS, isolated Platform API role, exact Run observer and Epic context provenance |
 | DOC-069 | PostgreSQL Roles/RLS SQL reference | `AI_RES_PostgreSQL_Roles_RLS_v1.0.sql` | WORKING | Шаблон ролей/GRANT/RLS; требует адаптации и runtime security tests |
 | DOC-070 | Проверка PostgreSQL migration/access design | `AI_RES_PostgreSQL_Migration_Access_Verification_v1.0.md` | WORKING | Статическая проверка; PostgreSQL runtime не запускался |
 | DOC-071 | Пакет PostgreSQL Migration & Access | `AI_RES_PostgreSQL_Migration_Access_Package_v1.0.zip` | WORKING | Архив нормативного design, SQL reference и verification |
@@ -90,8 +90,12 @@
 | DOC-077 | Knowledge, Memory и Retrieval Architecture | `AI_RES_Knowledge_Memory_Retrieval_Architecture_v1.0.md` | BASELINED | PostgreSQL FTS + pgvector, MinIO, immutable context, ACL-aware retrieval |
 | DOC-078 | Evaluation Framework и Release Gates | `AI_RES_Evaluation_and_Release_Gates_v1.1.md` | BASELINED | Task-class evaluation sets, deterministic/security gates and release manifest |
 | DOC-079 | Learning & Experience Lifecycle | `AI_RES_Learning_Experience_Lifecycle_v1.0.md` | BASELINED | Non-parametric MVP, governed improvement, A0-A2 only |
-| DOC-082 | Baseline manifest | `AI_RES_Architecture_Baseline_Manifest_v1.3.json` | BASELINED | SHA-256 manifest for Registry v4.1 canonical files |
+| DOC-082 | Baseline manifest | `AI_RES_Architecture_Baseline_Manifest_v1.9.json` | BASELINED | SHA-256 manifest for Registry v4.1 canonical files |
 | DOC-083 | Проверка завершения архитектурных блоков | `AI_RES_Architecture_Completion_Verification_v1.2.md` | WORKING | Static verification report; no runtime certification |
+| DOC-084 | Internal Platform API | `AI_RES_Platform_Internal_API_v0.2.yaml` | BASELINED | Private TLS, bound requests and Manager operation control; activation pending ADR-129 / G-107 |
+| DOC-085 | Internal Platform Manager and Plan API | `AI_RES_Platform_Internal_API_v0.3.yaml` | BASELINED | Read assigned intake, persist draft, materialize human-approved tasks; v0.2 Operation control retained |
+| DOC-086 | Internal Platform Manager Epic Context API | `AI_RES_Platform_Internal_API_v0.5.yaml` | BASELINED | Exact Run snapshot and Proposal provenance, v0.4 history retains separate content eligibility |
+| DOC-087 | Internal assigned Outbox delivery API | `AI_RES_Assigned_Outbox_Delivery_Internal_API_v1.0.yaml` | BASELINED | Lease-bound handoff to Backend |
 
 ## 3. Исходные методические материалы
 
@@ -289,3 +293,53 @@ No document is marked runtime-verified by this status reconciliation.
 Принят ограниченный вариант B для DeepSeek Flash первого среза: rolling alias с наблюдаемой identity, явным ограничением воспроизводимости и остановкой при обнаруженном drift до повторной человеческой приёмки. DOC-075/076/078 обновлены до v1.1, DOC-082 до manifest v1.3; прежние версии сохранены как исторические. Bootstrap-путь и номер Registry v4.1 сохранены, редакция различается датой/этой записью и SHA-256 нового manifest.
 
 Принято только нормативное исключение. Машинные identity/admission/drift contracts и runtime enforcement ещё не реализованы; profile/Bifrost approval, расходы и остальные gates не предоставлены. Ни один продуктовый этап не повышает статус из-за этой редакции.
+
+
+## 9. Дополнение OD-19 / NCP-14 — решение владельца 2026-11-18
+
+Владелец согласовал точечное обновление нормативной карты ролей и внутреннего
+Platform API по ADR-129. DOC-068 v1.2 уточняет перечень ролей для DOC-006
+§7.2 и дополнения §1.8, DOC-084 задаёт первую версию защищённого operation
+control. DOC-082 v1.4 закрепляет эту редакцию. Для прежних потребителей
+сохранена историческая версия внутреннего контракта. Полномочия Temporal
+auth-control, публичная семантика QUEUED и гарантии runtime сохраняют
+границы ADR-129 и действующих canonical решений. Design approval не является
+runtime admission. Для первого producer обязательны PoC, enforcement и G-107.
+
+
+## 10. Дополнение OD-19 / NCP-14 — назначенные команды Manager и Plan
+
+Владелец подтвердил чтение сообщения назначенного запуска, сохранение черновика
+и материализацию задач из утверждённого человеком плана. DOC-068 v1.3 и
+DOC-085 v0.3 формализуют отдельные действия, DOC-082 v1.5 фиксирует редакцию.
+Контроль Operation остаётся в DOC-084 v0.2. Перед включением producer нужны
+ADR-129 и G-107. Утверждение человеком и Readiness Gate сохраняют полномочия.
+
+## 11. Дополнение NCP-14 — адаптивный intake Manager
+
+Владелец согласовал отдельную версию ответа для состояния вопросов и ответов.
+DOC-086 задаёт только чтение контекста назначенного Epic и Run. DOC-068 v1.4
+дополняет область существующего `manager.read_input`. DOC-082 v1.6 фиксирует
+согласованную редакцию. Активация маршрута требует реализации и runtime evidence.
+
+## 12. Дополнение NCP-17 — статус назначенного Run
+
+DOC-068 v1.5 фиксирует отдельное чтение минимального статуса точного
+активного Manager или Plan Run до и после ACK. Также уточнено доказательство
+классификации текста для DOC-086. DOC-082 v1.7 фиксирует редакцию. Runtime
+приёмка проводится по ADR-129 и G-107.
+
+
+### Дополнение NCP-18 — состояние назначенного Epic и Proposal
+
+DOC-086 v0.5 добавляет приватные команды чтения снимка и записи Proposal,
+связанного с точным назначением и Run. DOC-068 v1.6 определяет минимальный
+SQL-допуск и provenance. Контракты v0.3 и v0.4 остаются действующими на
+своих путях. DOC-082 v1.8 фиксирует эту редакцию дизайна.
+
+
+### Дополнение NCP-19 — отдельный Backend listener доставки
+
+DOC-087 определяет подписанный доступ по активному lease.
+DOC-068 v1.7 закрепляет проверку одной записи, nonce и аудит.
+DOC-082 v1.9 фиксирует редакцию дизайна.

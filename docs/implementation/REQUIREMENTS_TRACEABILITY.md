@@ -1,5 +1,166 @@
 # REQUIREMENTS_TRACEABILITY
 
+**S20/S21 · ADR-185.** DOC-015 §14 → проверка фактически собранного native
+Temporal → подтверждённые исходные и альтернативные locks, проверка Go
+инвентаря в Trivy и блокировка исправляемых HIGH/CRITICAL.
+[Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**S20/S21 · ADR-184.** ADR-129 §5.4 и Spec §8 → проверка существующей
+истории → реальные stock/native/stock на временном PostgreSQL, тот же
+namespace, хеши и replay. DOC-086 v0.5 → привязка Proposal к снимку и
+текущий допущенный текст → защищённая сборка Manager с негативной проверкой
+постороннего контента. [Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**S20/S21 · ADR-183/182.** DOC-015 и ADR-129 → изолированные Temporal, Platform,
+Backend delivery, Dispatcher и оператор namespace → protected Compose
+acceptance. DOC-001/DOC-004 §8 → манифест допустимых интервалов, сводки и
+обязательная доставка → персональная RLS-проекция 0055 и PG evidence.
+[Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**S20/S21 · ADR-181/182.** ADR-129 и DOC-015 → standalone mTLS Temporal
+на PostgreSQL с отдельной проверкой назначения и активности leaf → Compose
+transport/restart smoke. DOC-001 и DOC-004 §8 → персональный канал Workspace
+и частота сводок → существующие unit checks планировщика, серверная доставка
+открыта. DOC-086 v0.4 → exclusion неаттестованного текста → PostgreSQL test
+со штатным ar2 verifier и журналом неклассифицированных ответов.
+[Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**S20 · ADR-175.** DOC-002 §7 требует привязки решения Manager к
+прочитанному состоянию Epic. DOC-086 v0.5 и миграция 0052 связывают
+Proposal, SHA-256 версии и неизменяемый снимок точного Run. Проверки
+охватывают PostgreSQL, ar2 TLS, повтор выдачи и Temporal replay.
+[Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**S20/S21 · ADR-174/175.** DOC-061 §§9, 18 и DOC-018/DOC-023
+→ человеческое подтверждение конкретного Start replay, MFA, проверка
+версии и атомарный audit. DOC-002 §7 → снимок допущенных метаданных
+назначенного Epic и отдельная версия снимка. [Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**S20/S21 · ADR-171–173.** DOC-055 §§2.4–2.5 → подтверждённая отмена до ACK.
+DOC-001, DOC-004 §8 и DOC-075 §9 → проверенная группировка разрешённых
+событий с отдельным путём для обязательных. DOC-002 §7 → воспроизводимая
+версия состояния Epic внутри Backend. Канал уведомлений и использование
+версии Manager остаются открытыми. [Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**S20/S21 · ADR-168–170.** DOC-055 §§2.4–2.6, DOC-064 TX-09, DOC-068 и
+ADR-129 → mTLS exact cancellation, проверка initial Run в native frontend,
+взаимное упорядочивание early cancel и Start под блокировкой назначения.
+До привязки возможного Run сохраняется `ACCEPTED`. После binding отмена
+использует подтверждённый scheduling и существующую state machine.
+[Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**S20/S21 · ADR-166/167.** DOC-002 §§4–6 и DOC-018 §8 → точное решение
+человека, запрет решения автором, актуальный Policy и отдельный Plan approval.
+DOC-061 и ADR-129 → claim/quarantine по routing marker, проверка раздельных
+lease и повтор Start. [Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**S20/S21 · 2026-11-21.** DOC-002, состояние Epic Manager → ADR-165 →
+PostgreSQL rebuild, отдельный lineage intake и Proposal, изоляция RLS.
+DOC-006 §§3.2, 5.2–5.3 и DOC-002 §6 → черновик PlanVersion, явная
+предпосылка версии, отдельно выбранный набор для approval и Task issuance.
+[S20](increments/S20_project_epic_intake_manager_REPORT.md),
+[S21](increments/S21_plan_task_orchestration_REPORT.md).
+
+**S20/S21.** ADR-129 §§2.2–2.3 и DOC-064 TX-09 → ADR-164. Native fixture
+принудительно разделил историю Workflow Task, потребовал тот же receipt
+после продолжения и подтвердил failure/replay. Go-тесты закрывают
+неполную историю и лимиты сборки. [Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**S20, 2026-11-20.** ADR-129 §6 и DOC-064 TX-09 → ADR-162/163 → native
+`START_TO_CLOSE` после ACK. Проверены связанная Activity, терминальный
+Workflow, отсутствие повторного вызова модели, durable audit и replay.
+[Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**S20/S21, 2026-11-20.** ADR-129 §§2.2–2.3 и G-107 → ADR-163. Защищённый
+failure reply использует exact task issuance и отдельный receipt из History.
+Реальный native Plan дал `FAILED` после отказа Activity и одно атомарное
+доменное исправление после ACK. Сохранённая история прошла replay.
+[Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**S20/S21 · 2026-11-20.** DOC-064 TX-09 и Process Design v1.9 §27.3 → ADR-162.
+Exact observation после ACK → revalidation/lock → подтверждённый доменный
+эффект или запись о неопределённости. PostgreSQL покрывает повтор, отзыв,
+scope, race с отменой и записью задач, requeue, атомарный аудит/Outbox.
+[Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**S20/S21 · 2026-11-20.** ADR-129 и G-107 → ADR-160 → статус точного
+активного Run до и после ACK. Authority проверяет tenant join, exact run,
+связанный workflow type, отзыв, состояние и namespace. Доступ к эффекту
+остаётся на доменной границе. ADR-161 связывает выдачу текста v0.4 с
+доказанным происхождением и текущим Policy/ACL. [Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**S20/S21 · 2026-11-20.** S20 §5 и Process Design v1.9 §§4–6 → ADR-159.
+Manager Proposal и PlanVersion используют общую проверку human authority и
+точного хэша. При включённом SoD репозиторий Proposal отклоняет решение
+автора обращения. Plan HTTP получает текущую Policy точной версии.
+Продуктовый producer PlanVersion и команда решения Proposal открыты.
+[Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**S20 · 2026-11-20.** DOC-086 v0.4 и NCP-14 → подписанный private ar2 read
+с exact assignment/Run, audit и `no-store`. Проверены отказ при повторном
+использовании подписи на другой версии и fail-closed пустая история.
+Выдача сохранённых записей по текущим ACL и классификации остаётся открытой.
+[Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**S21 · 2026-11-20.** Process Design v1.9 §6 и ADR-147 → ADR-158.
+Backend consumer готовит execution только по зафиксированному и текущему
+утверждению. Транзакция связана с исходным событием. PostgreSQL проверяет
+tenant, повтор, отмену обработки и откат при недоступном аудите.
+[Отчёт S21](increments/S21_plan_task_orchestration_REPORT.md).
+
+**S20 · 2026-11-20.** ADR-129 §§5–6 и Event Model §9.1 → ADR-157.
+Сетевой тест подтвердил автоматическую повторную доставку связанного Start,
+сохранение Run и однократный доменный результат при потере отметки Outbox.
+[Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**S20 · 2026-11-20.** ADR-129 §§3, 6 и DOC-068 → ADR-156. Связанный Manager Run
+прошёл через проверенный TLS native Temporal → private ar2. Подтверждены
+допуск Start, exact Run, task receipts и TLS-сессии Temporal/Platform в PostgreSQL.
+[Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**S20 · 2026-11-20.** ADR-129 §6 → ADR-155. Синтетический Manager Run
+проверен через logical restore PostgreSQL и перезапуск native Temporal.
+History совпадает по SHA-256 с исходным ответом RPC. Visibility,
+namespace-scoped History и internode gRPC mTLS проверены в обеих фазах.
+[Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**S20 · 2026-11-20.** ADR-129 и DOC-064 TX-09 → ADR-154. Локальный тест
+подтверждает history/visibility на PostgreSQL, exact Run и завершающую
+сверку до ACK. Native History/Matching требуют сертификат отдельной internode CA.
+[Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**S20 · 2026-11-20.** ADR-129 → ADR-153. Native PoC теперь собирается на
+закреплённых Temporal и Go для Linux. Изолированные тесты подтверждают
+mTLS и ограничения запуска. Целевой runtime требует своей приёмки.
+[Отчёт](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**S20 · 2026-11-20.** DOC-064 TX-09 → ADR-152. Backend планирует постраничную
+сверку Manager Run до ACK по явным проектам. Тесты покрывают циклы курсоров,
+повтор, остановку, mTLS и атомарный переход. [Отчёт](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**S20 · 2026-11-20.** DOC-064 TX-09 и ADR-129 → ADR-151. В изолированной
+сборке native Temporal наблюдатель получает Describe только для актуальной
+привязки Manager Run до ACK. PostgreSQL, mTLS и отказ при 503 подтверждены.
+[Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**S20 · 2026-11-20.** DOC-055 §2.5 / DOC-064 TX-09 → ADR-149/150. Постраничная
+сверка активных Run до ACK ограничена одним проектом и allowlist. Тесты
+PostgreSQL и изолированного Temporal подтверждают выборку, переход и безопасный
+повтор. [Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**S20 · 2026-11-19.** DOC-002 §§4–5 → DOC-086 + правила Manager reasoning
+для открытых вопросов, подтверждённых ответов и UNKNOWN. Проверен
+детерминированный ввод evidence, действует существующая граница human decision.
+DOC-055 §2.5 / DOC-064 TX-09 → ADR-149, корректировка сбоя exact Run до ACK
+проверена в изолированном Temporal и PostgreSQL. Остальные сценарии G-107
+и целевой runtime в работе.
+
+**S21 / PROC-MVP, UX-PLAN.** Process v1.9 §6 → неизменяемый PlanVersion,
+dependency-closed approval и атомарный PlanItem → Task mapping. PostgreSQL
+покрывает exact approval, цикл/недостижимость покрыты graph tests. Real Temporal
+dev server подтвердил replay и отмену через тестовые порты. Срез IN_PROGRESS.
+[Отчёт](increments/S21_plan_task_orchestration_REPORT.md)
+
 ## SLICE-01 / ADR-115 и ADR-142 — 2026-11-18
 
 | Основание | Реализация/проверка | Evidence |
@@ -883,3 +1044,13 @@ DOC076§5/7, DOC015§8/9, secrets baseline → actual renderer/mount-namespace d
 ## G156 / ADR137 — candidate configuration integrity2026-11-18
 
 DOC076§5/7, DOC015§8/9, secrets/runtime boundaries → fresh exact inputs+compiletime route denial+sticky actual file/live/logical SQLite invariants → new integrity.patch/build и host0.2 namespace/health/boot binding. Go8+42normal/racePASS/typedcollisions/WAL/readfailure; native12PASS(file/DB/admin/restart/atomic/proxy/preclaim+settlement/2successfulSSE), legacy65PASS; fast1419PASS. [Отчёт](increments/G02_candidate_configuration_integrity_REPORT.md), G156 OPEN: локальный technicalconditionTESTED не повышает model/profile/live/product coverage и не даёт human approval.
+
+## G02 · 2026-11-18
+
+- S17 / DOC-011 §9 / SEC-003, SEC-004, SEC-012: versioned registry, fresh
+  grants, bounded gateway и точный MCP allowlist. Связь с PostgreSQL и
+  отрицательными тестами в [отчёте S17](increments/S17_tool_registry_tool_gateway_REPORT.md).
+- S20 / DOC-006 §7.2 / DOC-068 v1.2 / DOC-084 v0.2: внутренний signed request,
+  nonce и execution assignment boundary. Registry/manifest обновлены по
+  scoped одобрению владельца, public contract сохранил прежние версии.
+  Runtime подтверждение ADR-129/G-107 остаётся отдельным gate.

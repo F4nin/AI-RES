@@ -1,0 +1,82 @@
+# Disposable acceptance for the exact production entrypoints in compose.g02.yaml.
+x-test-image: &test-image
+  image: ai-res/g02-protected-backend:test
+  pull_policy: never
+
+services:
+  postgres:
+    pull_policy: never
+    volumes: !override [./config/postgres/entrypoint.sh:/docker-config/entrypoint.sh:ro]
+    tmpfs:
+      - /var/lib/postgresql/data:uid=999,gid=999,mode=0700
+  postgres-provision: { pull_policy: never }
+  temporal-schema: { pull_policy: never }
+  temporal:
+    build: !reset null
+    pull_policy: never
+  temporal-namespace:
+    <<: *test-image
+    build: !reset null
+  migrate:
+    <<: *test-image
+    build: !reset null
+  platform-control:
+    <<: *test-image
+    build: !reset null
+    environment:
+      AI_RES_OTLP_ENDPOINT: !reset null
+    networks: !override
+      data: {}
+      platform: { aliases: [platform-api] }
+  delivery-control:
+    <<: *test-image
+    build: !reset null
+    environment:
+      AI_RES_OTLP_ENDPOINT: !reset null
+    networks: !override
+      data: {}
+      workflow: {}
+      delivery: { aliases: [assigned-delivery] }
+  outbox-dispatcher:
+    <<: *test-image
+    build: !reset null
+    environment:
+      AI_RES_OTLP_ENDPOINT: !reset null
+    networks: !override [data, delivery]
+  candidate-probe:
+    image: ai-res/s20-compose-probe:local
+    pull_policy: never
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    init: true
+    networks: [data, workflow, platform, observability]
+    environment:
+      PYTHONPATH: /repo/backend/src:/repo/infra/temporal_auth_poc
+      G02_NATIVE_COMPOSE_CANDIDATE: "1"
+      G02_NATIVE_COMPOSE_NETWORK: "1"
+      G02_PROTECTED_ENTRYPOINTS: "1"
+    working_dir: /repo/backend
+    secrets: [postgres_superuser_password, postgres_tls_ca_cert, temporal_db_password, api_db_password, platform_api_db_password, outbox_db_password]
+    volumes:
+      - "${G02_TEST_ROOT:?}/probe-clients:/clients:ro"
+      - ../backend/src:/repo/backend/src:ro
+      - ../backend/tests:/repo/backend/tests:ro
+      - ../backend/testkit:/repo/backend/testkit:ro
+      - ../backend/pyproject.toml:/repo/backend/pyproject.toml:ro
+      - ../contracts:/repo/contracts:ro
+      - ./temporal_auth_poc:/repo/infra/temporal_auth_poc:ro
+    tmpfs:
+      - /tmp:uid=1000,gid=1000,mode=0700
+    depends_on:
+      outbox-dispatcher: { condition: service_started }
+    command:
+      - python
+      - -B
+      - -m
+      - pytest
+      - -q
+      - --tb=short
+      - -p
+      - no:cacheprovider
+      - tests/integration/postgres/test_native_assigned_workflow.py::test_standalone_compose_protected_entrypoints

@@ -1,0 +1,5 @@
+**
+!.dockerignore
+!Dockerfile
+!*.go
+!security-locks.patch

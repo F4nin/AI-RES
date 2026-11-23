@@ -81,7 +81,10 @@ def test_audits_are_clean_and_tables_exist(seeded: Pg):
     with seeded.connect() as c:
         assert run_audit(c, "rls_coverage.sql") == [] and run_audit(c, "grants_audit.sql") == [] and run_audit(c, "postflight.sql") == []
         tables = {r[0] for r in c.execute("SELECT schemaname || '.' || tablename FROM pg_tables WHERE schemaname IN ('operations','work')")}
-        assert tables == {"operations.operation_types", "operations.operations", "operations.operation_events", "work.epics", "work.epic_events", "work.tasks", "work.task_dependencies", "work.task_requirements"}
+        assert tables == {"operations.operation_types", "operations.operations", "operations.operation_events", "work.epics", "work.epic_events", "work.tasks", "work.task_dependencies", "work.task_requirements",
+                          "work.manager_interactions", "work.manager_interaction_attachments", "work.manager_interaction_events",
+                          "work.manager_proposal_versions", "work.manager_question_journal", "work.plans", "work.plan_versions", "work.plan_executions",
+                          "work.plan_item_tasks", "work.plan_version_events", "work.task_events"}
         assert c.execute("SELECT count(*) FROM pg_constraint WHERE conrelid='work.tasks'::regclass AND contype='u' "
                          "AND pg_get_constraintdef(oid) = 'UNIQUE (operation_id, id)'").fetchone() == (1,)  # ADR-011/012: target of the worker_runs composite FK
 
@@ -225,18 +228,24 @@ def test_task_dependencies_reject_self_cross_project_and_duplicates(seeded: Pg):
 
 
 def test_events_are_append_only_for_everyone_including_the_owner_path(seeded: Pg):
+    mutations = (
+        "UPDATE operations.operation_events SET reason_code='x'",
+        "DELETE FROM operations.operation_events",
+        # Name the referencing table so the foreign-key precheck cannot mask the operation event trigger.
+        "TRUNCATE operations.operation_events, project.notification_events",
+    )
     with api(seeded, ORG_A, PRJ_A1) as c:
         op = new_op(c, ORG_A, PRJ_A1)
         assert allocate_and_append(c, op) == 1
         c.commit()
     with api(seeded, ORG_A, PRJ_A1) as c:
-        for sql in ("UPDATE operations.operation_events SET reason_code='x'", "DELETE FROM operations.operation_events", "TRUNCATE operations.operation_events"):
+        for sql in mutations:
             with pytest.raises(errors.InsufficientPrivilege):
                 c.execute(sql)
             c.rollback()
             c.execute("SELECT set_config('app.organization_id', %s, true)", [str(ORG_A)])
     with seeded.connect() as c:  # superuser passes privilege checks: the trigger must still refuse (defence in depth)
-        for sql in ("UPDATE operations.operation_events SET reason_code='x'", "DELETE FROM operations.operation_events", "TRUNCATE operations.operation_events"):
+        for sql in mutations:
             with pytest.raises(errors.IntegrityConstraintViolation):
                 c.execute(sql)
 

@@ -1,5 +1,82 @@
 # CONTRACT_TRACEABILITY_MAP
 
+**S20 · ADR-182.** WORKING `proactive_notifications.yaml` → персональная
+лента проекта и GET/PUT предпочтений → точные ссылки Operation/Proposal,
+текущие Policy и recipient RLS. PUT использует сессию, CSRF,
+`If-Match` и аудит изменения. [Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**S20/S21 · ADR-178.** [DOC-087](../architecture/AI_RES_Assigned_Outbox_Delivery_Internal_API_v1.0.yaml)
+→ подписанный POST `/internal/assigned-delivery/v1`
+→ 0054 и exact lease → защищённый Start/Cancel в Backend.
+Клиент передаёт только row ID, владельца, попытку и поколение replay.
+[Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**S20 · ADR-175.** [DOC-086 v0.5](../architecture/AI_RES_Platform_Internal_API_v0.5.yaml)
+→ private ar2 POST `manager-input` и `manager-draft` → миграция 0052
+и FORCE RLS → `contextVersionId` в SHA-256 Proposal. Runtime получает
+метаданные внутри Activity и передаёт только ссылку при записи Proposal.
+Контракт v0.5 тестируется отдельно от действующих v0.3/v0.4.
+[Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**S20/S21 · ADR-174.** WORKING `assigned_start_replay.yaml`
+→ exact Operation и Outbox event, `If-Match` поколения, Session + MFA
+и `operation.approve_start_replay` → миграция 0051 и audit
+`OPERATION_START_REPLAY_APPROVED`. [Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**S20/S21 · ADR-168–170.** WORKING native auth-control v1.2
+`authorize-bound-cancel` → exact assignment, namespace и Run, аудит 0049.
+Outbox использует существующую ссылку на назначение и `versionId` для Run.
+ADR-169 проверяет native Start reply. ADR-170 добавляет признак допуска в
+0050 и использует стандартный Problem `409 OPERATION_NOT_READY`, пока нет
+exact binding. Статусы и shape публичного `POST /operations/{id}/cancel`
+сохранены. [Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**S20/S21 · ADR-166.** `manager_proposal.yaml` WORKING → Policy чтения и
+решения `MANAGER_PROPOSAL_VERSION` → `work.manager_proposal_versions` и
+`governance.manager_proposal_decisions` → опциональное происхождение
+`work.plan_versions.snapshot`. UUID Proposal в `Operation.resultRef`
+привязан к разрешению и точному Operation. Канонический PlanVersion GET
+сохраняет shape и даёт точный хэш. ADR-167 сохраняет существующие START
+destination и event envelope. [Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**S20/S21.** ADR-164 переиспользует существующий private auth-control
+`check-task` после продолжения истории в native frontend. Внешний History
+RPC, публичные и приватные контракты сохраняются.
+[Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**S20/S21.** ADR-129 §2.2–2.3 → ADR-163 → существующий native auth-control
+`register-task`/`check-task` и отдельный digest для подтверждённой ошибки.
+Token reply разрешён для exact Manager Activity. `FAIL_WORKFLOW_EXECUTION`
+проверяет receipt из полных событий исходной задачи. Публичный и приватный
+Platform API wire не меняются. [Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**S20/S21 · 2026-11-20.** DOC-068 v1.5 → ADR-160 → WORKING native auth-control
+v1.1 `authorize-bound-status` → миграция 0048 и Temporal response projection.
+Сохранён допуск ADR-151 `authorize-reconciliation-describe`. У нового действия
+отдельная подпись пути и отдельный audit action. ADR-161 уточняет требование
+происхождения текста DOC-086 без изменения wire. [Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**S20 · 2026-11-20.** ADR-129 → ADR-151 → WORKING `platform-native-auth-control.v1.yaml`,
+`authorize-reconciliation-describe` → `platform.matches_reconciliation_describe`
+и security audit. Тесты проверяют соответствие подписанного action маршруту и
+допуск exact Run в native Temporal. [Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**S20 · ADR-148.** [DOC-086 v0.4](../architecture/AI_RES_Platform_Internal_API_v0.4.yaml)
+→ canonical зеркало → подписанный `POST /internal/v4/.../manager-input`
+в `api/platform_v2.py` → `AdaptiveManagerRead` → `ManagerReasoningInput`.
+`test_platform_manager_commands.py` подтверждает exact Run и отсутствие
+понижения версии подписи. `test_platform_control_tls.py` проверяет пустую
+историю через реальный private ar2 TLS и непустую историю через fixture
+ответа. Допуск записей из журнала остаётся открытым. Public API и AsyncAPI
+сохранены. [Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**G02 / ADR-143–145.** DOC-084 v0.2 → ar2 ASGI controller → execution assignment,
+PostgreSQL single-use nonce → private TLS client/listener. Legacy ar1 остаётся
+на своём контракте. Public v1.3 createTask 201 → exact approved PlanItem под
+scope Epic и active PLAN_EXECUTION. Additive WORKING read/decision overlay →
+ETag/hash/human approval. AsyncAPI v1.6 → события Manager interaction/question,
+PlanVersion и Task. Совместный production dispatch и CI ещё впереди.
+
 **G156 / ADR141,2026-11-18:** unchanged internal identity0.2 → product
 TransportCall/ModelIdentity observation (immutable mode сохранён), backend admission
 port+existing0020–26 → governed result после durable finalize. Human offline CLI
@@ -140,3 +217,25 @@ Public/product API/events/schema mirrors и private control wire неизмен�
 ## G156 / ADR137 — private host0.2 и marker0.1
 
 Public API/events/schema mirrors/private control wire неизменны. Host0.2 обязательный expectedIntegritySha256 → exact actual namespace+guardedhealth+sameboot;0.1не принимается. File marker0.1strict3fields/duplicate/version/hash/mode refusals → Go/Python tests; hardroute denial только в отдельном candidate binary, старые APIs/fixtures сохранены. [Evidence](increments/G02_candidate_configuration_integrity_REPORT.md). Human/profile/realprovider approval не получены.
+
+## G02 · 2026-11-18
+
+- S17 / DOC-011 §9 / SEC-003, SEC-004, SEC-012: versioned registry, fresh
+  grants, bounded gateway и точный MCP allowlist. Связь с PostgreSQL и
+  отрицательными тестами в [отчёте S17](increments/S17_tool_registry_tool_gateway_REPORT.md).
+- S20 / DOC-006 §7.2 / DOC-068 v1.2 / DOC-084 v0.2: внутренний signed request,
+  nonce и execution assignment boundary. Registry/manifest обновлены по
+  scoped одобрению владельца, public contract сохранил прежние версии.
+  Runtime подтверждение ADR-129/G-107 остаётся отдельным gate.
+- S21 / DOC-006 §§3.2, 5.2–5.3 / Process §6: `decidePlanVersion` in the WORKING
+  `contracts/openapi/extensions/plan_decision.yaml` overlay. The stored decision
+  identifies the precise PlanVersion and SHA-256, with an approved dependency-closed set.
+  Public `createTask` retains canonical v1.3 semantics and HTTP 201.
+
+## G02 · PlanVersion draft по ADR-165
+
+`POST /epics/{epicId}/plans` (DOC-006 §§3.2, 5.2–5.3, WORKING
+`contracts/openapi/extensions/plan_decision.yaml`) → `plan.propose` →
+`work.plans.last_version` CAS + `work.plan_versions` →
+`aires.plan.version.proposed.v1` и audit в одной транзакции. Проверки в
+`test_planning_http.py`, `test_manager_http.py` и сетевом native-кандидате.

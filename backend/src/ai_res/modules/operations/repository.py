@@ -82,6 +82,13 @@ class OperationRepository:
         r = (await self._s.execute(text(f"SELECT {_COLUMNS} FROM operations.operations WHERE id = :id"), {"id": operation_id})).mappings().first()  # noqa: S608
         return None if r is None else OperationRow(**r)
 
+    async def lock_open_for_tool(self, operation_id: UUID) -> bool:
+        """Serialize local tool admission with cancellation of the parent operation."""
+        row = await self._s.execute(text(
+            "SELECT id FROM operations.operations WHERE id = :id AND status IN ('ACCEPTED', 'QUEUED', 'RUNNING') FOR SHARE"
+        ), {"id": operation_id})
+        return row.scalar_one_or_none() is not None
+
     async def transition(self, row: OperationRow, to_status: str, spec: EventSpec, **changes: Any) -> AppendedEvent:
         """CAS on `row.row_version`; a terminal status also stamps completed_at (CHECK: terminal <=> completed_at)."""
         require_transition(row.status, to_status)  # terminal never reopens; refused before anything is written

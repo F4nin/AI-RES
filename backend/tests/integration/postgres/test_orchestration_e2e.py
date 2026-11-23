@@ -9,6 +9,7 @@ from uuid import uuid4
 import httpx
 import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from sqlalchemy.exc import IntegrityError
 from temporalio.client import Client
 
 from ai_res.api.internal_api import create_internal_app
@@ -17,13 +18,17 @@ from ai_res.db.session import UnitOfWork, create_session_factory
 from ai_res.modules.events.aggregate_events import EventSpec
 from ai_res.modules.events.contract import EventContract
 from ai_res.modules.events.dispatcher import Dispatcher, DispatcherConfig, InternalFanoutPublisher
-from ai_res.modules.events.envelope import DOMAIN_DESTINATION
+from ai_res.modules.events.envelope import DOMAIN_DESTINATION, EventRef
+from ai_res.modules.events.outbox_repository import OutboxRepository
 from ai_res.modules.events.temporal_start import TemporalStartPublisher
+from ai_res.modules.iam.platform_credentials import PlatformAction
 from ai_res.modules.iam.service_tokens import ServiceTokenIssuer, ServiceTokenVerifier
+from ai_res.modules.operations.cancellation import request_cancellation
+from ai_res.modules.operations.execution_authority import OperationAssignments
 from ai_res.modules.operations.orchestration_service import OperationOrchestrationService
 from ai_res.modules.operations.repository import NewOperation, OperationRepository
 from ai_res.orchestration.client import OperationStarter
-from ai_res.orchestration.contracts import START_DESTINATION, workflow_id_for
+from ai_res.orchestration.contracts import CANCEL_DESTINATION, EXECUTION_ASSIGNMENT_REF, START_DESTINATION, OperationRef, workflow_id_for
 from ai_res.orchestration.http_platform import HttpOperationPlatform
 from ai_res.orchestration.workers import manager_worker
 from ai_res.platform.config import load_settings
@@ -93,7 +98,6 @@ async def test_outbox_to_temporal_to_operation_end_to_end(migrated: Pg, client: 
 
 
 async def test_claim_by_destination_never_touches_other_destinations_even_when_their_leases_expire(migrated: Pg, tmp_path: Path):
-    from ai_res.modules.events.outbox_repository import OutboxRepository
     org, prj = uuid4(), uuid4()
     with migrated.connect() as c:
         c.execute("INSERT INTO organization.organizations (id, name) VALUES (%s,'o')", [org])
@@ -123,6 +127,77 @@ async def test_claim_by_destination_never_touches_other_destinations_even_when_t
                     await repo.claim("a", 10, 30, 3, bad)
         with migrated.connect() as c:
             assert c.execute("SELECT status FROM audit.outbox_events WHERE aggregate_id=%s AND destination=%s", [op_id, DOMAIN_DESTINATION]).fetchone() == ("IN_FLIGHT",)
+    finally:
+        await api.dispose()
+        await disp.dispose()
+
+
+async def test_start_routes_keep_other_dispatchers_rows_and_expired_leases(migrated: Pg, tmp_path: Path):
+    org, project = uuid4(), uuid4()
+    unassigned, blue, expired_blue, red, expired_red = (uuid4() for _ in range(5))
+    actor = uuid4()
+    with migrated.connect() as db:
+        db.execute("INSERT INTO organization.organizations (id,name) VALUES (%s,'o')", [org])
+        db.execute("INSERT INTO project.projects (id,organization_id,name,project_type) VALUES (%s,%s,'p','GREENFIELD')", [project, org])
+        db.execute("INSERT INTO iam.users (id,organization_id,email,email_normalized,display_name) VALUES (%s,%s,'route@example.test','route@example.test','Analyst')",
+                   [actor, org])
+    api, disp = engine_for(migrated, "ai_res_api", tmp_path), engine_for(migrated, "ai_res_outbox_dispatcher", tmp_path)
+    try:
+        api_factory, factory = create_session_factory(api), create_session_factory(disp)
+
+        async def create(oid, namespace, *, routing_namespace=None):
+            async with UnitOfWork(api_factory) as uow:
+                await uow.with_tenant(org, project)
+                correlation = uuid4()
+                op = NewOperation(id=oid, organization_id=org, project_id=project, operation_type="MANAGER_MESSAGE", initiator_type="USER",
+                                  idempotency_scope=str(oid), request_fingerprint=b"\x05" * 32, completion_policy_version="wip-1",
+                                  completion_policy_snapshot={}, correlation_id=correlation)
+                assignment = uuid4()
+                refs = () if namespace is None else (EventRef(EXECUTION_ASSIGNMENT_REF, assignment),)
+                await OperationRepository(uow.session).create(op, EventSpec(
+                    "operation.accepted", 1, "USER", correlation, (START_DESTINATION,),
+                    refs=refs, dispatch_namespace=routing_namespace or namespace,
+                ))
+                if namespace is not None:
+                    bindings = OperationAssignments(uow.session)
+                    await bindings.register(oid, namespace=namespace, assignment_id=assignment, actions=frozenset({
+                        PlatformAction.ACKNOWLEDGE_START, PlatformAction.CONFIRM_CANCELLATION,
+                    }))
+                    assert await bindings.bind_run(assignment, oid, uuid4())
+
+        for oid, namespace in ((unassigned, None), (blue, "blue"), (expired_blue, "blue"), (red, "red"), (expired_red, "red")):
+            await create(oid, namespace)
+        with pytest.raises(IntegrityError, match="fk_outbox_dispatch_route"):
+            await create(uuid4(), "red", routing_namespace="blue")
+        for oid in (blue, red):
+            async with UnitOfWork(api_factory) as uow:
+                await OperationOrchestrationService.acknowledge_start_in(uow, OperationRef(str(oid), str(org), str(project)), uuid4())
+            async with UnitOfWork(api_factory) as uow:
+                await uow.with_tenant(org, project)
+                assert (await request_cancellation(uow.session, oid, actor_id=actor, correlation_id=uuid4())).status == "CANCEL_REQUESTED"
+        with migrated.connect() as db:
+            db.execute("UPDATE audit.outbox_events SET status='IN_FLIGHT', lease_owner='protected', lease_until=now()-interval '1 minute', attempt_count=3 "
+                       "WHERE aggregate_id=ANY(%s)", [[expired_blue, expired_red]])
+        async with UnitOfWork(factory) as uow:
+            repo = OutboxRepository(uow.session)
+            claimed = await repo.claim("legacy", 10, 30, 3, [START_DESTINATION, CANCEL_DESTINATION])
+            assert [row.aggregate_id for row in claimed] == [unassigned]
+            assert repo.claim_quarantined == 0
+        async with UnitOfWork(factory) as uow:
+            repo = OutboxRepository(uow.session)
+            claimed = await repo.claim("blue", 10, 30, 3, [START_DESTINATION, CANCEL_DESTINATION], assigned_namespace="blue")
+            assert {(row.aggregate_id, row.destination) for row in claimed} == {(blue, START_DESTINATION), (blue, CANCEL_DESTINATION)}
+            assert repo.claim_quarantined == 1
+        with migrated.connect() as db:
+            assert db.execute("SELECT status,attempt_count FROM audit.outbox_events WHERE aggregate_id=%s AND dispatch_namespace='red'",
+                              [expired_red]).fetchone() == ("IN_FLIGHT", 3)
+            assert db.execute("SELECT DISTINCT status,attempt_count FROM audit.outbox_events WHERE aggregate_id=%s AND dispatch_namespace='red'",
+                              [red]).fetchall() == [("PENDING", 0)]
+        async with UnitOfWork(factory) as uow:
+            repo = OutboxRepository(uow.session)
+            claimed = await repo.claim("red", 10, 30, 3, [START_DESTINATION, CANCEL_DESTINATION], assigned_namespace="red")
+            assert {(row.aggregate_id, row.destination) for row in claimed} == {(red, START_DESTINATION), (red, CANCEL_DESTINATION)}
+            assert repo.claim_quarantined == 1
     finally:
         await api.dispose()
         await disp.dispose()

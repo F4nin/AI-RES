@@ -40,17 +40,26 @@ class SqlAuditWriter:
         self._s = session
 
     async def write(self, record: AuditRecord, *, occurred_at: datetime | None = None) -> None:
+        await self._insert(record, new_id(), occurred_at=occurred_at, replayable=False)
+
+    async def write_once(self, record: AuditRecord, record_id: UUID) -> None:
+        """Record a deterministic, server-owned observation once, without granting audit reads."""
+        await self._insert(record, record_id, occurred_at=None, replayable=True)
+
+    async def _insert(self, record: AuditRecord, record_id: UUID, *, occurred_at: datetime | None, replayable: bool) -> None:
         if record.organization_id is None:
             raise ValueError("audit record requires organization_id")
         assert_no_sensitive_keys(record.details, "details")
         params: dict[str, Any] = {
-            "id": new_id(), "org": UUID(record.organization_id), "prj": None if record.project_id is None else UUID(record.project_id),
+            "id": record_id, "org": UUID(record.organization_id), "prj": None if record.project_id is None else UUID(record.project_id),
             "at": require_utc(occurred_at or record.occurred_at or utc_now()), "atype": record.actor_type,
             "aid": None if record.actor_id is None else UUID(record.actor_id), "action": record.action, "otype": record.resource_type.upper(),
             "oid": None if record.resource_id is None else UUID(record.resource_id), "result": _RESULT[record.outcome], "reason": record.reason_code,
             "corr": correlation_uuid(record.request_id),
             "details": canonical_json({**(record.details or {}), **({"policyVersion": record.policy_version} if record.policy_version else {})}),
         }
-        await self._s.execute(text(
+        statement = (
             "INSERT INTO audit.audit_events (id, organization_id, project_id, occurred_at, actor_type, actor_id, action, object_type, object_id, result, reason_code, correlation_id, details) "
-            "VALUES (:id, :org, :prj, :at, :atype, :aid, :action, :otype, :oid, :result, :reason, :corr, CAST(:details AS jsonb))"), params)
+            "VALUES (:id, :org, :prj, :at, :atype, :aid, :action, :otype, :oid, :result, :reason, :corr, CAST(:details AS jsonb))"
+        )
+        await self._s.execute(text(statement + (" ON CONFLICT DO NOTHING" if replayable else "")), params)

@@ -39,7 +39,8 @@ SECRET_ALLOWED: dict[str, set[str]] = {
     "bootstrap": {"api_db_password", "postgres_tls_ca_cert", "bootstrap_secret"},  # S07: profile-gated one-shot; the bootstrap secret never reaches the API
     "postgres": {"postgres_superuser_password", "postgres_tls_server_cert", "postgres_tls_server_key"},
     "postgres-provision": {"postgres_superuser_password", "temporal_db_password", "checkpointer_db_password", "postgres_tls_ca_cert",
-                           "migrator_db_password", "api_db_password", "outbox_db_password", "consumer_db_password", "auditor_db_password",
+                           "migrator_db_password", "api_db_password", "platform_api_db_password", "outbox_db_password",
+                           "consumer_db_password", "auditor_db_password",
                            "backup_db_password"},
     "migrate": {"migrator_db_password", "postgres_tls_ca_cert"},  # S04: only the migration identity; runtime role secrets arrive with their consumers
     "temporal-schema": {"temporal_db_password", "postgres_tls_ca_cert"},

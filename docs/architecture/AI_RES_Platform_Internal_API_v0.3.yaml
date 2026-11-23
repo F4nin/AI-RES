@@ -1,0 +1,168 @@
+openapi: 3.1.0
+info:
+  title: AI RES internal Manager and Plan control
+  version: 0.3.0
+  description: >
+    Private TLS commands bound to an exact server-owned execution assignment.
+    The API reads a Manager message scoped to a running intake, records a
+    Manager draft and materializes tasks from an already approved PlanVersion.
+    The protected operation control actions from v0.2 use their existing paths.
+x-status: BASELINED
+x-source: ADR-129 and NCP-14, owner-approved scope of Manager and Plan commands.
+security:
+  - platformAr2: []
+paths:
+  /internal/v3/operations/{operationId}/manager-input:
+    parameters:
+      - $ref: '#/components/parameters/OperationId'
+    post:
+      operationId: readAssignedManagerMessage
+      summary: Read the exact message of the assigned Manager intake.
+      description: Returns the stored message for this running MANAGER_MESSAGE execution. ar2 action manager.read_input.
+      x-caller: MANAGER_RUNTIME
+      x-action: manager.read_input
+      requestBody:
+        $ref: '#/components/requestBodies/Execution'
+      responses:
+        '200':
+          description: The assigned intake message.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManagerInput'
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+        '503': { $ref: '#/components/responses/Problem' }
+  /internal/v3/operations/{operationId}/manager-draft:
+    parameters:
+      - $ref: '#/components/parameters/OperationId'
+    post:
+      operationId: recordAssignedManagerDraft
+      summary: Persist a draft for the assigned Manager intake.
+      description: Records the draft of the running MANAGER_MESSAGE and reports its Operation status. ar2 action manager.record_draft.
+      x-caller: MANAGER_RUNTIME
+      x-action: manager.record_draft
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ManagerDraftRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/OperationStatus'
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+        '503': { $ref: '#/components/responses/Problem' }
+  /internal/v3/operations/{operationId}/plan-tasks:
+    parameters:
+      - $ref: '#/components/parameters/OperationId'
+    post:
+      operationId: materializeAssignedPlanTasks
+      summary: Materialize approved PlanItems for the assigned execution.
+      description: >
+        Resolves a stored human approval and materializes its dependency-closed
+        set of Tasks in PROPOSED status. The Readiness Gate owns WorkerRun
+        admission. ar2 action plan.materialize_tasks.
+      x-caller: MANAGER_RUNTIME
+      x-action: plan.materialize_tasks
+      requestBody:
+        $ref: '#/components/requestBodies/Execution'
+      responses:
+        '200':
+          $ref: '#/components/responses/OperationStatus'
+        '401': { $ref: '#/components/responses/Problem' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+        '503': { $ref: '#/components/responses/Problem' }
+components:
+  securitySchemes:
+    platformAr2:
+      type: http
+      scheme: bearer
+      bearerFormat: ar2
+      description: >
+        Uses the v0.2 ar2 signature, binding, nonce and expiry rules. The action
+        is fixed by the selected operation, and the signature includes the exact
+        v3 path and digest of the raw request body.
+  parameters:
+    OperationId:
+      in: path
+      name: operationId
+      required: true
+      schema: {type: string, format: uuid}
+  requestBodies:
+    Execution:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ExecutionRequest'
+  responses:
+    OperationStatus:
+      description: Current Operation status.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/OperationStatus'
+    Problem:
+      description: RFC 9457 problem with a safe machine code.
+      content:
+        application/problem+json:
+          schema: {type: object}
+  schemas:
+    PlatformRequestClaims:
+      type: object
+      additionalProperties: false
+      required: [iss, aud, iat, exp, nonce, action, method, path, bodySha256, assignmentId]
+      properties:
+        iss: { const: MANAGER_RUNTIME }
+        aud: { const: PLATFORM_API }
+        iat: { type: integer }
+        exp: { type: integer }
+        nonce: { type: string, format: uuid, description: Canonical lowercase UUIDv4. }
+        action: { enum: [manager.read_input, manager.record_draft, plan.materialize_tasks] }
+        method: { const: POST }
+        path: { type: string }
+        bodySha256: { type: string, pattern: '^[0-9a-f]{64}$' }
+        assignmentId: { type: string, format: uuid }
+    ExecutionRequest:
+      type: object
+      additionalProperties: false
+      required: [workflowId, workflowRunId]
+      properties:
+        workflowId: {type: string, minLength: 1}
+        workflowRunId: {type: string, format: uuid}
+    ManagerDraftRequest:
+      type: object
+      additionalProperties: false
+      required: [workflowId, workflowRunId, goal, scope, primaryQuestion]
+      properties:
+        workflowId: {type: string, minLength: 1}
+        workflowRunId: {type: string, format: uuid}
+        goal: {type: [string, 'null'], maxLength: 20000}
+        scope: {type: [string, 'null'], maxLength: 20000}
+        primaryQuestion: {type: [string, 'null'], maxLength: 20000}
+    ManagerInput:
+      type: object
+      additionalProperties: false
+      required: [operationId, message]
+      properties:
+        operationId: {type: string, format: uuid}
+        message: {type: string, minLength: 1, maxLength: 20000}
+    OperationStatus:
+      type: object
+      additionalProperties: false
+      required: [operationId, status]
+      properties:
+        operationId: {type: string, format: uuid}
+        status:
+          enum: [ACCEPTED, QUEUED, RUNNING, WAITING_FOR_HUMAN, WAITING_FOR_DEPENDENCY, RETRYING, CANCEL_REQUESTED, SUCCEEDED, PARTIALLY_SUCCEEDED, FAILED, CANCELLED]

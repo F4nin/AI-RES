@@ -38,12 +38,13 @@ SQL
 # Domain roles (S04, ADR-015): attributes, passwords, memberships, database grants and fixed role defaults, re-asserted on every run.
 # Passwords are read inside psql from Compose secrets (never argv/env/logs); schemas and grants are created later by the Alembic migrate job.
 # A failing `cat` inside a psql backtick is not caught by ON_ERROR_STOP and would set an EMPTY password: refuse to run without every secret.
-for s in migrator api outbox consumer auditor backup; do
+for s in migrator api platform_api outbox consumer auditor backup; do
   test -s "/run/secrets/${s}_db_password" || { echo "missing or empty secret ${s}_db_password" >&2; exit 1; }
 done
 psql -v ON_ERROR_STOP=1 -h postgres -U postgres -d postgres <<'SQL'
 \set migrator_pw `cat /run/secrets/migrator_db_password`
 \set api_pw `cat /run/secrets/api_db_password`
+\set platform_api_pw `cat /run/secrets/platform_api_db_password`
 \set outbox_pw `cat /run/secrets/outbox_db_password`
 \set consumer_pw `cat /run/secrets/consumer_db_password`
 \set auditor_pw `cat /run/secrets/auditor_db_password`

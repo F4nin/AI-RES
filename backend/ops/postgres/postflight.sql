@@ -1,8 +1,8 @@
 -- Post-deployment checks (Blueprint §10, DBM-006/012/016). Returns violations as (check, detail). Empty result = pass. Read-only.
 WITH allow(schema_name) AS (VALUES ('iam'),('organization'),('project'),('work'),('requirements'),('sources'),('knowledge'),('decisions'),
   ('artifacts'),('traceability'),('governance'),('agents'),('context'),('integrations'),('audit'),('platform'),('operations'),('execution'))
-SELECT 'missing_role', r FROM unnest(ARRAY['ai_res_owner','ai_res_migrator','ai_res_api','ai_res_outbox_dispatcher','ai_res_event_consumer','ai_res_auditor',
-  'ai_res_backup','ai_res_api_group','ai_res_outbox_group','ai_res_consumer_group','ai_res_auditor_group','ai_res_checkpointer_group']) r
+SELECT 'missing_role', r FROM unnest(ARRAY['ai_res_owner','ai_res_migrator','ai_res_api','ai_res_platform_api','ai_res_outbox_dispatcher','ai_res_event_consumer','ai_res_auditor',
+  'ai_res_backup','ai_res_api_group','ai_res_platform_api_group','ai_res_outbox_group','ai_res_consumer_group','ai_res_auditor_group','ai_res_checkpointer_group']) r
  WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = r)  -- without this, every role check below would pass vacuously
 UNION ALL
 SELECT 'forbidden_role_attribute', rolname FROM pg_roles
@@ -31,7 +31,7 @@ SELECT 'public_database_privilege', a.privilege_type
  WHERE d.datname = current_database() AND a.grantee = 0
 UNION ALL
 SELECT 'runtime_search_path_not_fixed', r.rolname FROM pg_roles r
- WHERE r.rolname IN ('ai_res_api','ai_res_outbox_dispatcher','ai_res_event_consumer','ai_res_auditor') AND NOT EXISTS (
+ WHERE r.rolname IN ('ai_res_api','ai_res_platform_api','ai_res_outbox_dispatcher','ai_res_event_consumer','ai_res_auditor') AND NOT EXISTS (
    SELECT 1 FROM pg_db_role_setting s WHERE s.setrole = r.oid AND s.setdatabase = 0 AND 'search_path=pg_catalog' = ANY(s.setconfig))
 UNION ALL
 SELECT 'invalid_index', n.nspname || '.' || c.relname FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid JOIN pg_namespace n ON n.oid = c.relnamespace

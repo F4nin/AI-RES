@@ -1,0 +1,61 @@
+openapi: 3.1.0
+info:
+  title: AI RES private assigned Outbox delivery
+  version: 1.0.0
+  description: Purpose-bound handoff from the Outbox dispatcher to the trusted Backend.
+x-status: BASELINED
+x-source: NCP-19 and ADR-129
+security: [{deliveryAr2: []}]
+paths:
+  /internal/assigned-delivery/v1:
+    post:
+      operationId: deliverAssignedOutboxLease
+      x-caller: OUTBOX_DISPATCHER
+      x-action: outbox.deliver_assigned
+      description: >
+        Verify the signed body and consume the nonce. Resolve one still-active
+        lease in the configured namespace. Only Backend reads the persisted
+        event and calls protected Start or Cancel. The Run reference comes from
+        the trusted Temporal frontend.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeliveryLease'
+      responses:
+        '204':
+          description: Delivery settled. The caller must still fence its publication mark.
+          headers:
+            Cache-Control: {required: true, schema: {const: no-store}}
+        '401': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+        '413': {$ref: '#/components/responses/Problem'}
+        '422': {$ref: '#/components/responses/Problem'}
+        '503': {$ref: '#/components/responses/Problem'}
+components:
+  securitySchemes:
+    deliveryAr2:
+      type: http
+      scheme: bearer
+      bearerFormat: ar2
+      description: >
+        Private verified HTTPS. Existing Ed25519 ar2 signing binds the action,
+        method, exact path, raw body SHA-256, expiry and single-use nonce.
+        The audience is BACKEND_ASSIGNED_DELIVERY.
+  responses:
+    Problem:
+      description: Safe problem response without lease or workflow data.
+      content:
+        application/problem+json:
+          schema: {type: object}
+  schemas:
+    DeliveryLease:
+      type: object
+      additionalProperties: false
+      required: [rowId, leaseOwner, attempt, replayCount]
+      properties:
+        rowId: {type: string, format: uuid}
+        leaseOwner: {type: string, minLength: 1, maxLength: 256, pattern: '^[A-Za-z0-9._-]+$'}
+        attempt: {type: integer, minimum: 1, maximum: 2147483647}
+        replayCount: {type: integer, minimum: 0, maximum: 2147483647}

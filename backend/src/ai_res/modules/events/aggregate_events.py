@@ -19,11 +19,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ai_res.db.cas import canonical_json, raise_conflict_or_not_found, set_clause
 from ai_res.modules.events.envelope import SOURCES, EventRef, build_envelope, subject_for, validate_event_identity
+from ai_res.orchestration.contracts import CANCEL_DESTINATION, EXECUTION_ASSIGNMENT_REF, START_DESTINATION
 from ai_res.platform.clock import require_utc, utc_now
 from ai_res.platform.ids import new_id
 from ai_res.platform.redaction import assert_no_sensitive_keys
 
 MAX_DESTINATION_LEN = 200
+_DISPATCH_DESTINATIONS = frozenset({START_DESTINATION, CANCEL_DESTINATION})
 
 
 @dataclass(frozen=True)
@@ -52,6 +54,7 @@ class EventSpec:
     to_status: str | None = None
     occurred_at: datetime | None = None
     refs: tuple[EventRef, ...] = ()
+    dispatch_namespace: str | None = None
 
 
 @dataclass(frozen=True)
@@ -90,12 +93,18 @@ def _validate(kind: AggregateKind, spec: EventSpec) -> None:
 
 _INSERT_OUTBOX = text(
     "INSERT INTO audit.outbox_events (id, organization_id, project_id, event_id, destination, aggregate_type, aggregate_id, aggregate_sequence, event_type, "
-    "schema_version, envelope) VALUES (:id, :org, :prj, :event_id, :destination, :atype, :aid, :seq, :etype, :schema_version, CAST(:envelope AS jsonb))")
+    "schema_version, envelope, dispatch_assignment_id, dispatch_namespace) "
+    "VALUES (:id, :org, :prj, :event_id, :destination, :atype, :aid, :seq, :etype, :schema_version, CAST(:envelope AS jsonb), :assignment, :namespace)")
 
 
 async def append_event(session: AsyncSession, kind: AggregateKind, *, aggregate_id: UUID, organization_id: UUID, project_id: UUID, operation_id: UUID | None,
                        expected_version: int, spec: EventSpec, changes: Mapping[str, Any] | None = None) -> AppendedEvent:
     _validate(kind, spec)
+    has_dispatch = not _DISPATCH_DESTINATIONS.isdisjoint(spec.destinations)
+    assignments = [ref.resource_id for ref in spec.refs if ref.resource_type == EXECUTION_ASSIGNMENT_REF]
+    if (spec.dispatch_namespace is not None and (not has_dispatch or len(assignments) != 1)
+            or has_dispatch and assignments and (spec.dispatch_namespace is None or len(assignments) != 1)):
+        raise ValueError("protected Outbox delivery requires an assignment and namespace")
     event_id, occurred = new_id(), require_utc(spec.occurred_at) if spec.occurred_at else utc_now()  # every ValueError is raised before the counter moves
     params: dict[str, Any] = {"id": aggregate_id, "expected": expected_version}
     sets = ["last_event_sequence = last_event_sequence + 1", "row_version = row_version + 1", *set_clause(changes or {}, kind.mutable, params)]
@@ -119,7 +128,10 @@ async def append_event(session: AsyncSession, kind: AggregateKind, *, aggregate_
         from_status=spec.from_status, to_status=spec.to_status, details=spec.data, refs=spec.refs)
     envelope = canonical_json(attributes)
     for destination in spec.destinations:
+        protected = destination in _DISPATCH_DESTINATIONS and spec.dispatch_namespace is not None
         await session.execute(_INSERT_OUTBOX, {"id": new_id(), "org": organization_id, "prj": project_id, "event_id": event_id, "destination": destination,
                                                "atype": kind.aggregate_type, "aid": aggregate_id, "seq": sequence, "etype": spec.event_type,
-                                               "schema_version": spec.schema_version, "envelope": envelope})
+                                               "schema_version": spec.schema_version, "envelope": envelope,
+                                               "assignment": assignments[0] if protected else None,
+                                               "namespace": spec.dispatch_namespace if protected else None})
     return AppendedEvent(event_id, sequence, version)

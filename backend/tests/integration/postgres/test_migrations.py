@@ -1,15 +1,20 @@
 """PERSIST-001 (upgrade from empty), PERSIST-004 (autocommit_block / CONCURRENTLY), PERSIST-020-style lock safety, allowlist (DBM-002)."""
 import shutil
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 from alembic import command
 from alembic.script import ScriptDirectory
 from psycopg import errors
+from psycopg.types.json import Jsonb
 
 from ai_res.db.base import DOMAIN_SCHEMAS
+from ai_res.orchestration.contracts import EXECUTION_ASSIGNMENT_REF, START_DESTINATION, workflow_id_for
 
 from .conftest import BACKEND, Pg, alembic_config, run_audit
+from .test_audit_platform_schema import outbox_sql
+from .test_operations_work_schema import event_sql, new_op
 
 pytestmark = pytest.mark.postgres
 
@@ -30,10 +35,96 @@ def test_persist_001_upgrade_from_empty_reaches_head(empty_db: Pg, upgrade):
         assert run_audit(c, "rls_coverage.sql") == []
 
 
+def test_g02_upgrade_preserves_project_from_previous_head(empty_db: Pg, upgrade):
+    upgrade("c97e3bf386f1")
+    with empty_db.connect() as c:
+        organization = c.execute("INSERT INTO organization.organizations(id,name) VALUES (gen_random_uuid(),'Prior organization') RETURNING id").fetchone()[0]
+        project = c.execute(
+            "INSERT INTO project.projects(id,organization_id,name,project_type) "
+            "VALUES (gen_random_uuid(),%s,'Prior project','GREENFIELD') RETURNING id", (organization,),
+        ).fetchone()[0]
+
+    upgrade()
+    with empty_db.connect() as c:
+        assert c.execute("SELECT organization_id,name FROM project.projects WHERE id=%s", (project,)).fetchone() == (organization, "Prior project")
+        assert c.execute("SELECT version_num FROM platform.alembic_version").fetchone() == (
+            ScriptDirectory.from_config(alembic_config()).get_current_head(),
+        )
+        assert run_audit(c, "grants_audit.sql") == []
+
+
+def test_upgrade_backfills_only_the_exact_assigned_outbox_route(empty_db: Pg, upgrade):
+    upgrade("4dd4da8ee5c2")
+    org, project, assignment, invalid_assignment = (uuid4() for _ in range(4))
+    with empty_db.connect(autocommit=False) as c:
+        c.execute("INSERT INTO organization.organizations(id,name) VALUES (%s,'Prior organization')", (org,))
+        c.execute("INSERT INTO project.projects(id,organization_id,name,project_type) VALUES (%s,%s,'Prior project','GREENFIELD')", (project, org))
+        exact = new_op(c, org, project, op_type="MANAGER_MESSAGE")
+        forged = new_op(c, org, project, op_type="MANAGER_MESSAGE")
+        invalid = new_op(c, org, project, op_type="MANAGER_MESSAGE")
+        for operation, target, namespace in ((exact, assignment, "blue"), (invalid, invalid_assignment, "Invalid_History")):
+            c.execute("""
+                INSERT INTO platform.operation_execution_assignments(id,organization_id,project_id,operation_id,workflow_id,workflow_type,
+                    namespace,task_queue,workflow_contract_version,input_digest,correlation_id,allowed_actions)
+                VALUES (%s,%s,%s,%s,%s,'ManagerIntakeWorkflow',%s,'ai-res-manager',1,%s,%s,ARRAY['operation.acknowledge_start'])
+            """, (target, org, project, operation, workflow_id_for(operation), namespace, b"h" * 32, uuid4()))
+        statement = outbox_sql(dest=START_DESTINATION).replace(
+            "'aggregateSequence', p.seq)", "'aggregateSequence', p.seq, 'refs', %s::jsonb)",
+        )
+        for operation, target in ((exact, assignment), (forged, assignment), (invalid, invalid_assignment)):
+            refs = Jsonb([{"resourceType": EXECUTION_ASSIGNMENT_REF, "resourceId": str(target)}])
+            event = uuid4()
+            c.execute("UPDATE operations.operations SET last_event_sequence=1,row_version=row_version+1 WHERE id=%s", (operation,))
+            c.execute(event_sql(1), (event, operation, uuid4()))
+            c.execute(statement, (refs, uuid4(), org, project, event, operation, 1))
+        c.execute("UPDATE audit.outbox_events SET status='QUARANTINED',attempt_count=4,last_error_code='PUBLISH_FAILED' WHERE aggregate_id=%s", (exact,))
+
+    upgrade()
+    with empty_db.connect() as c:
+        rows = c.execute("""
+            SELECT aggregate_id,dispatch_assignment_id,dispatch_namespace,status,attempt_count,last_error_code FROM audit.outbox_events
+        """).fetchall()
+        assert set(rows) == {
+            (exact, assignment, "blue", "QUARANTINED", 4, "PUBLISH_FAILED"),
+            (forged, None, None, "QUARANTINED", 0, "OUTBOX_ROUTE_UNRESOLVED"),
+            (invalid, None, None, "QUARANTINED", 0, "OUTBOX_ROUTE_UNRESOLVED"),
+        }
+        assert run_audit(c, "grants_audit.sql") == []
+    with empty_db.connect("ai_res_api", autocommit=False) as c:
+        c.execute("SELECT set_config('app.organization_id',%s,true),set_config('app.project_id',%s,true)", (str(org), str(project)))
+        assert c.execute("SELECT replay_count FROM audit.inspect_assigned_start_replay(%s)", (exact,)).fetchall() == [(0,)]
+        assert c.execute("SELECT replay_count FROM audit.inspect_assigned_start_replay(%s)", (invalid,)).fetchall() == []
+        event = c.execute("SELECT event_id FROM operations.operation_events WHERE operation_id=%s", (invalid,)).fetchone()[0]
+        with pytest.raises(errors.CheckViolation, match="ck_outbox_assigned_route_resolved"):
+            c.execute(statement, (refs, uuid4(), org, project, event, invalid, 1))
+        c.rollback()
+    with empty_db.connect("ai_res_outbox_dispatcher") as c, pytest.raises(errors.InsufficientPrivilege):
+        c.execute("UPDATE audit.outbox_events SET dispatch_namespace='red' WHERE aggregate_id=%s", (exact,))
+
+
 def test_upgrade_is_idempotent_at_head(migrated: Pg):
     command.upgrade(alembic_config(), "head")
     with migrated.connect() as c:
         assert c.execute("SELECT count(*) FROM platform.alembic_version").fetchone() == (1,)
+
+
+@pytest.mark.parametrize(("previous", "action"), [
+    ("382befc90d62", "CHECK_TASK"),
+    ("13f3c5d9b7a2", "AUTHORIZE_RECONCILIATION_DESCRIBE"),
+    ("7dcb4f29a2e1", "AUTHORIZE_BOUND_STATUS"),
+    ("a47ca6b2015f", "AUTHORIZE_BOUND_STATUS"),
+])
+def test_native_reconciliation_upgrade_preserves_existing_audit(empty_db: Pg, upgrade, previous, action):
+    upgrade(previous)
+    with empty_db.connect("ai_res_platform_api") as connection:
+        connection.execute("""
+            INSERT INTO platform.platform_auth_events(id,correlation_id,reason,action)
+            VALUES (gen_random_uuid(),gen_random_uuid(),'AUTHORIZED',%s)
+        """, (action,))
+    upgrade()
+    with empty_db.connect() as connection:
+        assert connection.execute("SELECT reason,action FROM platform.platform_auth_events").fetchall() == [("AUTHORIZED", action)]
+        assert run_audit(connection, "grants_audit.sql") == []
 
 
 def test_downgrade_of_security_baseline_is_refused(migrated: Pg):

@@ -32,7 +32,11 @@ WORKER_RUN_EVENT_TYPES = frozenset({
     "worker_run.cancelled", "worker_run.failed", "worker_run.timed_out", "worker_run.derived"})
 # S09 write commands: the three AsyncAPI v1.6 messages of the OLDER family (`aires.<name>.v1`, channel `aires.project.events`). They carry no Operation.
 DOMAIN_EVENT_TYPES: Mapping[str, frozenset[str]] = {
-    "PROJECT": frozenset({"project.created"}), "EPIC": frozenset({"epic.created"}), "REQUIREMENT": frozenset({"requirement.version.created"})}
+    "PROJECT": frozenset({"project.created"}), "EPIC": frozenset({"epic.created"}), "REQUIREMENT": frozenset({"requirement.version.created"}),
+    "MANAGER_INTERACTION": frozenset({"manager.interaction.received", "manager.question.proposed"}),
+    "PLAN_VERSION": frozenset({"plan.version.proposed", "plan.version.approved", "plan.version.rejected"}),
+    "TASK": frozenset({"task.created"}),
+}
 DOMAIN_DESTINATION = "aires.project.events"  # AsyncAPI v1.6 channel address
 EVENT_TYPES_BY_AGGREGATE: Mapping[str, frozenset[str]] = {"OPERATION": OPERATION_EVENT_TYPES, "WORKER_RUN": WORKER_RUN_EVENT_TYPES, **DOMAIN_EVENT_TYPES}
 
@@ -40,9 +44,13 @@ ACTOR_TYPES = frozenset({"SYSTEM", "USER", "MANAGER", "WORKER", "SERVICE"})  # A
 SUPPORTED_SCHEMA_VERSIONS = frozenset({1})  # an unknown major version fails closed, never a silent downgrade
 
 SOURCES: Mapping[str, str] = {"OPERATION": "urn:aires:operations", "WORKER_RUN": "urn:aires:worker-runs", "PROJECT": "urn:aires:projects",
-                              "EPIC": "urn:aires:epics", "REQUIREMENT": "urn:aires:requirements"}  # OD-13 / ADR-084
+                              "EPIC": "urn:aires:epics", "REQUIREMENT": "urn:aires:requirements",
+                              "MANAGER_INTERACTION": "urn:aires:manager-interactions", "PLAN_VERSION": "urn:aires:plan-versions",
+                              "TASK": "urn:aires:tasks"}  # OD-13 / ADR-084
+# Event Model v1.4 §4 defines Operation/WorkerRun subjects. Domain subjects follow the same rule.
 SUBJECT_PREFIX: Mapping[str, str] = {"OPERATION": "operations", "WORKER_RUN": "worker-runs", "PROJECT": "projects", "EPIC": "epics",
-                                     "REQUIREMENT": "requirements"}  # Event Model v1.4 §4 (OPERATION, WORKER_RUN); the rest follow the same rule
+                                     "REQUIREMENT": "requirements", "MANAGER_INTERACTION": "manager-interactions",
+                                     "PLAN_VERSION": "plan-versions", "TASK": "tasks"}
 DATASCHEMA_PREFIX = "urn:aires:schemas:"  # OD-13 / ADR-084: dataschema = prefix + CloudEvents type (unique per event type and major version)
 
 

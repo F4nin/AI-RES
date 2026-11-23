@@ -25,7 +25,7 @@ REPO = BACKEND.parent
 DB = "ai_res_db"
 TEMPLATE_DB = "ai_res_db_template"  # CI-01: ai_res_db migrated once per session, cloned for every `migrated` test (ADR-118)
 LOGIN_ROLES = {
-    "ai_res_migrator": "migrator_pw", "ai_res_api": "api_pw", "ai_res_outbox_dispatcher": "outbox_pw",
+    "ai_res_migrator": "migrator_pw", "ai_res_api": "api_pw", "ai_res_platform_api": "platform_api_pw", "ai_res_outbox_dispatcher": "outbox_pw",
     "ai_res_event_consumer": "consumer_pw", "ai_res_auditor": "auditor_pw", "ai_res_backup": "backup_pw",
 }
 RUNTIME_ROLES = ("ai_res_api", "ai_res_outbox_dispatcher", "ai_res_event_consumer", "ai_res_auditor")
@@ -41,6 +41,8 @@ def _compose_postgres_image() -> str:
 class Pg:
     """Handle to the throw-away server: superuser access, per-role connections and the provisioning step."""
 
+    sslrootcert: Path | None = None
+
     def __init__(self, container: PostgresContainer, superuser_pw: str, passwords: dict[str, str]) -> None:
         self.container = container
         self.host = container.get_container_host_ip()
@@ -50,8 +52,9 @@ class Pg:
 
     def connect(self, role: str | None = None, dbname: str = DB, autocommit: bool = True) -> psycopg.Connection[Any]:
         user, pw = ("postgres", self.superuser_pw) if role is None else (role, self.passwords[role])
-        return psycopg.connect(host=self.host, port=self.port, dbname=dbname, user=user, password=pw, sslmode="disable", autocommit=autocommit,
-                               connect_timeout=10)
+        tls = {"sslmode": "verify-full", "sslrootcert": str(self.sslrootcert)} if self.sslrootcert else {"sslmode": "disable"}
+        return psycopg.connect(host=self.host, port=self.port, dbname=dbname, user=user, password=pw, autocommit=autocommit,
+                               connect_timeout=10, **tls)
 
     def provision(self) -> None:
         sets = "".join(f"\\set {var} '{self.passwords[role]}'\n" for role, var in LOGIN_ROLES.items())
@@ -204,9 +207,12 @@ class IamWorld:
         from ai_res.platform.config import load_settings
         pw = self.tmp_path / f"{role}_pw"
         pw.write_text(self.pg.passwords[role])
-        settings = load_settings({
+        env = {
             "AI_RES_ENVIRONMENT": "test", "AI_RES_DB_HOST": self.pg.host, "AI_RES_DB_PORT": str(self.pg.port), "AI_RES_DB_USER": role,
-            "AI_RES_DB_PASSWORD_FILE": str(pw), "AI_RES_DB_SSLMODE": "disable", "AI_RES_DB_APPLICATION_NAME": f"test-{role}", "AI_RES_DB_POOL_SIZE": "8"})
+            "AI_RES_DB_PASSWORD_FILE": str(pw), "AI_RES_DB_SSLMODE": "disable", "AI_RES_DB_APPLICATION_NAME": f"test-{role}", "AI_RES_DB_POOL_SIZE": "8"}
+        if self.pg.sslrootcert:
+            env.update(AI_RES_DB_SSLMODE="verify-full", AI_RES_DB_SSLROOTCERT_FILE=str(self.pg.sslrootcert))
+        settings = load_settings(env)
         eng = create_runtime_engine(settings)
         self._engines.append(eng)
         return eng

@@ -1,0 +1,133 @@
+x-status: WORKING
+x-source:
+  - AI_RES_Agent_Architecture_Concept_v4.6.md, Управление проактивностью и уведомлениями
+  - AI_RES_UX_Concept_v1.2.md §8
+  - docs/implementation/ARCHITECTURE_DECISION_LOG.md ADR-172/ADR-182
+paths:
+  /projects/{projectId}/notifications:
+    get:
+      tags: [Work]
+      operationId: listProjectNotifications
+      summary: List the current recipient's workspace notifications.
+      description: >-
+        Returns personal feed entries containing only currently accessible references.
+        Follow the opaque nextCursor when hasMore is true, including after a short or empty page.
+        Continuation indicates that the bounded scan can resume and may find additional visible references.
+        A single digest can span pages with the same delivery ID and additional items.
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Personal notifications with currently accessible references.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectNotificationPage'
+        default:
+          $ref: '#/components/responses/Problem'
+  /projects/{projectId}/notification-preferences:
+    get:
+      tags: [Work]
+      operationId: getProjectNotificationPreferences
+      summary: Read the current analyst's delivery frequency preference.
+      description: Returns the personal frequency selection and the permitted project frequencies. An absent selection leaves digest delivery pending.
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      responses:
+        '200':
+          description: The analyst's selection and the project's configured frequencies.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectNotificationPreferences'
+        default:
+          $ref: '#/components/responses/Problem'
+    put:
+      tags: [Work]
+      operationId: setProjectNotificationPreferences
+      summary: Choose one configured delivery frequency for this analyst.
+      description: Changes only the authenticated analyst's preference using the current ETag. Mandatory notifications are delivered independently of this setting.
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectNotificationPreferenceChoice'
+      responses:
+        '200':
+          description: Frequency selection and its current version.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectNotificationPreferences'
+        default:
+          $ref: '#/components/responses/Problem'
+components:
+  schemas:
+    ProjectNotificationPage:
+      type: object
+      additionalProperties: false
+      required: [data, page]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectNotification'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+    ProjectNotification:
+      type: object
+      additionalProperties: false
+      required: [id, kind, publishedAt, items]
+      properties:
+        id: {type: string, format: uuid}
+        kind: {type: string, enum: [MANDATORY, DIGEST]}
+        publishedAt: {type: string, format: date-time}
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/ProjectNotificationItem'
+    ProjectNotificationItem:
+      type: object
+      additionalProperties: false
+      required: [eventId, occurredAt, operationId, proposalVersionId]
+      properties:
+        eventId: {type: string, format: uuid}
+        occurredAt: {type: string, format: date-time}
+        operationId: {type: string, format: uuid}
+        proposalVersionId: {type: [string, 'null'], format: uuid}
+    ProjectNotificationPreferences:
+      type: object
+      additionalProperties: false
+      required: [selectedIntervalSeconds, allowedIntervalSeconds]
+      properties:
+        selectedIntervalSeconds: {type: [integer, 'null'], minimum: 1, maximum: 2147483647}
+        allowedIntervalSeconds:
+          type: array
+          uniqueItems: true
+          items: {type: integer, minimum: 1, maximum: 2147483647}
+    ProjectNotificationPreferenceChoice:
+      type: object
+      additionalProperties: false
+      required: [intervalSeconds]
+      properties:
+        intervalSeconds: {type: integer, minimum: 1, maximum: 2147483647}

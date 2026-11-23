@@ -1,0 +1,66 @@
+services:
+  postgres:
+    image: postgres:16.15-bookworm@sha256:5264710be20f409750ac6dc4e5706dcef929c87e241605463f0f9aefa932a8d9
+    pull_policy: never
+    network_mode: none
+    environment:
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres-password
+    secrets:
+      - postgres-password
+    command: ["postgres", "-c", "listen_addresses=127.0.0.1"]
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "postgres"]
+      interval: 1s
+      timeout: 2s
+      retries: 20
+
+  temporal:
+    image: ai-res/temporal-auth-poc-postgres:test
+    pull_policy: never
+    network_mode: service:postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      G02_NATIVE_POSTGRES_FIXTURE_DIR: /probe
+      LOCALHOST_IP: 127.0.0.1
+    command: ["-test.timeout=180s"]
+    user: "${G02_RESTART_UID:?}:${G02_RESTART_GID:?}"
+    volumes:
+      - ${G02_RESTART_SERVER_DIR:?}:/probe:ro
+      - ${G02_RESTART_UID_MAP:?}:/etc/passwd:ro
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs:
+      - /scratch:uid=${G02_RESTART_UID:?},gid=${G02_RESTART_GID:?},mode=0700
+
+  verifier:
+    image: ai-res/api:dev
+    pull_policy: never
+    network_mode: service:postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    user: "${G02_RESTART_UID:?}:${G02_RESTART_GID:?}"
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    volumes:
+      - ${G02_RESTART_VERIFIER_DIR:?}:/verifier:ro
+      - ./check.py:/test/check.py:ro
+      - ./postgres_probe.py:/test/postgres_probe.py:ro
+      - ./compose_restart.py:/test/compose_restart.py:ro
+    entrypoint: ["python", "-B", "/test/compose_restart.py", "--inside"]
+
+  prepare:
+    extends: verifier
+    volumes:
+      - ${G02_RESTART_SERVER_DIR:?}:/probe
+      - ${G02_RESTART_VERIFIER_DIR:?}:/verifier
+
+secrets:
+  postgres-password:
+    file: ${G02_RESTART_POSTGRES_PASSWORD_FILE:?}

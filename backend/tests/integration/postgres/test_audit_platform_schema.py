@@ -77,12 +77,14 @@ def test_audits_clean_and_tables_exist(world):
     with pg.connect() as c:
         assert run_audit(c, "rls_coverage.sql") == [] and run_audit(c, "grants_audit.sql") == [] and run_audit(c, "postflight.sql") == []
         tables = {r[0] for r in c.execute("SELECT schemaname || '.' || tablename FROM pg_tables WHERE schemaname IN ('audit','platform') AND tablename <> 'alembic_version'")}
-        assert c.execute("SELECT array_agg(code ORDER BY code) FROM audit.aggregate_types").fetchone() == (["ARTIFACT", "BASELINE", "CHANGE_REQUEST", "EPIC", "OPERATION", "PROJECT", "REQUIREMENT", "SOURCE", "WORKER_RUN"],)  # S06 (ADR-059) and S09 (ADR-079) extend the registry
+        assert c.execute("SELECT array_agg(code ORDER BY code) FROM audit.aggregate_types").fetchone() == (["ARTIFACT", "BASELINE", "CHANGE_REQUEST", "EPIC", "MANAGER_INTERACTION", "OPERATION", "PLAN_VERSION", "PROJECT", "REQUIREMENT", "SOURCE", "TASK", "WORKER_RUN"],)  # S06 (ADR-059) and S09 (ADR-079) extend the registry
     assert tables == {"audit.aggregate_types", "audit.outbox_events", "audit.inbox_messages", "audit.inbox_checkpoints", "audit.audit_events", "platform.idempotency_records", "platform.display_number_counters",
                       "platform.bootstrap_state", "platform.model_profiles", "platform.model_admission_operators", "platform.model_admission_decisions",
                       "platform.model_admission_versions", "platform.model_admission_controls", "platform.model_admission_calls",
                       "platform.model_admission_audit", "platform.llm_poc_budget_accounts", "platform.llm_poc_attempts",
-                      "platform.llm_poc_settlements", "platform.llm_poc_budget_audit"}  # G156 guard, ledger and operator: ten FORCE-RLS tables; keep a closed catalogue.
+                      "platform.llm_poc_settlements", "platform.llm_poc_budget_audit", "platform.platform_request_nonces",
+                      "platform.operation_execution_assignments", "platform.platform_auth_events", "platform.task_issuance_receipts",
+                      "platform.manager_epic_context_versions"}
 
 
 def test_cross_tenant_policies_are_an_explicit_allowlist_and_never_for_api(world):

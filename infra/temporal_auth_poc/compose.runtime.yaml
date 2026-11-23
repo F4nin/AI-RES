@@ -1,0 +1,41 @@
+# Only used by the isolated --native-runtime smoke check.
+services:
+  candidate-native:
+    image: ai-res/temporal-native:g02-local
+    environment: !reset {}
+    networks:
+      data: {aliases: [temporal-data]}
+      platform: {aliases: [temporal-platform]}
+    secrets:
+      - temporal_db_password
+      - temporal_frontend_cert
+      - temporal_frontend_key
+      - temporal_frontend_ca
+      - temporal_internode_cert
+      - temporal_internode_key
+      - temporal_internode_ca
+      - temporal_platform_ca
+      - temporal_auth_control_signing_key
+    volumes: !override
+      - "${G02_CANDIDATE_DIR:?}/native-user:/etc/passwd:ro"
+      - "${G02_CANDIDATE_DIR:?}/active-certs:/etc/temporal/active-client-certs:ro"
+  candidate-probe:
+    secrets: !reset []
+    working_dir: /app
+    volumes: !override
+      - "${G02_CANDIDATE_DIR:?}/clients:/clients:ro"
+      - "${G02_CANDIDATE_DIR:?}/active-certs:/active-certs"
+      - ./temporal_auth_poc:/repo/infra/temporal_auth_poc:ro
+    depends_on: !override
+      candidate-native: {condition: service_started}
+    command: [python, -B, /repo/infra/temporal_auth_poc/check_runtime.py]
+
+secrets:
+  temporal_frontend_cert: {file: "${G02_CANDIDATE_DIR:?}/temporal_frontend_cert"}
+  temporal_frontend_key: {file: "${G02_CANDIDATE_DIR:?}/temporal_frontend_key"}
+  temporal_frontend_ca: {file: "${G02_CANDIDATE_DIR:?}/temporal_frontend_ca"}
+  temporal_internode_cert: {file: "${G02_CANDIDATE_DIR:?}/temporal_internode_cert"}
+  temporal_internode_key: {file: "${G02_CANDIDATE_DIR:?}/temporal_internode_key"}
+  temporal_internode_ca: {file: "${G02_CANDIDATE_DIR:?}/temporal_internode_ca"}
+  temporal_platform_ca: {file: "${G02_CANDIDATE_DIR:?}/temporal_platform_ca"}
+  temporal_auth_control_signing_key: {file: "${G02_CANDIDATE_DIR:?}/temporal_auth_control_signing_key"}

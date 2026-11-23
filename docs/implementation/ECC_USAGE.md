@@ -1,5 +1,356 @@
 # ECC_USAGE — использование Everything Claude Code
 
+## G02 · подготовка к Linux CI · 2026-11-24
+
+`verification-loop` прочитан и применён как контрольный список перед
+доставкой. Проверены манифест локального Ubuntu-среза, результаты
+`make pre-pr`, текущий diff, canonical Registry и границы runtime evidence.
+Штатный допуск профиля и целевой G-107 остаются открытыми.
+Повторное независимое review этого технического среза не запускалось:
+совпавший манифест сохраняет границы ранее записанного code/security
+review. [Паспорт G02](groups/G02_WORK.md),
+[Review](reviews/G02_S17_S20_REVIEWS.md).
+
+## S20/S21 · security сборки native Temporal · 2026-11-24
+
+`g02_native_security_review` и `g02_native_code_review` независимо сверили
+применимость находок, совместимость версий и официальный Go module graph.
+`g02_native_security_review` восстановил альтернативные locks из архива,
+сверил хеши Go SumDB и потребовал доказать фактический охват бинарника
+сканером. Основной исполнитель добавил обязательную проверку инвентаризации,
+проверил отказ на исходном артефакте и пересобирает образ с обновлениями.
+[Отчёт S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+## S20/S21 · репетиция перехода и Manager · 2026-11-24
+
+`protected_wiring_plan` применил planner и Python integration testing к
+трем фазам stock/native/stock. `protected_wiring_review` независимо проверил
+изоляцию и охват. `g02_native_security_review` применил security checklist
+к полномочиям model/context и отдельно проверил границу mTLS/ar2 и v0.5.
+`proactive_delivery` реализовал раздельные seeks и измеримую проверку
+PostgreSQL. `g02_native_code_review` подтвердил их семантику и исследовал
+безопасную изоляцию общего тестового стека. Основной исполнитель применил
+`verification-loop` к build/trust, Ruff, mypy, runtime tests, secret scan
+и рабочему diff. [Ревью](reviews/G02_S17_S20_REVIEWS.md).
+
+## S20/S21 · защищённая композиция и доставка · 2026-11-23
+
+`protected_wiring_plan` применил planner к сети, секретам и последовательности
+запуска. Затем реализовал изолированный `init-g02` и проверил режимы файлов.
+`proactive_delivery` внедрил ADR-182 и применил `python-testing` к миграции и
+авторизации на PostgreSQL. Независимые read-only проверки выявили проблемы
+на границах Compose, credential recovery, объёма запросов ленты и интервала
+сводки. Исполнитель применил `verification-loop` к pinned builds, сценариям
+PostgreSQL/Temporal, secret scan и diff. Фактические результаты и открытые
+проверки ведутся в [отчёте S20](increments/S20_project_epic_intake_manager_REPORT.md).
+
+## S20/S21 · native runtime и коммуникация · 2026-11-23
+
+`verification-loop` применён как checklist Linux сборки из pinned source,
+проверок Go/Python, PostgreSQL/Temporal regression, secret scan и diff review.
+Отдельные blind-first read-only `g02_native_code_review` и
+`g02_native_security_review` проверили конфигурацию, build tags, trust/transport,
+отзыв в полёте и негативные тесты. Findings устранены и повторно проверены.
+Те же роли отдельно применили архитектурный/product анализ уведомлений и
+проверку источника доказательств v0.4. Профильное review проверило явный bind
+Platform. [Материалы review](reviews/G02_S17_S20_REVIEWS.md).
+
+## G-107 · явный reconciliation allowlist · ADR-180
+
+`python-testing` и `verification-loop` применены к форме trusted config,
+legacy compatibility и ограничению post-ACK. Проверены duplicate JSON keys,
+orthogonal allowlist/flag cases, PostgreSQL/Temporal Plan и combined native
+Manager timeout сценарий. `epic_review` и `epic_security` провели blind-first
+read-only review; после исправления трёх замечаний оба дали APPROVE.
+[Evidence](increments/S20_project_epic_intake_manager_REPORT.md).
+
+## S20 · раздельный ключ назначенной доставки · ADR-179
+
+`verification-loop` применён к конфигурационной границе и производному
+Ed25519-реестру. Изменение ограничено загрузчиком ключа и dev secret
+tooling; целевые Compose mounts пока не подключены. Blind-first code и
+security review выполнили `epic_review` и `epic_security`; после исправления
+keypair upgrade и строгого issuer allowlist оба дали APPROVE.
+
+## S20/S21 · NCP-19 и ADR-178
+
+`verification-loop` применён к SQL-модели, схеме, контрактам
+и сетевому сценарию раздельных процессов. Blind-first code и
+security review выполнены через `epic_review` и `epic_security`.
+Изменения по findings проверены отдельным повторным review.
+[Ревью](reviews/G02_S17_S20_REVIEWS.md).
+
+## S20/S21 · доставка ADR-177
+
+`verification-loop` применён к проверке транспорта, быстрому набору,
+контрактам и native Temporal. `epic_review` и `epic_security`
+выполнили независимые read-only проверки. Повторный Cancel без RPC
+и отказ дополнительных credentials покрыты тестами по findings.
+[Ревью](reviews/G02_S17_S20_REVIEWS.md).
+
+## S20/S21 · маршрут Outbox ADR-176
+
+`verification-loop` применён к миграции, schema drift, grants/RLS,
+совместимости доставки, статической проверке и native Temporal.
+`epic_review` и `epic_security` выполнили blind-first code и security
+review и подтвердили исправление карантина и replay.
+[Ревью](reviews/G02_S17_S20_REVIEWS.md).
+
+## S20 · private v5, 2026-11-21
+
+`verification-loop` применён через Ruff, mypy, import-linter, PostgreSQL
+upgrade и schema drift, contract validation и native Temporal.
+`epic_review` и `epic_security` выполнили blind-first code и security
+review и подтвердили исправления SQL-границы. [Review](reviews/G02_S17_S20_REVIEWS.md).
+
+## S20 · узкая проекция ADR-175, 2026-11-21
+
+`python-patterns` применён к общим SQL-связям двух проекций.
+`python-testing` применён к проверке неизменности и изоляции снимков
+в PostgreSQL. Независимые `epic_review` и `epic_security` выполнили
+code/Python и security review. Тест различения Operation усилен по
+finding. [Review](reviews/G02_S17_S20_REVIEWS.md).
+
+## S20/S21 · ADR-174/175, 2026-11-21
+
+Code и security review применены через `epic_review` и `epic_security`.
+Проверены активная сессия, MFA, границы RLS, audit и конкурентный replay.
+Исправлены гонка отзыва и истечение сессии при ожидании Outbox.
+`verification-loop` применён к native, миграциям, grants и policy matrix.
+[Review](reviews/G02_S17_S20_REVIEWS.md).
+
+## S20/S21 · ADR-171–173, 2026-11-21
+
+`python-testing` и `verification-loop` использованы для регрессии
+отмены до ACK, версии проекции и границ группировки. `epic_review`
+проверил Python, транзакции и интервалы, `epic_security` проверил
+границу отмены. Findings по интервалу исправлены. [Review](reviews/G02_S17_S20_REVIEWS.md).
+
+## S21 · отмена Plan Run после создания задачи · 2026-11-21
+
+`verification-loop` применён к изолированному native Compose, точному
+сигналу Outbox, подтверждению результата в PostgreSQL и replay. Проверены
+регрессии Plan и Manager HTTP. Изменение ограничено тестовым сценарием и
+доказательствами. Review механизмов доставки записано в ADR-168–170.
+[Evidence](increments/S21_plan_task_orchestration_REPORT.md).
+
+## S20/S21 · replay исчерпанного Start · 2026-11-21
+
+`verification-loop` применён к реальным PostgreSQL, Outbox и pinned
+Temporal. Новый режим меняет только test launcher и сценарий.
+Использованы существующие проверенные prepare/Start/binding/replay;
+профильные review этих путей зафиксированы в ADR-168–170.
+[Evidence](increments/S20_project_epic_intake_manager_REPORT.md).
+
+## S20/S21 · ранняя отмена и допуск Start · 2026-11-21
+
+Два read-only review применили code, PostgreSQL/concurrency и security
+компетенции. По их findings запись вынесена из native authority в
+tenant Backend, отменённый до допуска intent обрабатывается без RPC.
+`verification-loop` применён к schema drift, grants/RLS, Idempotency-Key,
+native cancel и replay. [Ревью](reviews/G02_S17_S20_REVIEWS.md).
+
+## S20/S21 · подтверждённый старт · 2026-11-21
+
+`verification-loop` применён к pinned Go, повтору Start на PostgreSQL и
+Temporal и контрактным проверкам. Code и security компетенции применены
+двумя read-only агентами. Отказ при outage исправлен, два APPROVE.
+[Ревью](reviews/G02_S17_S20_REVIEWS.md).
+
+## S20/S21 · точный Cancel и ранняя гонка · 2026-11-21
+
+Code/contract/DB и security review выполнены двумя read-only Codex-агентами.
+APPROVE относится к привязанному Run после ACK. Обнаружена блокирующая
+гонка до binding. `verification-loop` применён к Go native build, real
+PostgreSQL, schema drift, grants/RLS, contracts и replay. Claude slash
+commands не запускались. [Ревью](reviews/G02_S17_S20_REVIEWS.md).
+
+## S20/S21 · Proposal approval и START Outbox · 2026-11-21
+
+`python-testing` и `verification-loop` применены для PostgreSQL/Temporal,
+bounded ingress, прохода статических и contract checks. Codex-агенты
+`epic_review` и `epic_security` независимо применили code/Python,
+contract/coverage и security review. Найденные проблемы ограниченного
+чтения, ACL `resultRef` и описания lineage исправлены. Повторные review
+дали APPROVE в границах ADR-166/167. Claude slash commands не запускались.
+[Evidence](reviews/G02_S17_S20_REVIEWS.md).
+
+## S20/S21 · запрос проекции Epic и создание PlanVersion · 2026-11-21
+
+Чек-листы `python-patterns`, `python-testing` и `verification-loop` применены
+к типизации, красным/зелёным интеграционным тестам и контрольным прогонам.
+Два Codex-агента read-only, blind-first применили компетенции
+`code-reviewer`/`python-reviewer`/`pr-test-analyzer` и `security-reviewer`.
+По замечаниям добавлены provenance Proposal, тесты изоляции, CAS `412`,
+точные Policy-правила, повторная аутентификация после stream и audit.
+Оба повторных review команды дали APPROVE. Проверка касается среза ADR-165.
+Claude slash commands в Codex не запускались. [Review](reviews/G02_S17_S20_REVIEWS.md).
+
+## S20/S21 · пагинация native Workflow Task
+
+В проектном verification-loop использованы Go build/test, статические
+проверки и отдельный Compose-прогон. Независимые `code-reviewer` и
+`security-reviewer` сверили pinned Temporal, закрыли дефект тестовой
+настройки и подтвердили границы полномочий. Review было read-only.
+[Evidence](reviews/G02_S17_S20_REVIEWS.md).
+
+## S20 · native Manager Activity timeout после ACK
+
+`verification-loop` применён к реальному timeout, точной History и
+сверке аудита. Независимое `go-reviewer` проверило изоляцию режима,
+реальный ACK, идентификаторы события таймаута и приватность истории.
+Уточнения по assertions внесены, scope одобрен. [Review](reviews/G02_S17_S20_REVIEWS.md).
+
+## S20/S21 · защищённая доставка отказа Activity → Workflow
+
+Применены `tdd-workflow` и `verification-loop` к исчезавшему сбою Plan.
+Независимые `go-reviewer` и `security-reviewer` в read-only режиме проверили
+порядок RPC checks, совместимость закреплённого SDK, исторический receipt,
+очистку payload и границы evidence. [Review](reviews/G02_S17_S20_REVIEWS.md).
+
+## S20/S21 · сверка доменного эффекта после ACK · 2026-11-20
+
+`tdd-workflow`, `postgres-patterns` и `verification-loop` применены к
+доменным сценариям, блокировкам, аудиту и прогону real Temporal/PG. RED
+выявил отсутствие пост-ACK обработки страницы. Независимые code и
+security reviewers проверили requeue/ACK, version fencing, audit RLS и
+atomicity. [Результаты](reviews/G02_S17_S20_REVIEWS.md).
+
+## S20/S21 · наблюдение статуса активного Run · 2026-11-20
+
+`tdd-workflow`, `postgres-patterns`, `verification-loop` применены к scope
+запроса, fail-closed допуску, миграции 0048 и проверкам upgrade/drift. RED
+зафиксировал отсутствие подписанного действия, GREEN подтверждён через
+PostgreSQL. Два независимых reviewer проверили Python, Go и SQL. Найденные
+redirection/expiry cases закрыты и перепроверены.
+[Review](reviews/G02_S17_S20_REVIEWS.md).
+
+## S20/S21 · общий guard утверждения · 2026-11-20
+
+`python-testing` и `verification-loop` применены к PostgreSQL регрессиям
+авторизации, срока действия, хэша и SoD. Независимые `code-reviewer` и
+`security-reviewer` подтвердили сохранение поведения общего guard и
+отметили границы exact Policy и отсутствующего продуктового producer Plan.
+[Результаты](reviews/G02_S17_S20_REVIEWS.md).
+
+## S20 · подписанный Manager input v0.4 · 2026-11-20
+
+- Инструкции `python-patterns`, `python-testing` и `verification-loop`
+  применены к strict parser, exact Run и существующим real TLS/PG fixtures.
+- Независимые `code-reviewer` и `security-reviewer` проверили diff. LOW по
+  максимальному Unicode payload и непустому ответу закрыты расширением
+  конечного лимита и fixture-тестом. [Review](reviews/G02_S17_S20_REVIEWS.md).
+
+## G02 · S21 consumer и потерянный ответ Start · 2026-11-20
+
+- Инструкции `python-patterns`, `python-testing`, `tdd-workflow` и
+  `verification-loop` использованы для consumer, tenant, идемпотентности
+  и сбоя Start. RED подтвердил отсутствие обработчика страницы, GREEN
+  проверен на целевых сценариях PostgreSQL и Temporal.
+- Независимое code review выявило откат целой страницы при deadline и
+  недосчёт метрики. Security review выявило смешение допусков Manager/Plan
+  и отсутствующий audit подготовки. Все замечания этого среза устранены.
+  [Review](reviews/G02_S17_S20_REVIEWS.md).
+
+## S20 · сети Compose и повтор Outbox · 2026-11-20
+
+- Инструкции `go-reviewer`, `security-reviewer` и `verification-loop`
+  применены к конфигурации межсервисного транспорта, отказу отметки доставки
+  и сравнению истории Run и результатов.
+- Независимые review проверили fencing репозитория, роли DB, выбор
+  входящего интерфейса, exact-origin и границы runtime evidence.
+  Добавлен отрицательный тест origin. [Review](reviews/G02_S17_S20_REVIEWS.md).
+
+## S20 · private ar2 и PostgreSQL verify-full · 2026-11-20
+
+- Применены инструкции `go-reviewer`, `security-reviewer` и
+  `verification-loop` к Compose mounts, проверке CA/hostname, startup guard,
+  scoped DB roles и runtime evidence.
+- Независимые code и security review выявили риски UID/GID и доступа
+  native к данным тестового runner. Исправлены standalone Compose, разделение
+  контейнеров и mounts, проверка эффективной конфигурации и права UID.
+  [Review](reviews/G02_S17_S20_REVIEWS.md).
+
+## S20 · восстановление Run в тестовом Compose · 2026-11-20
+
+- Применены `go-reviewer`, `security-reviewer` и `verification-loop`
+  к закреплённой Go-сборке, сетевой изоляции, воспроизводимости
+  restore/restart и проверке доказательств.
+- Независимые code и security review проверили lifecycle, приватные файлы,
+  полномочия импорта, доступ проверяющего к ключам и точность evidence.
+  Исправления проверены повторным review. [Review](reviews/G02_S17_S20_REVIEWS.md).
+
+## S20 · PostgreSQL и internode mTLS · 2026-11-20
+
+- Локальные инструкции `go-reviewer` и `verification-loop` применены к
+  изоляции test binary, отрицательным сценариям и проверкам Go/Python/Temporal.
+- Независимое read-only code review проверило очистку fixture, запись visibility
+  и диапазон портов. Security review проверило сетевые границы, два CA и
+  обнаружило возможность DSN override. Замечания закрыты валидатором,
+  изоляцией PostgreSQL и тестами. [Review](reviews/G02_S17_S20_REVIEWS.md).
+
+## S20 · Linux-сборка native Temporal PoC · 2026-11-20
+
+- Применены `go-reviewer` и `verification-loop` для плана проверки Go build,
+  закреплённых входов, статической линковки, transport и отказов запуска.
+- Два независимых read-only review проверили build provenance, source/lock
+  hashes, UID, loopback, mTLS и диагностику. Уточнены `/scratch`, OCI metadata,
+  startup guards, offline-компиляция и `passwd/group` для CGO-free старта.
+  [Review](reviews/G02_S17_S20_REVIEWS.md).
+
+## S20 / G-107 · планировщик сверки до ACK · 2026-11-20
+
+- Применены `python-patterns`, `python-testing`, `tdd-workflow` и
+  `verification-loop` для Backend lifecycle, конфигурации и тестов. RED
+  подтвердил отсутствие scheduler, GREEN проверен на целевых тестах и быстром слое.
+- `code-reviewer` / `python-reviewer` обнаружил сброс прогресса на timeout.
+  Независимый `security-reviewer` выявил остановку scheduler при неизвестном
+  SDK status и пробел native evidence. Исправлены курсор, typed Describe и
+  ожидание завершённого span. Оба повторных review APPROVE.
+- Применены штатные pytest и `make`, без имитации Claude slash-команд.
+  [Review](reviews/G02_S17_S20_REVIEWS.md), [тесты](increments/S20_project_epic_intake_manager_REPORT.md).
+
+## S20 / G-107 · native Describe до ACK · 2026-11-20
+
+- Корневой исполнитель применил `python-patterns`, `python-testing`,
+  `tdd-workflow` и `verification-loop` для нового signed action, миграции,
+  ревизии snapshot и фактической native проверки. DB и contract RED отработали
+  по ожидаемой причине, после исправлений зелёные.
+- Независимые `code-reviewer` / `python-reviewer` и `security-reviewer` сверили
+  Go authorizer, ar2, SQL/ACL и контракт. Оба нашли пропущенный signed action
+  уровня MEDIUM. Enum и conformance тест исправлены. В тест добавлен отдельный
+  отказ после committed revocation. Открытых CRITICAL/HIGH/MEDIUM в срезе нет.
+- Использованы Go, штатные `make` и pytest. Для общей приёмки S20 сохраняется
+  полный набор ролей и gates промпта. [Review](reviews/G02_S17_S20_REVIEWS.md).
+
+## S20 / G-107 · пакетная сверка до ACK · 2026-11-20
+
+- Корневой исполнитель применил `python-patterns`, `python-testing`,
+  `tdd-workflow` и `verification-loop`. Выбор курсора проверен против поведения
+  изменяющейся выборки, тест подтвердил RED и GREEN на PostgreSQL, общий
+  быстрый слой и целевые PostgreSQL/Temporal проверки прошли.
+- Независимый агент `code-reviewer` / `python-reviewer` проверил keyset,
+  границы транзакций, CAS, поведение повтора и тесты. APPROVE, 0 findings.
+- В повторном проходе `pr-test-analyzer` проверил отдельный `QUEUED`, соседний
+  проект одной организации и интеграцию страницы с Temporal. APPROVE.
+- Независимый `security-reviewer` проверил tenant isolation, allowlist,
+  точный Run, повторный scope check, audit и обработку неопределённости.
+  APPROVE для внутреннего среза. Верхняя граница страницы относится к
+  доверенной конфигурации будущего планировщика.
+- Использованы репозиторные `make` и pytest. Claude slash-команды не
+  вызывались. Полный набор ролей S20 проверяется при общей приёмке.
+  [Review](reviews/G02_S17_S20_REVIEWS.md), [evidence](increments/S20_project_epic_intake_manager_REPORT.md).
+
+**G02 S20/S21, 2026-11-18.** ECC planner/architect подготовили порядок
+внутренних срезов, DAG и точные границы полномочий. Независимый
+code-reviewer/Python/database/test reviewer проверил записи, DDL, grants и
+негативные сценарии. Security/silent-failure reviewer проверил ar2, TLS PoC,
+seal вложений, историю Activity и отмену. Исправлены привязка к immutable event,
+сериализация исключений, контроли запросов и correlation аудита. Python/testing,
+TDD и verification применены как прочитанные инструкции к целевым тестам.
+Отдельное runtime review после соединения ещё предстоит, Claude slash
+commands не выполнялись. [Review](reviews/G02_S17_S20_REVIEWS.md)
+
 ## SLICE-01 — 2026-11-18
 
 | Роль | Фактическая работа | Результат и независимость |
@@ -297,3 +648,54 @@ context-update steering no furtherfix/newworkstarted. Root preservedidentical14h
 inlocalWIPcommit3733825, nointegration/publication. Thisis NOTindependentreview or
 VERIFIED. Firstcontinuation mustfixfinding+regression thenuseindependentgeneral/
 securityreview. Roottechnical38CI+922.37shealth evidence doesnotcoverthisdraft.
+
+## G02 / S17–S20 · 2026-11-18
+
+- planner: отдельное read-only планирование S17, каталог, точные grants,
+  уровень интеграции и тесты, затем источники и порядок PoC Temporal.
+- architect: отдельная проверка границы ADR-129 и необходимости owner decision
+  для role map/internal contract, определение независимой проекции S20.
+- code-reviewer, python-reviewer, database-reviewer, pr-test-analyzer:
+  независимое read-only review миграции, lock order, реального PostgreSQL,
+  вызовов и идемпотентности. После исправлений срез S17 и проекция S20 APPROVE.
+- security-reviewer, silent-failure-hunter: независимое review per-call
+  authorization, MCP/scopes, errors и audit. Повторное APPROVE среза S17.
+  Отдельный просмотр ar2/DOC-084 и изоляции PoC дал конкретные корректировки.
+- tdd-guide: отдельный исполнитель контрактных тестов DOC-084, 7 PASS.
+  Корневой исполнитель применил Python patterns/testing, проверку типизированных
+  ошибок и verification-loop к локальным conformance и PostgreSQL тестам.
+  Claude slash commands не запускались, использованы `make` и locked pytest.
+
+## G02 / S20–S21 · 2026-11-19
+
+- Architect проверил Process/UX/Manager Concept и закрытую схему DOC-085 v0.3.
+  Различены серверный журнал, обязательная проактивная выдача и передача
+  предыдущих ответов для reasoning. Отдельное изменение контракта в NCP-14
+  ожидает владельца.
+- Planner прочитал Makefile, Compose runtime fixtures и PoC checks. Полный
+  pre-pr использует общий project, порт, подсети и образы, поэтому нужен
+  изолированный Docker daemon с локальным loopback.
+- Security reviewer двумя read-only проходами проверил native Task issuance,
+  смешение scope, SDK metadata и наблюдение terminal. Подмена scope закрыта
+  сверкой digest, статус — проверкой текущего доменного исхода. Poll и вложенные
+  protobuf fields получили allowlists и отрицательные тесты, совместный native
+  прогон exit 0. Финальный security review всего диффа остаётся в DoD.
+- Code reviewer подтвердил необходимость отделить `201` решения человека от
+  подготовки длительной Operation и обнаружил отказ при повторе после новой
+  PlanVersion. Отдельный обработчик события и replay существующей связи прошли
+  4 проверками PostgreSQL/Temporal с exit 0.
+
+
+## S20 · продолжение 2026-11-19
+
+- `tdd-workflow`, `python-testing` использованы как локальные чеклисты для
+  PostgreSQL, схем и Temporal. Отдельно воспроизведён вызов после отмены до
+  повторной проверки и подтверждён исправленный case.
+- `verification-loop` использован как чеклист статических, целевых и
+  контрактных проверок, проверки diff и сканера. Целевые Compose и CI gates
+  ожидают общего результата G02 и изолированного runtime.
+- Отдельные read-only агенты `g02_local_review` (code-reviewer, python-reviewer)
+  и `g02_security_review` (security-reviewer) проверили локальный срез blind-first
+  и перепроверили исправления. Итог 0 CRITICAL/HIGH локального scope.
+  [Review](reviews/G02_S17_S20_REVIEWS.md). Профильное review развёрнутого
+  стека остаётся частью общей приёмки. Claude slash commands не запускались.

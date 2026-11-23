@@ -13,12 +13,13 @@ from temporalio.common import RetryPolicy
 from temporalio.exceptions import ActivityError, ApplicationError
 from temporalio.worker import Replayer, Worker
 
-from ai_res.orchestration.activities import ACK_ACTIVITY, WORKER_RUN_ACTIVITY
-from ai_res.orchestration.client import CancelOutcome, OperationCanceller, OperationStarter, StartOutcome
-from ai_res.orchestration.contracts import MANAGER_TASK_QUEUE, WORKER_TASK_QUEUE, OperationWorkflowInput, OperationWorkflowResult, workflow_id_for
-from ai_res.orchestration.workers import manager_worker, worker_runtime_worker
-from ai_res.orchestration.workflows import OperationWorkflow
-from tests.integration.temporal.fakes import FakePlatform
+with workflow.unsafe.imports_passed_through():
+    from ai_res.orchestration.activities import ACK_ACTIVITY, WORKER_RUN_ACTIVITY
+    from ai_res.orchestration.client import CancelOutcome, OperationCanceller, OperationStarter, StartOutcome
+    from ai_res.orchestration.contracts import MANAGER_TASK_QUEUE, WORKER_TASK_QUEUE, OperationWorkflowInput, OperationWorkflowResult, workflow_id_for
+    from ai_res.orchestration.workers import manager_worker, worker_runtime_worker
+    from ai_res.orchestration.workflows import OperationWorkflow
+    from tests.integration.temporal.fakes import FakePlatform
 
 pytestmark = pytest.mark.temporal
 FIXTURES = Path(__file__).parent / "histories"

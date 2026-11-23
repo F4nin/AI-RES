@@ -1,0 +1,115 @@
+openapi: 3.1.0
+info:
+  title: AI RES internal adaptive Manager intake
+  version: 0.4.0
+  description: >
+    Additive private response for a running Manager intake. The existing v0.3
+    message, draft and plan commands and v0.2 Operation control retain their paths.
+x-status: BASELINED
+x-source: Owner-approved NCP-14 adaptive intake scope and ADR-129.
+security:
+  - platformAr2: []
+paths:
+  /internal/v4/operations/{operationId}/manager-input:
+    parameters:
+      - name: operationId
+        in: path
+        required: true
+        schema: {type: string, format: uuid}
+    post:
+      operationId: readAssignedAdaptiveManagerInput
+      summary: Read the assigned message and bounded question context.
+      description: >
+        The backend resolves the exact active assignment, tenant and Epic.
+        It applies current policy, ACL and data classification before including
+        prior question data. History comes from recorded question transitions.
+        The active question, if eligible, is included before resolved questions
+        ordered newest first. Excluded records never appear in placeholders
+        or counts. Only the private Activity receives the payload. The Manager
+        treats it as evidence in the reasoning step and can only propose a draft.
+      x-caller: MANAGER_RUNTIME
+      x-action: manager.read_input
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExecutionRequest'
+      responses:
+        '200':
+          description: Governed intake input for the exact assigned execution.
+          headers:
+            Cache-Control:
+              required: true
+              schema: {const: no-store}
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdaptiveManagerInput'
+        '401': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+        '413': {$ref: '#/components/responses/Problem'}
+        '422': {$ref: '#/components/responses/Problem'}
+        '503': {$ref: '#/components/responses/Problem'}
+components:
+  securitySchemes:
+    platformAr2:
+      type: http
+      scheme: bearer
+      bearerFormat: ar2
+      description: >
+        Uses the v0.2 ar2 signature, binding, nonce and expiry rules. The
+        signature binds the exact v4 path, action and raw body digest.
+  responses:
+    Problem:
+      description: RFC 9457 problem with a safe machine code.
+      content:
+        application/problem+json:
+          schema: {type: object}
+  schemas:
+    ExecutionRequest:
+      type: object
+      additionalProperties: false
+      required: [workflowId, workflowRunId]
+      properties:
+        workflowId: {type: string, minLength: 1}
+        workflowRunId: {type: string, format: uuid}
+    AdaptiveManagerInput:
+      type: object
+      additionalProperties: false
+      required: [operationId, message, recentQuestions, historyTruncated]
+      properties:
+        operationId: {type: string, format: uuid}
+        message: {type: string, minLength: 1, maxLength: 20000}
+        recentQuestions:
+          type: array
+          maxItems: 8
+          uniqueItems: true
+          description: Each questionId occurs at most once.
+          items: {$ref: '#/components/schemas/QuestionContext'}
+        historyTruncated:
+          type: boolean
+          description: Whether the response bound omitted eligible question entries.
+    QuestionContext:
+      type: object
+      additionalProperties: false
+      required: [questionId, topic, disposition, answer]
+      properties:
+        questionId: {type: string, format: uuid}
+        topic: {type: string, minLength: 1, maxLength: 128}
+        disposition: {enum: [OPEN, ANSWERED, UNKNOWN]}
+        answer:
+          type: [string, 'null']
+          minLength: 1
+          maxLength: 20000
+          description: >
+            Eligible recorded human answer. Null for OPEN, UNKNOWN, or when
+            answer content has no separate authorization and classification.
+      if:
+        properties:
+          disposition: {enum: [OPEN, UNKNOWN]}
+      then:
+        properties:
+          answer: {type: 'null'}

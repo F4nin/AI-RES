@@ -2,10 +2,11 @@
 skip is NOT evidence (the report must show them executed)."""
 import json
 import os
+from pathlib import Path
 
 import pytest
 
-from tests.runtime.helpers import LONG_RUNNING, SECRETS, compose
+from tests.runtime.helpers import INFRA, LONG_RUNNING, SECRETS, compose, sh
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -23,9 +24,19 @@ def stack_up():
     if res.returncode != 0:
         stop(f"`docker compose ps` failed: {res.stderr.strip()[:200]}")
     rows = [json.loads(line) for line in res.stdout.splitlines() if line.strip()]
-    running = {r["Service"] for r in rows if r.get("State") == "running"}
-    if not set(LONG_RUNNING) <= running:
-        stop(f"Compose stack is not up (missing: {sorted(set(LONG_RUNNING) - running)}); run `make up`")
+    running = {r["Service"]: r["ID"] for r in rows if r.get("State") == "running"}
+    if not set(LONG_RUNNING) <= running.keys():
+        stop(f"Compose stack is not up (missing: {sorted(set(LONG_RUNNING) - running.keys())}); run `make up`")
+
+    # Runtime cases can stop and recreate services. A shared project name is not proof of checkout ownership.
+    owners = sh([
+        "docker", "inspect", "--format", '{{index .Config.Labels "com.docker.compose.project.working_dir"}}',
+        *(running[service] for service in LONG_RUNNING),
+    ])
+    paths = owners.stdout.splitlines()
+    if owners.returncode != 0 or len(paths) != len(LONG_RUNNING) or any(Path(path).resolve() != INFRA for path in paths):
+        stop("Running Compose project belongs to a different checkout.")
+
 
 
 @pytest.fixture(scope="session")

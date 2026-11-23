@@ -15,6 +15,13 @@ SUPPORTED_CONTRACT_MAJORS = frozenset({1})
 MANAGER_TASK_QUEUE = "ai-res-manager"
 WORKER_TASK_QUEUE = "ai-res-workers"
 OPERATION_WORKFLOW_TYPE = "OperationWorkflow"
+MANAGER_INTAKE_WORKFLOW = "ManagerIntakeWorkflow"
+PLAN_EXECUTION_WORKFLOW = "PlanExecutionWorkflow"
+ASSIGNED_WORKFLOW_TYPES = {
+    "MANAGER_MESSAGE": MANAGER_INTAKE_WORKFLOW,
+    "PLAN_EXECUTION": PLAN_EXECUTION_WORKFLOW,
+}
+EXECUTION_ASSIGNMENT_REF = "OPERATION_EXECUTION_ASSIGNMENT"
 MAX_REF_LEN = 64  # ids and codes only: a longer value is not a reference
 SKELETON_FAILURE_CODE = "ORCHESTRATION_NOT_IMPLEMENTED"
 
@@ -77,6 +84,20 @@ class OperationWorkflowInput:
         return cls(CONTRACT_VERSION, OperationRef(str(operation_id), str(organization_id), str(project_id)), str(correlation_id))
 
 
+@dataclass(frozen=True, slots=True)
+class AssignedWorkflowInput:
+    contract_version: int
+    operation: OperationRef
+    assignment_id: str
+
+    def __post_init__(self) -> None:
+        if type(self.contract_version) is not int or self.contract_version not in SUPPORTED_CONTRACT_MAJORS:
+            raise ContractError("unsupported assigned workflow contract major version")
+        if not isinstance(self.operation, OperationRef):
+            raise ContractError("operation must be an OperationRef")
+        _uuid_text("assignment_id", self.assignment_id)
+
+
 @dataclass(frozen=True)
 class OperationState:
     """What an Activity returns about the domain Operation: its status only (the domain row stays in PostgreSQL)."""
@@ -130,3 +151,10 @@ START_DESTINATION = "orchestration.operation-start"
 # Outbox destination of the cancellation command (S12): the Workflow gets a signal; the domain decides CANCELLED only after reconciliation (Decision v1.6 §2.4).
 CANCEL_DESTINATION = "orchestration.operation-cancel"
 CANCEL_SIGNAL = "request_cancel"
+
+
+@dataclass(frozen=True, slots=True)
+class AssignedCancellation:
+    operation: OperationRef
+    assignment_id: UUID
+    workflow_run_id: UUID

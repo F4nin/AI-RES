@@ -21,7 +21,7 @@ Alembic environment со schema allowlist, отдельный migration job, PDB
 ## 3. Нормативные источники (обязательно прочитать перед планом)
 
 - `docs/architecture/AI_RES_Persistence_Implementation_Blueprint_v1.0.md` — §2, §3, §4 Alembic configuration contract, §5 (PDB-0001), §7, §8, §9, §10, §14
-- `docs/architecture/AI_RES_PostgreSQL_Migration_and_Access_Strategy_v1.1.md` — §1, §2 Ролевая модель, §3, §4, §6
+- `docs/architecture/AI_RES_PostgreSQL_Migration_and_Access_Strategy_v1.7.md` — §1, §2 Ролевая модель, §3, §4, §6
 - `docs/architecture/AI_RES_PostgreSQL_Roles_RLS_v1.0.sql` — весь файл (адаптировать)
 - `docs/architecture/AI_RES_PostgreSQL_Physical_Model_and_Transactions_v1.2.md` — §3, §10
 - `docs/architecture/AI_RES_Identity_Access_Control_v1.5.md` — Дополнение 1.2, v1.3
