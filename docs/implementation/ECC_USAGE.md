@@ -1,5 +1,13 @@
 # ECC_USAGE — использование Everything Claude Code
 
+## G02 · регрессия проверки cutover
+
+`verification-loop` применён к точному Git diff, локальному cutover и
+проверкам CI. Отдельный read-only reviewer применил инструкции `code-reviewer`
+и `security-reviewer` к отрицательной проверке plaintext и положительной
+проверке mTLS, проверил подключение сценария в Compose и CI.
+Результат APPROVE, 0 замечаний. [Evidence](groups/G02_WORK.md#регрессия-проверки-plaintext-при-cutover).
+
 ## G02 · техническое закрытие · 2026-11-24
 
 Контрольный список `verification-loop` применён к Linux CI точного SHA,
