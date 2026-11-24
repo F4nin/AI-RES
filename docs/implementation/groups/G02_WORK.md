@@ -1,5 +1,32 @@
 # G02 — Инструменты и планирование Manager
 
+## Регрессия проверки plaintext при cutover
+
+После PR #36 проверка `compose_cutover` завершилась с кодом 1 на merge
+`ae8da4e`. При отказе в plaintext-подключении SDK вернул `Cancelled`
+и `connection closed` вместо строки `transport error`, которую требовал
+тест. То же падение было в CI ветки, а CI PR прошёл весь cutover на
+идентичном Git-дереве. [Лог после merge](https://github.com/F4nin/AI-RES/actions/runs/45291768134) ·
+[Лог ветки](https://github.com/F4nin/AI-RES/actions/runs/45288176267) ·
+[Лог PR](https://github.com/F4nin/AI-RES/actions/runs/45288225047).
+
+Проверка отправляет HTTP/2 preface по TCP и требует закрытия соединения.
+Ответ и таймаут проваливают тест. После отказа новое mTLS-соединение
+подтверждает доступ оператора к тому же namespace. Изменение ограничено
+тестом и evidence G02. База `d8ef56d`, Git blob проверенного теста
+`e85015538caf23035167286b1b3690177368f3db`.
+
+На Darwin arm64, Python 3.13.5, Docker Engine 29.2.0 / Compose 5.0.2
+`backend/.venv/bin/python -B -m infra.temporal_auth_poc.compose_cutover`
+с OpenSSL 3 в `PATH` завершился с кодом 0, все три фазы прошли.
+Тот же сценарий прошёл все три фазы в Ubuntu 24.04 arm64 VM с Python
+3.13.5, Docker Engine 29.1.3 и Compose 2.40.3.
+`make pre-push-fast` завершился с кодом 0, 1984 passed, 3 warnings.
+Loopback-проверки закрытия и ответа прошли, Ruff для изменённого файла
+и `git diff --check` вернули код 0. Secret scan нашёл 0 совпадений.
+Независимое code/security review завершилось без замечаний.
+[CI ветки исправления](https://github.com/F4nin/AI-RES/actions/workflows/ci.yml?query=branch%3Afix%2Fg02-cutover-plaintext-check).
+
 ## Техническое закрытие · PR #36 · 2026-11-24
 
 **G02 DONE.** S17, S20 и S21 имеют статус **VERIFIED / DONE** в

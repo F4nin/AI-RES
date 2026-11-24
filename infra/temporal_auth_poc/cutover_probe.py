@@ -3,6 +3,7 @@
 import asyncio
 import hashlib
 import json
+import socket
 import sys
 from dataclasses import asdict, dataclass
 from datetime import timedelta
@@ -204,17 +205,22 @@ async def denied(call, *expected: RPCStatusCode, message: str | None = None) -> 
         raise AssertionError("protected Temporal admitted unsupported legacy access")
 
 
+def assert_plaintext_rejected() -> None:
+    with socket.create_connection((NATIVE_HOST, 7233), timeout=5) as connection:
+        try:
+            # HTTP/2 client connection preface followed by an empty SETTINGS frame.
+            connection.sendall(b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n" + b"\x00\x00\x00\x04\x00\x00\x00\x00\x00")
+            response = connection.recv(1)
+        except ConnectionResetError:
+            return
+        assert not response, "protected Temporal responded to plaintext HTTP/2"
+
+
 async def native(manifest: dict) -> None:
     operator = await temporal("operator")
     assert await namespace(operator) == manifest["namespace"]
-    async with asyncio.timeout(5):
-        try:
-            await Client.connect(f"{NATIVE_HOST}:7233", namespace=NAMESPACE)
-        except RuntimeError as error:
-            # SDK 1.36 rejects a transport failure during its initial GetSystemInfo, before any RPC response.
-            assert str(error).startswith("Failed client connect:") and "transport error" in str(error)
-        else:
-            raise AssertionError("protected Temporal accepted a plaintext client")
+    await asyncio.to_thread(assert_plaintext_rejected)
+    assert await namespace(await temporal("operator")) == manifest["namespace"]
 
     dispatcher = await temporal("dispatcher", identity="ai-res-outbox-dispatcher")
     await denied(OperationStarter(dispatcher).start(operation()), RPCStatusCode.PERMISSION_DENIED)
