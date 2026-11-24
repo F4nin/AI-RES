@@ -28,7 +28,7 @@ RUN set -eux; \
     retry go build -ldflags "-s -w" -o /out/mc .; \
     test -x /out/minio && test -x /out/mc
 
-FROM debian:bookworm-slim@sha256:734a72b3d6142a71993b4bc580ca01d8ca687f77a2c422d96a961d3376b179bc AS base
+FROM debian:bookworm-slim@sha256:e67eeead736ff7bbe258ef088bff683635c561b1fcfefad0806c1df4ab49ce0e AS base
 RUN groupadd --gid 10002 minio && useradd --uid 10002 --gid 10002 --no-create-home --shell /usr/sbin/nologin minio
 
 FROM base AS minio
